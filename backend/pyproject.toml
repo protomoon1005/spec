@@ -1,0 +1,6 @@
+[project]
+name = "spec-backend"
+version = "0.1.0"
+description = "TODO(3단계 이후): FastAPI + Celery 의존성 채움"
+requires-python = ">=3.11"
+dependencies = []
