@@ -60,7 +60,7 @@ def _insert_feature(engine, ticker: str, as_of: date, features: dict) -> None:
                 "ticker": ticker,
                 "as_of": as_of,
                 "fsv": FEATURE_SET_VERSION,
-                "features": '{"marker": "%s"}' % features["marker"],
+                "features": '{{"marker": "{}"}}'.format(features["marker"]),
             },
         )
 

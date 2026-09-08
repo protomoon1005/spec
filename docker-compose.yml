@@ -118,11 +118,19 @@ services:
       - .env
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      # /health 페이지는 서버 컴포넌트에서 API를 호출한다 — 컨테이너 네트워크
+      # 안이라 localhost가 아니라 서비스명(api)으로 붙어야 한다.
+      API_INTERNAL_BASE_URL: http://api:8000
     ports:
       - "${FRONTEND_PORT}:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       api:
         condition: service_healthy

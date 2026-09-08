@@ -1,0 +1,306 @@
+{
+  "$defs": {
+    "ConstraintSpec": {
+      "additionalProperties": false,
+      "description": "STRATEGY_SPECS.constraint_user JSONB — 사용자 제약 (기획서 3.2 확정본).\n\n다섯 필드 모두 사용자가 요청한 값이다. 이름이 같은 HARDCAP_VERSIONS 컬럼\n(max_weight_per_asset · max_loss_per_trade · max_drawdown)은 별개의\n시스템 상한이며, 이 값을 그대로 쓰는 게 아니라 Validator 4계층이 이 값을\n하드캡으로 클램프한다 — 이 스키마는 그 클램프 이전의 요청값만 담는다.",
+      "properties": {
+        "max_weight_per_asset": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Weight Per Asset",
+          "type": "number"
+        },
+        "min_weight_per_asset": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Weight Per Asset",
+          "type": "number"
+        },
+        "cash_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Cash Min",
+          "type": "number"
+        },
+        "max_loss_per_trade": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Loss Per Trade",
+          "type": "number"
+        },
+        "max_drawdown": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Drawdown",
+          "type": "number"
+        }
+      },
+      "required": [
+        "max_weight_per_asset",
+        "min_weight_per_asset",
+        "cash_min",
+        "max_loss_per_trade",
+        "max_drawdown"
+      ],
+      "title": "ConstraintSpec",
+      "type": "object"
+    },
+    "MarketAnalysisRule": {
+      "additionalProperties": false,
+      "description": "signal_rules.market_analysis (기획서 3.2). 허용 지표명 집합은 BBL 확정 후\nM1이 채운다.",
+      "properties": {
+        "indicators": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Indicators",
+          "type": "array"
+        }
+      },
+      "title": "MarketAnalysisRule",
+      "type": "object"
+    },
+    "MarketTemperatureRule": {
+      "additionalProperties": false,
+      "description": "signal_rules.market_temperature (기획서 3.2).\n\ntrend_index/volatility_index는 REGIME_SNAPSHOTS.trend_index(docs/db-erd.md\n4.2, VARCHAR)와 같은 성격의 지표 식별 코드로 보고 문자열로 잡았다 — 수치가\n아니라 \"어떤 지표를 쓸지\"를 가리키는 값이다. 어떤 코드가 허용되는지는 BBL\n확정 후 M1이 채운다. trend_ma_window(이동평균 윈도우 크기)만 순수 정수라\nTODO를 달지 않았다.",
+      "properties": {
+        "trend_index": {
+          "minLength": 1,
+          "title": "Trend Index",
+          "type": "string"
+        },
+        "trend_ma_window": {
+          "minimum": 1,
+          "title": "Trend Ma Window",
+          "type": "integer"
+        },
+        "volatility_index": {
+          "minLength": 1,
+          "title": "Volatility Index",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trend_index",
+        "trend_ma_window",
+        "volatility_index"
+      ],
+      "title": "MarketTemperatureRule",
+      "type": "object"
+    },
+    "RebalanceRule": {
+      "additionalProperties": false,
+      "description": "STRATEGY_SPECS.rebalance JSONB (docs/db-erd.md 4.1, 기획서 3.2).\n\nmin_interval_days는 사용자가 요청한 리밸런싱 주기다. HARDCAP_VERSIONS.\nmin_interval_days(시스템 하드캡, 이 스키마엔 자리가 없다)는 이 값의 하한으로\nValidator 4계층이 클램프한다 — SPEC_UNIVERSE의 weight_min/max가 허용범위\n프리셋으로 클램프되는 것과 같은 패턴이다.",
+      "properties": {
+        "trigger": {
+          "$ref": "#/$defs/TriggerSpec"
+        },
+        "min_interval_days": {
+          "minimum": 0,
+          "title": "Min Interval Days",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "trigger",
+        "min_interval_days"
+      ],
+      "title": "RebalanceRule",
+      "type": "object"
+    },
+    "SentimentRule": {
+      "additionalProperties": false,
+      "description": "signal_rules.sentiment (기획서 3.2). 허용 섹터명 집합은 BBL 확정 후\nM1이 채운다.",
+      "properties": {
+        "target_sectors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Sectors",
+          "type": "array"
+        },
+        "lookback_hours": {
+          "minimum": 0,
+          "title": "Lookback Hours",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lookback_hours"
+      ],
+      "title": "SentimentRule",
+      "type": "object"
+    },
+    "SignalRules": {
+      "additionalProperties": false,
+      "description": "STRATEGY_SPECS.signal_rules JSONB — 3관점 판단 기준 (기획서 3.2).\n\n세 관점 모두 내부 구조는 고정하되, 블록 자체는 여전히 선택적(None 허용)\n이다 — 그래프 상위 CLAUDE.md가 감성·시장온도 관점을 \"선택 범위\"로 명시하고\n있어(P3 필수 범위는 시장분석뿐), 이 Spec 하나가 세 관점을 전부 채워야\n한다고 강제하지 않는다. 하위 값 집합(지표명/섹터명/지표 코드)은 BBL 확정\n후 M1이 채운다 — 위 세 서브모델의 TODO 주석 참조.",
+      "properties": {
+        "market_analysis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketAnalysisRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sentiment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SentimentRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "market_temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketTemperatureRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SignalRules",
+      "type": "object"
+    },
+    "TriggerSpec": {
+      "additionalProperties": false,
+      "description": "리밸런싱 발동 조건 (기획서 3.2 확정본).\n\ntype/freq/day 각각의 허용값 집합(예: type이 \"calendar\"/\"threshold\"/\n\"signal\" 중 무엇을 가질 수 있는지)은 BBL(Building Block Library) 확정 후\nM1이 채운다. 지금은 이름과 스칼라 타입만 고정한다 — day는 freq에 따라\n의미가 갈릴 수 있어(예: 월간이면 일자, 주간이면 요일) 강제로 값을 요구하지\n않는다.",
+      "properties": {
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        },
+        "freq": {
+          "minLength": 1,
+          "title": "Freq",
+          "type": "string"
+        },
+        "day": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Day"
+        }
+      },
+      "required": [
+        "type",
+        "freq"
+      ],
+      "title": "TriggerSpec",
+      "type": "object"
+    },
+    "UniverseItem": {
+      "additionalProperties": false,
+      "description": "SPEC_UNIVERSE 한 행에 대응하는 LLM 원출력 단위.\n\n여기 담기는 weight_min/weight_max는 LLM이 낸 원출력이다. 검증 단계(Validator,\n이번 범위 밖)를 거치면 DB의 spec_universe.weight_min_raw/weight_max_raw로\n보존되고, 허용범위 프리셋으로 보정된 값이 weight_min/weight_max에 확정된다.",
+      "properties": {
+        "ticker": {
+          "description": "etf_master.ticker FK",
+          "minLength": 1,
+          "title": "Ticker",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "weight_min": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Weight Min",
+          "type": "number"
+        },
+        "weight_max": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Weight Max",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ticker",
+        "name",
+        "weight_min",
+        "weight_max"
+      ],
+      "title": "UniverseItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Strategy Spec JSON 스키마 v0.1 (LLM structured outputs 대상).",
+  "properties": {
+    "spec_id": {
+      "minLength": 1,
+      "title": "Spec Id",
+      "type": "string"
+    },
+    "spec_version": {
+      "minLength": 1,
+      "title": "Spec Version",
+      "type": "string"
+    },
+    "user_id": {
+      "title": "User Id",
+      "type": "integer"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "universe": {
+      "items": {
+        "$ref": "#/$defs/UniverseItem"
+      },
+      "minItems": 1,
+      "title": "Universe",
+      "type": "array"
+    },
+    "rebalance": {
+      "$ref": "#/$defs/RebalanceRule"
+    },
+    "signal_rules": {
+      "$ref": "#/$defs/SignalRules"
+    },
+    "constraint": {
+      "$ref": "#/$defs/ConstraintSpec"
+    }
+  },
+  "required": [
+    "spec_id",
+    "spec_version",
+    "user_id",
+    "name",
+    "created_at",
+    "universe",
+    "rebalance",
+    "signal_rules",
+    "constraint"
+  ],
+  "title": "SpecV0_1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

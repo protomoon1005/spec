@@ -1,0 +1,76 @@
+name: CI
+
+# ubuntu-latest 러너에서 돈다 — bash 전용 스텝을 써도 된다(로컬 PowerShell
+# 제약은 tasks.ps1에만 적용된다, spec/CLAUDE.md 참고).
+#
+# docs/infra-spec.md 10단계 수용 기준: "lint(ruff) + 마이그레이션 왕복 + smoke
+# test가 PR에서 돈다"를 그대로 구현한다. check_asof_guard.py와 pytest는 그
+# smoke test 흐름 안에서 각각 별도 스텝으로 명시적으로 돈다.
+#
+# 이 러너에는 GPU도 Ollama/vLLM도 없다 — smoke_test.py의 GPU/CPU 프로필
+# 항목은 코드 자체가 항상 SKIP이고, LLM 백엔드 헬스체크는
+# SMOKE_REQUIRE_LLM_HEALTHY=false로 판정에서만 뺀다(DB/Redis/MinIO는 그대로
+# 필수). M1의 LLM 실측은 로컬(Ollama)/GPU 팀원(vLLM) 몫이다.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
+  REDIS_URL: redis://localhost:6379/0
+  SMOKE_REQUIRE_LLM_HEALTHY: "false"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 백엔드 의존성 설치
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: ruff
+        working-directory: backend
+        run: ruff check .
+
+      - name: .env 준비
+        run: cp .env.example .env
+
+      - name: 전 스택 기동 (gpu/cpu 프로필 없이 — vllm/ollama 컨테이너는 안 올린다)
+        run: docker compose up -d --wait postgres redis minio api worker frontend prometheus grafana
+
+      - name: Alembic 마이그레이션 적용 (메인 spec DB)
+        run: alembic -c alembic.ini upgrade head
+
+      - name: 시드 적재 (db/seeds/*.sql)
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y --no-install-recommends postgresql-client
+          for f in db/seeds/*.sql; do
+            echo "seeding $f"
+            PGPASSWORD=spec_dev_password psql -h localhost -U spec -d spec -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: check_asof_guard.py
+        run: python scripts/check_asof_guard.py
+
+      - name: pytest (requires_ollama 제외)
+        working-directory: backend
+        run: pytest -m "not requires_ollama" -q
+
+      - name: smoke_test.py
+        run: python scripts/smoke_test.py
+
+      - name: 컨테이너 로그 (실패 시 진단용)
+        if: failure()
+        run: docker compose logs --tail 200
+
+      - name: 정리
+        if: always()
+        run: docker compose down -v
