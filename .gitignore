@@ -11,6 +11,8 @@ __pycache__/
 # Node / Next.js
 node_modules/
 .next/
+*.tsbuildinfo
+next-env.d.ts
 frontend/dist/
 
 # Docker 볼륨 로컬 마운트 잔여물
