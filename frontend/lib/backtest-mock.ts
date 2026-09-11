@@ -101,6 +101,7 @@ export type Metrics = {
   vol: number;
   sharpe: number;
   sortino: number;
+  downside: number; // 하방편차(연환산) — 소르티노의 분모
   mdd: number;
   calmar: number;
   final: number;
@@ -139,6 +140,7 @@ export function computeMetrics(values: number[]): Metrics {
     vol,
     sharpe: vol === 0 ? 0 : (cagr - RF) / vol,
     sortino: down === 0 ? 0 : (cagr - RF) / down,
+    downside: down,
     mdd,
     calmar: mdd === 0 ? 0 : cagr / Math.abs(mdd),
     final: last,
@@ -573,6 +575,79 @@ export const constraintResolved: ClampRow[] = [
   { field: "max_drawdown", requested: spec.constraint.max_drawdown, hardcap: HARDCAP.maxDrawdown, resolved: Math.min(spec.constraint.max_drawdown, HARDCAP.maxDrawdown), clamped: spec.constraint.max_drawdown > HARDCAP.maxDrawdown },
   { field: "min_interval_days", requested: spec.rebalance.min_interval_days, hardcap: HARDCAP.minIntervalDays, resolved: Math.max(spec.rebalance.min_interval_days, HARDCAP.minIntervalDays), clamped: spec.rebalance.min_interval_days < HARDCAP.minIntervalDays },
 ];
+
+// --- 지표 해설 ---------------------------------------------------------------
+// 숫자만 보여주면 일반투자자는 0.45 가 좋은 건지 나쁜 건지 알 수 없다.
+// 정의 · 실제 값을 넣은 계산식 · 읽는 법을 같이 준다.
+//
+// 판정 문구는 하드코딩하지 않고 실제 값에서 만든다. 수치가 바뀌면 문장도
+// 따라 바뀌어야 하는데, 고정 문장을 두면 조용히 어긋난다.
+
+export type MetricGuide = {
+  id: string;
+  title: string;
+  english: string;
+  summary: string;
+  formula: string;
+  reading: string;
+  caveat: string;
+};
+
+const p1 = (n: number) => `${(n * 100).toFixed(2)}%`;
+const n2 = (n: number) => n.toFixed(2); // 포맷터 섹션이 아래에 있어 num 을 아직 못 쓴다
+
+const sharpeBand =
+  strategy.sharpe >= 1
+    ? "통상 1 이상을 양호하다고 보는데, 이 전략은 그 기준을 넘습니다."
+    : strategy.sharpe >= 0.5
+      ? "통상 1 이상을 양호하다고 보므로, 이 전략은 보통 수준입니다."
+      : "통상 1 이상을 양호하다고 보므로, 이 전략은 변동성에 비해 초과수익이 크지 않은 편입니다.";
+
+const sortinoRatio = strategy.sharpe === 0 ? 0 : strategy.sortino / strategy.sharpe;
+const sortinoBand =
+  sortinoRatio >= 1.3
+    ? `샤프지수의 ${sortinoRatio.toFixed(1)}배입니다. 흔들림이 주로 오르는 쪽에서 나왔고, 실제로 손실이 난 구간의 변동은 그보다 작았다는 뜻입니다.`
+    : `샤프지수와 큰 차이가 없습니다(${sortinoRatio.toFixed(1)}배). 흔들림이 위아래로 고르게 나왔다는 뜻입니다.`;
+
+const calmarBand =
+  strategy.calmar >= 1
+    ? "1 이상이므로, 최악의 낙폭만큼을 1년 수익으로 메울 수 있었다는 뜻입니다."
+    : `1 미만이므로, 최대낙폭 ${p1(Math.abs(strategy.mdd))} 를 연수익으로 메우는 데 1년보다 오래 걸린다는 뜻입니다.`;
+
+export const METRIC_GUIDES: MetricGuide[] = [
+  {
+    id: "sharpe",
+    title: "샤프지수",
+    english: "Sharpe Ratio",
+    summary: "위험을 1만큼 감수해서 은행 이자보다 얼마나 더 벌었는지를 나타냅니다.",
+    formula: `(연환산 수익률 ${p1(strategy.cagr)} − 무위험 ${p1(RF)}) ÷ 연변동성 ${p1(strategy.vol)} = ${n2(strategy.sharpe)}`,
+    reading: `높을수록 좋습니다. ${sharpeBand}`,
+    caveat:
+      "오르는 쪽 흔들림도 위험으로 함께 벌점을 매깁니다. 크게 오른 달이 많아도 지수는 내려갈 수 있어서, 소르티노지수와 같이 봐야 합니다.",
+  },
+  {
+    id: "sortino",
+    title: "소르티노지수",
+    english: "Sortino Ratio",
+    summary: "샤프지수에서 위험을 내려간 쪽 흔들림만으로 다시 계산한 값입니다.",
+    formula: `(연환산 수익률 ${p1(strategy.cagr)} − 무위험 ${p1(RF)}) ÷ 하방편차 ${p1(strategy.downside)} = ${n2(strategy.sortino)}`,
+    reading: `높을수록 좋습니다. ${sortinoBand}`,
+    caveat:
+      "손실 구간이 적을수록 분모가 작아져 값이 급격히 커집니다. 관측 기간이 짧으면 과장되기 쉬우니 절대값보다 샤프지수와의 차이를 보는 편이 낫습니다.",
+  },
+  {
+    id: "calmar",
+    title: "칼마지수",
+    english: "Calmar Ratio",
+    summary: "가장 크게 물렸던 낙폭 1만큼당 1년에 얼마를 벌었는지를 나타냅니다.",
+    formula: `연환산 수익률 ${p1(strategy.cagr)} ÷ 최대낙폭 ${p1(Math.abs(strategy.mdd))} = ${n2(strategy.calmar)}`,
+    reading: `높을수록 좋습니다. ${calmarBand}`,
+    caveat:
+      "최대낙폭 한 지점에만 의존합니다. 그 한 번이 우연이었는지 반복되는 성질인지는 이 지수만으로 알 수 없어서, 워크포워드 구간별 낙폭을 같이 봐야 합니다.",
+  },
+];
+
+export const guideById = (id: string) => METRIC_GUIDES.find((g) => g.id === id);
 
 // --- 포맷터 ------------------------------------------------------------------
 export const won = (n: number) =>

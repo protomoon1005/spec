@@ -35,6 +35,7 @@ import {
   integratedSignal,
   lastRebalance,
   LAST_MONTH_PARTIAL,
+  METRIC_GUIDES,
   monthlyReturns,
   num,
   PERIOD_END,
@@ -144,16 +145,49 @@ function Panel({
   );
 }
 
+// 지표 이름 옆의 물음표. 누르면 성과 개요 탭의 "지표 읽는 법" 으로 데려간다.
+// 떠 있는 말풍선 대신 이동을 택한 이유: Panel 에 overflow: hidden 이 걸려 있어
+// 패널 안에서 띄운 말풍선은 잘리고, 좁은 화면에서는 위치 계산도 어긋난다.
+function ExplainButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label} 설명 보기`}
+      title={`${label} 설명 보기`}
+      style={{
+        width: 15,
+        height: 15,
+        lineHeight: "13px",
+        fontSize: 10,
+        fontWeight: 700,
+        fontFamily: SANS,
+        color: C.muted,
+        background: "transparent",
+        border: `1px solid ${C.dim}`,
+        borderRadius: R.pill,
+        cursor: "pointer",
+        padding: 0,
+        flexShrink: 0,
+      }}
+    >
+      ?
+    </button>
+  );
+}
+
 function Kpi({
   label,
   value,
   sub,
   color,
+  onExplain,
 }: {
   label: string;
   value: string;
   sub?: string;
   color?: string;
+  onExplain?: () => void;
 }) {
   return (
     <div
@@ -162,8 +196,10 @@ function Kpi({
     >
       <span
         style={{ fontFamily: SANS, color: C.muted, fontSize: 11, letterSpacing: "0.01em" }}
+        className="flex items-center gap-1.5"
       >
         {label}
+        {onExplain && <ExplainButton label={label} onClick={onExplain} />}
       </span>
       <span style={{ fontFamily: MONO, fontSize: 22, fontWeight: 600, color: color ?? C.bright, lineHeight: 1.15 }}>
         {value}
@@ -253,6 +289,61 @@ function Tag({ text, color }: { text: string; color: string }) {
     >
       {text}
     </span>
+  );
+}
+
+
+function MetricGuideCards({ highlight }: { highlight: string | null }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+      {METRIC_GUIDES.map((g) => (
+        <div
+          key={g.id}
+          id={`guide-${g.id}`}
+          style={{
+            background: "#0e141b",
+            border: `1px solid ${highlight === g.id ? C.accent : C.border}`,
+            borderRadius: R.inner,
+            padding: "14px 16px",
+            transition: "border-color 0.4s",
+          }}
+        >
+          <div className="flex items-baseline gap-2" style={{ marginBottom: 10 }}>
+            <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 600, color: C.bright }}>{g.title}</span>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: C.muted }}>{g.english}</span>
+          </div>
+
+          <p style={{ fontFamily: SANS, fontSize: 13, color: C.text, lineHeight: 1.7, marginBottom: 10 }}>
+            {g.summary}
+          </p>
+
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              color: C.accent,
+              background: "#0b0f14",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: "8px 10px",
+              lineHeight: 1.6,
+              marginBottom: 10,
+              wordBreak: "keep-all",
+            }}
+          >
+            {g.formula}
+          </div>
+
+          <p style={{ fontFamily: SANS, fontSize: 13, color: C.text, lineHeight: 1.7, marginBottom: 8 }}>
+            {g.reading}
+          </p>
+
+          <p style={{ fontFamily: SANS, fontSize: 12, color: C.muted, lineHeight: 1.7, margin: 0 }}>
+            <b style={{ color: C.warn, fontWeight: 600 }}>한계</b> {g.caveat}
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -438,6 +529,19 @@ type TabId = (typeof TABS)[number]["id"];
 export default function Report() {
   const [tab, setTab] = useState<TabId>("overview");
   const [note, setNote] = useState("");
+  const [guideHighlight, setGuideHighlight] = useState<string | null>(null);
+
+  // 지표 카드의 물음표 -> 성과 개요 탭으로 전환한 뒤 해당 해설 카드로 스크롤한다.
+  // 탭을 바꾸면 그 프레임에는 아직 대상 요소가 없으므로 다음 프레임에 찾는다.
+  const explain = (id: string) => {
+    setTab("overview");
+    setGuideHighlight(id);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(`guide-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  };
 
   const provenance = `데이터 스냅샷 ${SNAPSHOT} 종가 · 피처셋 ${FEATURESET} · seed ${SEED} · 비용모델 수수료 ${(COST_MODEL.fee * 100).toFixed(3)}% / 세금 ${(COST_MODEL.tax * 100).toFixed(0)}% / 슬리피지 ${(COST_MODEL.slippage * 10000).toFixed(0)}bp`;
   const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · Buy & Hold 069500 KODEX 200 · ${provenance}`;
@@ -513,9 +617,9 @@ export default function Report() {
           <Kpi label="연환산 (CAGR)" value={pct(strategy.cagr, 1)} color={sign(strategy.cagr)} sub="기하평균" />
           <Kpi label="Buy & Hold 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(buyHold.total, 1)}`} />
           <Kpi label="최대낙폭 (MDD)" value={pct(strategy.mdd, 1)} color={C.loss} sub={`제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`} />
-          <Kpi label="샤프지수" value={num(strategy.sharpe)} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
-          <Kpi label="소르티노" value={num(strategy.sortino)} sub="하방편차 기준" />
-          <Kpi label="칼마지수" value={num(strategy.calmar)} sub="CAGR / |MDD|" />
+          <Kpi label="샤프지수" value={num(strategy.sharpe)} onExplain={() => explain("sharpe")} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
+          <Kpi label="소르티노" value={num(strategy.sortino)} onExplain={() => explain("sortino")} sub="하방편차 기준" />
+          <Kpi label="칼마지수" value={num(strategy.calmar)} onExplain={() => explain("calmar")} sub="CAGR / |MDD|" />
           <Kpi label="연변동성" value={pctPlain(strategy.vol, 1)} sub={`Buy & Hold ${pctPlain(buyHold.vol, 1)}`} />
         </div>
 
@@ -653,6 +757,14 @@ export default function Report() {
                 />
               </Panel>
             </div>
+
+            <Panel
+              title="지표 읽는 법"
+              sub="위 지표 카드의 물음표를 누르면 여기로 옵니다"
+              source={`계산식의 수치는 이 백테스트의 실제 값이다 · 기준시점 ${SNAPSHOT}`}
+            >
+              <MetricGuideCards highlight={guideHighlight} />
+            </Panel>
           </div>
         )}
 
