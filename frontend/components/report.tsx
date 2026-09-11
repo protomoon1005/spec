@@ -139,6 +139,24 @@ function useCountUp(target: number, delay = 0, duration = COUNT_UP_MS): number {
   return value;
 }
 
+// 동작 최소화 설정을 읽는다. 첫 렌더는 false 로 두고(서버에는 matchMedia 가 없다)
+// 그리기 전에 실제 값으로 맞춘다 — 하이드레이션이 어긋나지 않는다.
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useIsomorphicLayoutEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
+
+// 차트가 그려지는 시간. 선은 왼쪽에서 오른쪽으로 훑고, 막대는 바닥에서 자란다.
+const CHART_DRAW_MS = 1100;
+const BAR_DRAW_MS = 800;
+
 function CountUp({
   value,
   format,
@@ -452,13 +470,46 @@ type TipProps = { active?: boolean; label?: string | number; payload?: { name?: 
 
 function EquityTip({ active, payload, label }: TipProps) {
   if (!active || !payload?.length) return null;
+
+  // 그 시점에 앞서 있는 쪽이 위로 온다. 목록 순서가 실제 우열과 어긋나면
+  // 어느 쪽이 이기고 있는지 툴팁만 보고는 알 수 없다.
+  const ranked = [...payload].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  const lead = (ranked[0]?.value ?? 0) - (ranked[ranked.length - 1]?.value ?? 0);
+
   return (
     <TipShell label={String(label)}>
-      {payload.map((p) => (
-        <div key={p.name} style={{ fontFamily: MONO, fontSize: 12, color: p.color, marginBottom: 2 }}>
+      {ranked.map((p, i) => (
+        <div
+          key={p.name}
+          style={{
+            fontFamily: MONO,
+            fontSize: 12,
+            color: p.color,
+            fontWeight: i === 0 ? 600 : 400,
+            marginBottom: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: R.pill, background: p.color, flexShrink: 0 }} />
           {p.name}: {won(p.value ?? 0)}
         </div>
       ))}
+      {ranked.length > 1 && lead > 0 && (
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            color: C.muted,
+            marginTop: 5,
+            paddingTop: 5,
+            borderTop: `1px solid ${C.border}`,
+          }}
+        >
+          {ranked[0].name} 우세 · {won(lead)}
+        </div>
+      )}
     </TipShell>
   );
 }
@@ -590,6 +641,15 @@ export default function Report() {
   const [tab, setTab] = useState<TabId>("overview");
   const [note, setNote] = useState("");
   const [guideHighlight, setGuideHighlight] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
+
+  // 차트 공통 애니메이션 속성. 동작 최소화를 켠 사용자에게는 전부 끈다.
+  const draw = (begin = 0, duration = CHART_DRAW_MS) => ({
+    isAnimationActive: !reduceMotion,
+    animationBegin: begin,
+    animationDuration: duration,
+    animationEasing: "ease-out" as const,
+  });
 
   // 지표 카드의 물음표 -> 성과 개요 탭으로 전환한 뒤 해당 해설 카드로 스크롤한다.
   // 탭을 바꾸면 그 프레임에는 아직 대상 요소가 없으므로 다음 프레임에 찾는다.
@@ -742,8 +802,8 @@ export default function Report() {
                     height={26}
                     wrapperStyle={{ fontFamily: MONO, fontSize: 11, color: C.muted }}
                   />
-                  <Area isAnimationActive={false} type="monotone" dataKey="buyHold" name="Buy & Hold" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
-                  <Area isAnimationActive={false} type="monotone" dataKey="equity" name="전략" stroke={C.accent} strokeWidth={2} fill="url(#gEq)" dot={false} />
+                  <Area {...draw(0)} type="monotone" dataKey="buyHold" name="Buy & Hold" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
+                  <Area {...draw(160)} type="monotone" dataKey="equity" name="전략" stroke={C.accent} strokeWidth={2} fill="url(#gEq)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -768,7 +828,7 @@ export default function Report() {
                     strokeDasharray="4 4"
                     label={{ value: `제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`, fill: C.warn, fontSize: 10, fontFamily: MONO, position: "insideBottomLeft" }}
                   />
-                  <Area isAnimationActive={false} type="monotone" dataKey="drawdown" stroke={C.loss} strokeWidth={1.5} fill="url(#gDd)" dot={false} />
+                  <Area {...draw(0)} type="monotone" dataKey="drawdown" stroke={C.loss} strokeWidth={1.5} fill="url(#gDd)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -785,7 +845,7 @@ export default function Report() {
                   <YAxis tickFormatter={(v: number) => `${v}%`} tick={axisTick} tickLine={false} axisLine={false} width={44} />
                   <Tooltip content={<MonthTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <ReferenceLine y={0} stroke={C.grid} />
-                  <Bar dataKey="ret" isAnimationActive={false} radius={[R.bar, R.bar, 0, 0]}>
+                  <Bar dataKey="ret" {...draw(0, BAR_DRAW_MS)} radius={[R.bar, R.bar, 0, 0]}>
                     {monthlyReturns.map((m) => (
                       <Cell key={m.month} fill={sign(m.ret)} fillOpacity={m.partial ? 0.3 : 0.82} />
                     ))}
@@ -1125,9 +1185,9 @@ export default function Report() {
                   />
                   <Tooltip content={<ViewTip />} />
                   <Legend verticalAlign="top" align="right" height={26} wrapperStyle={{ fontFamily: MONO, fontSize: 11 }} />
-                  <Area isAnimationActive={false} type="monotone" dataKey="market" name="시장 분석" stackId="1" stroke={C.accent} fill={C.accent} fillOpacity={0.55} />
-                  <Area isAnimationActive={false} type="monotone" dataKey="sentiment" name="감성 분석" stackId="1" stroke={C.warn} fill={C.warn} fillOpacity={0.4} />
-                  <Area isAnimationActive={false} type="monotone" dataKey="temperature" name="시장 온도" stackId="1" stroke={C.profit} fill={C.profit} fillOpacity={0.32} />
+                  <Area {...draw(0)} type="monotone" dataKey="market" name="시장 분석" stackId="1" stroke={C.accent} fill={C.accent} fillOpacity={0.55} />
+                  <Area {...draw(120)} type="monotone" dataKey="sentiment" name="감성 분석" stackId="1" stroke={C.warn} fill={C.warn} fillOpacity={0.4} />
+                  <Area {...draw(240)} type="monotone" dataKey="temperature" name="시장 온도" stackId="1" stroke={C.profit} fill={C.profit} fillOpacity={0.32} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -1203,7 +1263,7 @@ export default function Report() {
                   <YAxis tickFormatter={(v: number) => `${v}%p`} tick={axisTick} tickLine={false} axisLine={false} width={50} />
                   <Tooltip content={<MonthTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <ReferenceLine y={0} stroke={C.grid} />
-                  <Bar dataKey="excess" isAnimationActive={false} radius={[R.bar, R.bar, 0, 0]}>
+                  <Bar dataKey="excess" {...draw(0, BAR_DRAW_MS)} radius={[R.bar, R.bar, 0, 0]}>
                     {folds.map((f) => (
                       <Cell key={f.id} fill={sign(f.excess)} fillOpacity={0.82} />
                     ))}
