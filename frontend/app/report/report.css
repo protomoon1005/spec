@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css');
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600;700&display=swap');
 
 /* Tailwind 를 preflight 없이 들여온다.
    preflight(전역 리셋)는 <body>·<h1>·<ul> 같은 문서 전체 선택자를 건드리는데,
@@ -11,8 +11,8 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 :root {
-  --font-mono: 'JetBrains Mono', 'IBM Plex Sans KR', monospace;
-  --font-sans: 'IBM Plex Sans KR', system-ui, sans-serif;
+  --font-mono: 'Spline Sans Mono', 'Pretendard Variable', Pretendard, monospace;
+  --font-sans: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
 }
 
 /* 리포트 전용 리셋. body 에는 손대지 않는다 — 배경은 .report-root 가 직접 칠한다. */
@@ -39,11 +39,13 @@
   border-collapse: collapse;
 }
 
-.report-root ::selection {
-  background: #3d9bff33;
-}
-
+/* 숫자가 자리마다 폭이 달라 표 안에서 흔들리는 것을 막는다. */
 .report-root {
+  font-variant-numeric: tabular-nums;
   scrollbar-color: #2b415a #0e141b;
   scrollbar-width: thin;
+}
+
+.report-root ::selection {
+  background: #3d9bff33;
 }

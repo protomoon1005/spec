@@ -77,6 +77,17 @@ const C = {
   warn: "#ffb020",
 };
 
+// 모서리 반경. 값이 여기저기 흩어지면 화면이 따로 놀아서 한 곳에서 관리한다.
+const R = {
+  panel: 14,
+  card: 12,
+  inner: 10,
+  pill: 999,
+  button: 10,
+  bar: 4,
+  band: 8,
+};
+
 const MONO = "var(--font-mono)";
 const SANS = "var(--font-sans)";
 
@@ -95,7 +106,7 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+    <section style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.panel, overflow: "hidden" }}>
       <div
         style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}` }}
         className="flex items-baseline gap-3 flex-wrap"
@@ -106,7 +117,7 @@ function Panel({
             fontSize: 12,
             fontWeight: 600,
             color: C.bright,
-            letterSpacing: "0.06em",
+            letterSpacing: "0.01em",
             margin: 0,
           }}
         >
@@ -145,9 +156,12 @@ function Kpi({
   color?: string;
 }) {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}` }} className="p-4 flex flex-col gap-1">
+    <div
+      style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: R.card }}
+      className="p-4 flex flex-col gap-1"
+    >
       <span
-        style={{ fontFamily: SANS, color: C.muted, fontSize: 11, letterSpacing: "0.06em" }}
+        style={{ fontFamily: SANS, color: C.muted, fontSize: 11, letterSpacing: "0.01em" }}
       >
         {label}
       </span>
@@ -175,7 +189,7 @@ function DataTable({ cols, children, minWidth = 620 }: { cols: Col[]; children: 
                   fontFamily: MONO,
                   fontSize: 10,
                   color: C.muted,
-                  letterSpacing: "0.06em",
+                  letterSpacing: "0.02em",
                   padding: "10px 14px",
                   textAlign: c.align,
                   fontWeight: 500,
@@ -228,11 +242,12 @@ function Tag({ text, color }: { text: string; color: string }) {
         fontFamily: MONO,
         fontSize: 10,
         fontWeight: 600,
-        letterSpacing: "0.05em",
-        padding: "2px 7px",
+        letterSpacing: "0.02em",
+        padding: "2px 9px",
         color,
         background: `${color}14`,
         border: `1px solid ${color}40`,
+        borderRadius: R.pill,
         whiteSpace: "nowrap",
       }}
     >
@@ -268,7 +283,14 @@ function KeyValue({ rows }: { rows: [string, string, string?][] }) {
 // --- 차트 툴팁 ---------------------------------------------------------------
 function TipShell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div style={{ background: C.surface2, border: `1px solid ${C.grid}`, padding: "9px 13px" }}>
+    <div
+      style={{
+        background: C.surface2,
+        border: `1px solid ${C.grid}`,
+        borderRadius: R.inner,
+        padding: "9px 13px",
+      }}
+    >
       <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginBottom: 5 }}>{label}</div>
       {children}
     </div>
@@ -354,7 +376,17 @@ function WeightBand({
 }) {
   const p = (v: number) => `${Math.min(100, (v / TRACK) * 100)}%`;
   return (
-    <div style={{ position: "relative", height: 24, minWidth: 190, background: "#0e141b", border: `1px solid ${C.border}` }}>
+    <div
+      style={{
+        position: "relative",
+        height: 24,
+        minWidth: 190,
+        background: "#0e141b",
+        border: `1px solid ${C.border}`,
+        borderRadius: R.band,
+        overflow: "hidden",
+      }}
+    >
       {/* Spec 허용밴드 */}
       <div
         style={{
@@ -375,7 +407,17 @@ function WeightBand({
       {/* 신호 기준 비중 (캡 적용 전) */}
       <div style={{ position: "absolute", left: p(raw), top: 3, bottom: 3, width: 1, background: C.muted }} />
       {/* 최종 목표비중 */}
-      <div style={{ position: "absolute", left: 0, width: p(final), top: 8, bottom: 8, background: C.accent }} />
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          width: p(final),
+          top: 8,
+          bottom: 8,
+          background: C.accent,
+          borderRadius: R.pill,
+        }}
+      />
       <div style={{ position: "absolute", left: `calc(${p(final)} - 1px)`, top: 1, bottom: 1, width: 2, background: C.bright }} />
     </div>
   );
@@ -435,9 +477,10 @@ export default function Report() {
             </div>
             <div
               style={{
-                padding: "5px 12px",
+                padding: "5px 14px",
                 border: `1px solid ${sign(strategy.total)}40`,
                 background: `${sign(strategy.total)}12`,
+                borderRadius: R.pill,
                 fontFamily: MONO,
                 fontSize: 13,
                 fontWeight: 600,
@@ -465,7 +508,7 @@ export default function Report() {
 
       <main className="max-w-[1400px] mx-auto w-full px-6 py-6 flex flex-col gap-6">
         {/* 핵심 지표 */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 1 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 10 }}>
           <Kpi label="누적수익률" value={pct(strategy.total, 1)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
           <Kpi label="연환산 (CAGR)" value={pct(strategy.cagr, 1)} color={sign(strategy.cagr)} sub="기하평균" />
           <Kpi label="Buy & Hold 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(buyHold.total, 1)}`} />
@@ -488,8 +531,8 @@ export default function Report() {
               onClick={() => setTab(t.id)}
               style={{
                 fontFamily: MONO,
-                fontSize: 12,
-                letterSpacing: "0.04em",
+                fontSize: 13,
+                letterSpacing: "0.01em",
                 padding: "10px 18px",
                 background: "transparent",
                 border: "none",
@@ -575,7 +618,7 @@ export default function Report() {
                   <YAxis tickFormatter={(v: number) => `${v}%`} tick={axisTick} tickLine={false} axisLine={false} width={44} />
                   <Tooltip content={<MonthTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <ReferenceLine y={0} stroke={C.grid} />
-                  <Bar dataKey="ret" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+                  <Bar dataKey="ret" isAnimationActive={false} radius={[R.bar, R.bar, 0, 0]}>
                     {monthlyReturns.map((m) => (
                       <Cell key={m.month} fill={sign(m.ret)} fillOpacity={m.partial ? 0.3 : 0.82} />
                     ))}
@@ -713,7 +756,13 @@ export default function Report() {
                   {capLogs.map((l) => (
                     <div
                       key={`${l.stage}-${l.groupId}`}
-                      style={{ background: "#0e141b", border: `1px solid ${C.border}`, borderLeft: `2px solid ${C.warn}`, padding: "10px 14px" }}
+                      style={{
+                        background: "#0e141b",
+                        border: `1px solid ${C.border}`,
+                        borderLeft: `3px solid ${C.warn}`,
+                        borderRadius: R.inner,
+                        padding: "12px 16px",
+                      }}
                     >
                       <div style={{ fontFamily: MONO, fontSize: 11, color: C.warn, marginBottom: 4 }}>
                         {l.stage} · {l.label} ({l.groupId})
@@ -732,8 +781,9 @@ export default function Report() {
                     style={{
                       background: "#0e141b",
                       border: `1px solid ${C.border}`,
-                      borderLeft: `2px solid ${C.dim}`,
-                      padding: "10px 14px",
+                      borderLeft: `3px solid ${C.dim}`,
+                      borderRadius: R.inner,
+                      padding: "12px 16px",
                       fontFamily: SANS,
                       fontSize: 13,
                       color: C.muted,
@@ -827,8 +877,17 @@ export default function Report() {
                       </span>
                       <span style={{ fontFamily: SANS, fontSize: 12, color: C.muted }}>보정된 상승 확률</span>
                     </div>
-                    <div style={{ height: 6, background: "#0e141b", border: `1px solid ${C.border}`, marginBottom: 12 }}>
-                      <div style={{ width: `${w * 100}%`, height: "100%", background: C.accent }} />
+                    <div
+                      style={{
+                        height: 7,
+                        background: "#0e141b",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: R.pill,
+                        overflow: "hidden",
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div style={{ width: `${w * 100}%`, height: "100%", background: C.accent, borderRadius: R.pill }} />
                     </div>
                     <KeyValue
                       rows={[
@@ -970,7 +1029,7 @@ export default function Report() {
                   <YAxis tickFormatter={(v: number) => `${v}%p`} tick={axisTick} tickLine={false} axisLine={false} width={50} />
                   <Tooltip content={<MonthTip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                   <ReferenceLine y={0} stroke={C.grid} />
-                  <Bar dataKey="excess" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+                  <Bar dataKey="excess" isAnimationActive={false} radius={[R.bar, R.bar, 0, 0]}>
                     {folds.map((f) => (
                       <Cell key={f.id} fill={sign(f.excess)} fillOpacity={0.82} />
                     ))}
@@ -1041,6 +1100,7 @@ export default function Report() {
                     padding: 16,
                     background: "#0e141b",
                     border: `1px solid ${C.border}`,
+                    borderRadius: R.inner,
                     fontFamily: MONO,
                     fontSize: 12,
                     lineHeight: 1.6,
@@ -1071,10 +1131,11 @@ export default function Report() {
                 width: "100%",
                 background: "#0e141b",
                 border: `1px solid ${C.border}`,
+                borderRadius: R.button,
                 color: C.text,
                 fontFamily: SANS,
                 fontSize: 14,
-                padding: "10px 12px",
+                padding: "12px 14px",
                 resize: "vertical",
               }}
             />
@@ -1085,9 +1146,10 @@ export default function Report() {
                   fontFamily: MONO,
                   fontSize: 13,
                   fontWeight: 600,
-                  padding: "10px 20px",
+                  padding: "11px 22px",
                   background: `${C.accent}18`,
                   border: `1px solid ${C.accent}`,
+                  borderRadius: R.button,
                   color: C.accent,
                   cursor: "pointer",
                 }}
@@ -1100,9 +1162,10 @@ export default function Report() {
                 style={{
                   fontFamily: MONO,
                   fontSize: 13,
-                  padding: "10px 20px",
+                  padding: "11px 22px",
                   background: "transparent",
                   border: `1px solid ${C.border}`,
+                  borderRadius: R.button,
                   color: note.trim().length === 0 ? C.dim : C.text,
                   cursor: note.trim().length === 0 ? "not-allowed" : "pointer",
                 }}
