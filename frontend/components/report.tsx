@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -94,6 +94,66 @@ const SANS = "var(--font-sans)";
 
 const sign = (n: number) => (n >= 0 ? C.profit : C.loss);
 
+// --- 숫자 카운트업 -----------------------------------------------------------
+// 서버에서 정적 프리렌더되므로 첫 렌더는 반드시 최종값이어야 한다. 0 으로
+// 시작하면 서버 HTML 과 클라이언트 첫 렌더가 달라져 하이드레이션이 어긋난다.
+// 그래서 최종값으로 렌더한 뒤, 브라우저가 그리기 전(useLayoutEffect)에 0 으로
+// 되돌리고 애니메이션을 시작한다 — 최종값이 한 프레임 번쩍이지 않는다.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+const COUNT_UP_MS = 1000;
+
+// easeOutExpo. 초반에 빠르게 올라갔다가 끝에서 부드럽게 멎는다.
+const easeOutExpo = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
+
+function useCountUp(target: number, delay = 0, duration = COUNT_UP_MS): number {
+  const [value, setValue] = useState(target);
+
+  useIsomorphicLayoutEffect(() => {
+    // 동작 최소화를 켠 사용자에게는 애니메이션을 걸지 않는다.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(target);
+      return;
+    }
+
+    let raf = 0;
+    let startedAt = 0;
+    setValue(0);
+
+    const tick = (now: number) => {
+      if (startedAt === 0) startedAt = now;
+      const elapsed = now - startedAt - delay;
+      if (elapsed < 0) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      const t = Math.min(1, elapsed / duration);
+      setValue(target * easeOutExpo(t));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, delay, duration]);
+
+  return value;
+}
+
+function CountUp({
+  value,
+  format,
+  delay = 0,
+}: {
+  value: number;
+  format: (n: number) => string;
+  delay?: number;
+}) {
+  const shown = useCountUp(value, delay);
+  return <>{format(shown)}</>;
+}
+
+
+
 // --- 공통 조각 ---------------------------------------------------------------
 function Panel({
   title,
@@ -184,7 +244,7 @@ function Kpi({
   onExplain,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   sub?: string;
   color?: string;
   onExplain?: () => void;
@@ -543,6 +603,9 @@ export default function Report() {
     });
   };
 
+  // 지표 카드가 순서대로 차례차례 올라오도록 카드마다 조금씩 늦춘다.
+  const up = (v: number, f: (n: number) => string, i = 0) => <CountUp value={v} format={f} delay={i * 60} />;
+
   const provenance = `데이터 스냅샷 ${SNAPSHOT} 종가 · 피처셋 ${FEATURESET} · seed ${SEED} · 비용모델 수수료 ${(COST_MODEL.fee * 100).toFixed(3)}% / 세금 ${(COST_MODEL.tax * 100).toFixed(0)}% / 슬리피지 ${(COST_MODEL.slippage * 10000).toFixed(0)}bp`;
   const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · Buy & Hold 069500 KODEX 200 · ${provenance}`;
 
@@ -577,7 +640,7 @@ export default function Report() {
             </div>
             <div style={{ fontFamily: MONO, fontSize: 12 }}>
               <span style={{ color: C.muted }}>최종 평가액 </span>
-              <span style={{ color: sign(strategy.total) }}>{won(strategy.final)}</span>
+              <span style={{ color: sign(strategy.total) }}>{up(strategy.final, won)}</span>
             </div>
             <div
               style={{
@@ -591,7 +654,7 @@ export default function Report() {
                 color: sign(strategy.total),
               }}
             >
-              {pct(strategy.total, 1)}
+              {up(strategy.total, (n) => pct(n, 1))}
             </div>
           </div>
         </div>
@@ -613,14 +676,14 @@ export default function Report() {
       <main className="max-w-[1400px] mx-auto w-full px-6 py-6 flex flex-col gap-6">
         {/* 핵심 지표 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 10 }}>
-          <Kpi label="누적수익률" value={pct(strategy.total, 1)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
-          <Kpi label="연환산 (CAGR)" value={pct(strategy.cagr, 1)} color={sign(strategy.cagr)} sub="기하평균" />
-          <Kpi label="Buy & Hold 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(buyHold.total, 1)}`} />
-          <Kpi label="최대낙폭 (MDD)" value={pct(strategy.mdd, 1)} color={C.loss} sub={`제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`} />
-          <Kpi label="샤프지수" value={num(strategy.sharpe)} onExplain={() => explain("sharpe")} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
-          <Kpi label="소르티노" value={num(strategy.sortino)} onExplain={() => explain("sortino")} sub="하방편차 기준" />
-          <Kpi label="칼마지수" value={num(strategy.calmar)} onExplain={() => explain("calmar")} sub="CAGR / |MDD|" />
-          <Kpi label="연변동성" value={pctPlain(strategy.vol, 1)} sub={`Buy & Hold ${pctPlain(buyHold.vol, 1)}`} />
+          <Kpi label="누적수익률" value={up(strategy.total, (n) => pct(n, 1), 0)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
+          <Kpi label="연환산 (CAGR)" value={up(strategy.cagr, (n) => pct(n, 1), 1)} color={sign(strategy.cagr)} sub="기하평균" />
+          <Kpi label="Buy & Hold 대비" value={up(excess, (n) => pp(n, 1), 2)} color={sign(excess)} sub={`KODEX 200 ${pct(buyHold.total, 1)}`} />
+          <Kpi label="최대낙폭 (MDD)" value={up(strategy.mdd, (n) => pct(n, 1), 3)} color={C.loss} sub={`제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`} />
+          <Kpi label="샤프지수" value={up(strategy.sharpe, (n) => num(n), 4)} onExplain={() => explain("sharpe")} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
+          <Kpi label="소르티노" value={up(strategy.sortino, (n) => num(n), 5)} onExplain={() => explain("sortino")} sub="하방편차 기준" />
+          <Kpi label="칼마지수" value={up(strategy.calmar, (n) => num(n), 6)} onExplain={() => explain("calmar")} sub="CAGR / |MDD|" />
+          <Kpi label="연변동성" value={up(strategy.vol, (n) => pctPlain(n, 1), 7)} sub={`Buy & Hold ${pctPlain(buyHold.vol, 1)}`} />
         </div>
 
         {/* 탭 */}
@@ -979,13 +1042,13 @@ export default function Report() {
         {tab === "views" && (
           <div role="tabpanel" id="panel-views" aria-labelledby="tab-views" className="flex flex-col gap-5">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-              {VIEW_META.map((v) => {
+              {VIEW_META.map((v, i) => {
                 const w = viewWeightOf[v.key];
                 return (
                   <Panel key={v.key} title={v.label} sub={v.kind}>
                     <div className="flex items-baseline gap-3" style={{ marginBottom: 12 }}>
                       <span style={{ fontFamily: MONO, fontSize: 26, fontWeight: 600, color: v.prob >= 0.5 ? C.profit : C.loss }}>
-                        {(v.prob * 100).toFixed(0)}%
+                        {up(v.prob, (n) => `${(n * 100).toFixed(0)}%`, i)}
                       </span>
                       <span style={{ fontFamily: SANS, fontSize: 12, color: C.muted }}>보정된 상승 확률</span>
                     </div>
@@ -1038,8 +1101,7 @@ export default function Report() {
               <div style={{ fontFamily: MONO, fontSize: 13, color: C.text, marginTop: 6 }}>
                 <span style={{ color: C.muted }}>s = 2 × {integratedProb.toFixed(4)} − 1 = </span>
                 <span style={{ color: sign(integratedSignal), fontWeight: 600, fontSize: 18 }}>
-                  {integratedSignal >= 0 ? "+" : "−"}
-                  {Math.abs(integratedSignal).toFixed(4)}
+                  {up(integratedSignal, (n) => `${integratedSignal >= 0 ? "+" : "−"}${Math.abs(n).toFixed(4)}`)}
                 </span>
               </div>
             </Panel>
