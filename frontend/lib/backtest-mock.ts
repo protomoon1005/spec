@@ -5,7 +5,17 @@
 // ---------------------------------------------------------------------------
 
 export const SEED = 20260908;
-export const SNAPSHOT = "2026-08-31";
+
+// 데이터 스냅샷 기준 시점. 화면의 모든 날짜(리포트 구간, 워크포워드 구간,
+// 리밸런싱 일자)가 이 값 하나에서 파생되므로, 최신화할 때 여기만 고치면 된다.
+//
+// 실제 운용에서는 이 값이 BACKTEST_RUNS.data_snapshot_asof 에서 온다.
+// 브라우저의 현재 시각에서 계산하지 않는 이유가 둘 있다. (1) 스냅샷 시점은
+// 백테스트 실행 기록에 박히는 값이라 조회 시점에 따라 달라지면 안 된다.
+// (2) 정적 프리렌더된 HTML 과 클라이언트가 서로 다른 날짜를 만들면
+// 하이드레이션이 어긋난다.
+export const AS_OF = "2026-09-04";
+export const SNAPSHOT = AS_OF;
 export const FEATURESET = "v0.1";
 export const INITIAL = 10_000_000; // 시드머니 1,000만원
 export const RF = 0.025; // 무위험수익률 연 2.5%
@@ -65,8 +75,9 @@ export const series: Point[] = (() => {
   let bm = INITIAL;
   const out: Point[] = [];
   for (let i = 0; i < WEEKS; i++) {
-    const d = new Date(Date.UTC(2023, 8, 1));
-    d.setUTCDate(d.getUTCDate() + i * 7);
+    // AS_OF 에서 주 단위로 거슬러 올라간다 — 마지막 점이 곧 스냅샷 시점이다.
+    const d = new Date(`${AS_OF}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - (WEEKS - 1 - i) * 7);
     if (i > 0) {
       eq *= Math.exp(eqLog[i - 1]);
       bm *= Math.exp(bmLog[i - 1]);
@@ -185,27 +196,32 @@ function shiftMonths(iso: string, months: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// 구간을 날짜가 아니라 시리즈 인덱스로 자른다. 156개 구간을 6등분하면 정확히
+// 26주씩 떨어지므로, 구간들이 끊김 없이 이어지고 구간 수익률의 기하곱이 전체
+// 수익률과 정확히 일치한다. 날짜로 자르면 경계에서 한 주가 빠져 어긋난다.
+export const FOLD_COUNT = 6;
+const FOLD_WEEKS = (WEEKS - 1) / FOLD_COUNT;
+const TRAIN_MONTHS = 12;
+
 export const folds: Fold[] = (() => {
   const out: Fold[] = [];
-  for (let i = 0; i < 6; i++) {
-    const testFrom = shiftMonths("2023-09-01", i * 6);
-    const testTo = shiftMonths(testFrom, 6);
-    // 구간 시작 직전 포인트를 기준점으로 포함해야 구간들이 끊김 없이 이어진다.
-    // (경계에서 한 주가 빠지면 구간 수익의 기하곱이 전체 수익과 어긋난다)
-    const firstIdx = series.findIndex((p) => p.date >= testFrom);
-    const lastIdx = series.findIndex((p) => p.date >= testTo);
-    const from = Math.max(0, firstIdx - 1);
-    const to = lastIdx === -1 ? series.length : lastIdx;
-    const slice = series.slice(from, to);
+  for (let k = 0; k < FOLD_COUNT; k++) {
+    const from = k * FOLD_WEEKS;
+    const to = (k + 1) * FOLD_WEEKS;
+    const slice = series.slice(from, to + 1);
     if (slice.length < 3) continue;
     const s = computeMetrics(slice.map((p) => p.equity));
     const b = computeMetrics(slice.map((p) => p.benchmark));
+    const testFrom = series[from].date;
     out.push({
-      id: `WF-${i + 1}`,
-      trainFrom: shiftMonths(testFrom, -12),
+      id: `WF-${k + 1}`,
+      // 학습 구간은 검증 구간 직전 12개월이다. 리포트 구간보다 앞설 수 있는데,
+      // 그건 학습 데이터가 리포트 시작 이전에도 존재하기 때문이고 성과 집계에는
+      // 들어가지 않는다.
+      trainFrom: shiftMonths(testFrom, -TRAIN_MONTHS),
       trainTo: testFrom,
       testFrom,
-      testTo,
+      testTo: series[to].date,
       ret: s.total,
       bmRet: b.total,
       excess: s.total - b.total,
@@ -476,7 +492,8 @@ export type RebalanceRow = {
 };
 
 export const lastRebalance = {
-  date: "2026-09-01",
+  // 기준 시점이 속한 달의 첫 영업일 (목데이터라 1일로 단순화)
+  date: `${AS_OF.slice(0, 7)}-01`,
   trigger: "calendar · monthly · first_trading_day",
   minInterval: 20,
 };

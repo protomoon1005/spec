@@ -390,7 +390,7 @@ export default function Report() {
   const [note, setNote] = useState("");
 
   const provenance = `데이터 스냅샷 ${SNAPSHOT} 종가 · 피처셋 ${FEATURESET} · seed ${SEED} · 비용모델 수수료 ${(COST_MODEL.fee * 100).toFixed(3)}% / 세금 ${(COST_MODEL.tax * 100).toFixed(0)}% / 슬리피지 ${(COST_MODEL.slippage * 10000).toFixed(0)}bp`;
-  const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · 벤치마크 069500 KODEX 200 · ${provenance}`;
+  const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · Buy & Hold 069500 KODEX 200 · ${provenance}`;
 
   return (
     <div
@@ -460,12 +460,12 @@ export default function Report() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 1 }}>
           <Kpi label="누적수익률" value={pct(strategy.total, 1)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
           <Kpi label="연환산 (CAGR)" value={pct(strategy.cagr, 1)} color={sign(strategy.cagr)} sub="기하평균" />
-          <Kpi label="벤치마크 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(benchmark.total, 1)}`} />
+          <Kpi label="Buy & Hold 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(benchmark.total, 1)}`} />
           <Kpi label="최대낙폭 (MDD)" value={pct(strategy.mdd, 1)} color={C.loss} sub={`제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`} />
           <Kpi label="샤프지수" value={num(strategy.sharpe)} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
           <Kpi label="소르티노" value={num(strategy.sortino)} sub="하방편차 기준" />
           <Kpi label="칼마지수" value={num(strategy.calmar)} sub="CAGR / |MDD|" />
-          <Kpi label="연변동성" value={pctPlain(strategy.vol, 1)} sub={`벤치마크 ${pctPlain(benchmark.vol, 1)}`} />
+          <Kpi label="연변동성" value={pctPlain(strategy.vol, 1)} sub={`Buy & Hold ${pctPlain(benchmark.vol, 1)}`} />
         </div>
 
         {/* 탭 */}
@@ -498,7 +498,7 @@ export default function Report() {
         {/* 성과 개요 */}
         {tab === "overview" && (
           <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" className="flex flex-col gap-5">
-            <Panel title="자산곡선" sub="전략 vs 벤치마크(KODEX 200 매수 후 보유)" source={equitySource}>
+            <Panel title="자산곡선" sub="전략 vs Buy & Hold (069500 KODEX 200 매수 후 보유)" source={equitySource}>
               <ResponsiveContainer width="100%" height={280}>
                 <AreaChart data={series} margin={{ top: 4, right: 20, left: 8, bottom: 0 }}>
                   <defs>
@@ -524,7 +524,7 @@ export default function Report() {
                     height={26}
                     wrapperStyle={{ fontFamily: MONO, fontSize: 11, color: C.muted }}
                   />
-                  <Area isAnimationActive={false} type="monotone" dataKey="benchmark" name="벤치마크" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
+                  <Area isAnimationActive={false} type="monotone" dataKey="benchmark" name="Buy & Hold" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
                   <Area isAnimationActive={false} type="monotone" dataKey="equity" name="전략" stroke={C.accent} strokeWidth={2} fill="url(#gEq)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -578,7 +578,7 @@ export default function Report() {
                   rows={[
                     ["누적수익률", pct(strategy.total), sign(strategy.total)],
                     ["연환산 수익률 (CAGR)", pct(strategy.cagr), sign(strategy.cagr)],
-                    ["벤치마크 누적", pct(benchmark.total), sign(benchmark.total)],
+                    ["Buy & Hold 누적", pct(benchmark.total), sign(benchmark.total)],
                     ["초과수익", pp(excess), sign(excess)],
                     [`최고 월 (${ym(bestMonth.month)})`, `+${bestMonth.ret.toFixed(2)}%`, C.profit],
                     [`최저 월 (${ym(worstMonth.month)})`, `${worstMonth.ret.toFixed(2)}%`, C.loss],
@@ -589,7 +589,7 @@ export default function Report() {
                 <KeyValue
                   rows={[
                     ["최대낙폭 (MDD)", pct(strategy.mdd), C.loss],
-                    ["벤치마크 MDD", pct(benchmark.mdd), C.loss],
+                    ["Buy & Hold MDD", pct(benchmark.mdd), C.loss],
                     ["연변동성", pctPlain(strategy.vol)],
                     ["샤프지수", num(strategy.sharpe)],
                     ["소르티노지수", num(strategy.sortino)],
@@ -919,10 +919,10 @@ export default function Report() {
                   { key: "tr", label: "학습", align: "left" },
                   { key: "te", label: "검증", align: "left" },
                   { key: "r", label: "전략", align: "right" },
-                  { key: "b", label: "벤치마크", align: "right" },
+                  { key: "b", label: "Buy & Hold", align: "right" },
                   { key: "e", label: "초과", align: "right" },
                   { key: "m", label: "전략 MDD", align: "right" },
-                  { key: "bm", label: "벤치 MDD", align: "right" },
+                  { key: "bm", label: "Buy & Hold MDD", align: "right" },
                   { key: "s", label: "샤프", align: "right" },
                 ]}
               >
@@ -950,7 +950,7 @@ export default function Report() {
               </DataTable>
             </Panel>
 
-            <Panel title="구간별 초과수익" sub="전략 − 벤치마크" source={`기준시점 ${SNAPSHOT}`}>
+            <Panel title="구간별 초과수익" sub="전략 − Buy & Hold" source={`기준시점 ${SNAPSHOT}`}>
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={folds.map((f) => ({ id: f.id, excess: Number((f.excess * 100).toFixed(2) )}))} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
