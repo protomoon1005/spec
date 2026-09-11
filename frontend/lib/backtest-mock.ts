@@ -14,7 +14,7 @@ export const SEED = 20260908;
 // 백테스트 실행 기록에 박히는 값이라 조회 시점에 따라 달라지면 안 된다.
 // (2) 정적 프리렌더된 HTML 과 클라이언트가 서로 다른 날짜를 만들면
 // 하이드레이션이 어긋난다.
-export const AS_OF = "2026-09-04";
+export const AS_OF = "2026-09-11";
 export const SNAPSHOT = AS_OF;
 export const FEATURESET = "v0.1";
 export const INITIAL = 10_000_000; // 시드머니 1,000만원
@@ -44,7 +44,7 @@ function gaussFrom(rnd: () => number): number {
 }
 
 // --- 자산곡선 (주간, 3년) ----------------------------------------------------
-export type Point = { date: string; equity: number; benchmark: number };
+export type Point = { date: string; equity: number; buyHold: number };
 
 const WEEKS = 157;
 const YEARS = (WEEKS - 1) / 52;
@@ -52,7 +52,7 @@ const YEARS = (WEEKS - 1) / 52;
 // 목표 연환산 수치. 1배수 ETF 중장기 운용 기준으로 잡았다.
 const TARGET = {
   strategy: { cagr: 0.066, vol: 0.091 },
-  benchmark: { cagr: 0.031, vol: 0.152 },
+  buyHold: { cagr: 0.031, vol: 0.152 },
 };
 
 // 원시 충격을 표준화한 뒤 목표 모수를 입히면, 시드가 무엇이든
@@ -69,10 +69,10 @@ function shockPath(rnd: () => number, n: number, cagr: number, vol: number): num
 export const series: Point[] = (() => {
   const rnd = mulberry32(SEED);
   const eqLog = shockPath(rnd, WEEKS - 1, TARGET.strategy.cagr, TARGET.strategy.vol);
-  const bmLog = shockPath(rnd, WEEKS - 1, TARGET.benchmark.cagr, TARGET.benchmark.vol);
+  const bhLog = shockPath(rnd, WEEKS - 1, TARGET.buyHold.cagr, TARGET.buyHold.vol);
 
   let eq = INITIAL;
-  let bm = INITIAL;
+  let bh = INITIAL;
   const out: Point[] = [];
   for (let i = 0; i < WEEKS; i++) {
     // AS_OF 에서 주 단위로 거슬러 올라간다 — 마지막 점이 곧 스냅샷 시점이다.
@@ -80,12 +80,12 @@ export const series: Point[] = (() => {
     d.setUTCDate(d.getUTCDate() - (WEEKS - 1 - i) * 7);
     if (i > 0) {
       eq *= Math.exp(eqLog[i - 1]);
-      bm *= Math.exp(bmLog[i - 1]);
+      bh *= Math.exp(bhLog[i - 1]);
     }
     out.push({
       date: d.toISOString().slice(0, 10),
       equity: Math.round(eq),
-      benchmark: Math.round(bm),
+      buyHold: Math.round(bh),
     });
   }
   return out;
@@ -146,8 +146,8 @@ export function computeMetrics(values: number[]): Metrics {
 }
 
 export const strategy = computeMetrics(series.map((p) => p.equity));
-export const benchmark = computeMetrics(series.map((p) => p.benchmark));
-export const excess = strategy.total - benchmark.total;
+export const buyHold = computeMetrics(series.map((p) => p.buyHold));
+export const excess = strategy.total - buyHold.total;
 
 // --- 드로다운 ----------------------------------------------------------------
 export const drawdownSeries = (() => {
@@ -159,21 +159,38 @@ export const drawdownSeries = (() => {
 })();
 
 // --- 월별 수익률 -------------------------------------------------------------
-export const monthlyReturns = (() => {
+// 기준 시점이 그 달의 마지막 날이 아니면 마지막 달은 아직 진행 중이다.
+// 완결된 달과 같은 막대로 그리면 짧은 기간이 한 달처럼 보여 오해를 부르므로
+// partial 로 표시하고, 최고월/최저월 집계에서도 제외한다.
+const AS_OF_MONTH_END = (() => {
+  const d = new Date(`${AS_OF}T00:00:00Z`);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+})();
+
+export const LAST_MONTH_PARTIAL = AS_OF !== AS_OF_MONTH_END;
+
+export type MonthlyReturn = { month: string; ret: number; partial: boolean };
+
+export const monthlyReturns: MonthlyReturn[] = (() => {
   const byMonth = new Map<string, number>();
   for (const p of series) byMonth.set(p.date.slice(0, 7), p.equity);
   const months = [...byMonth.keys()].sort();
-  const out: { month: string; ret: number }[] = [];
+  const out: MonthlyReturn[] = [];
   for (let i = 1; i < months.length; i++) {
     const prev = byMonth.get(months[i - 1])!;
     const cur = byMonth.get(months[i])!;
-    out.push({ month: months[i], ret: Number(((cur / prev - 1) * 100).toFixed(2)) });
+    out.push({
+      month: months[i],
+      ret: Number(((cur / prev - 1) * 100).toFixed(2)),
+      partial: LAST_MONTH_PARTIAL && i === months.length - 1,
+    });
   }
   return out.slice(-18);
 })();
 
-export const bestMonth = monthlyReturns.reduce((a, b) => (b.ret > a.ret ? b : a));
-export const worstMonth = monthlyReturns.reduce((a, b) => (b.ret < a.ret ? b : a));
+const completeMonths = monthlyReturns.filter((m) => !m.partial);
+export const bestMonth = completeMonths.reduce((a, b) => (b.ret > a.ret ? b : a));
+export const worstMonth = completeMonths.reduce((a, b) => (b.ret < a.ret ? b : a));
 
 // --- 워크포워드 구간 ---------------------------------------------------------
 export type Fold = {
@@ -183,10 +200,10 @@ export type Fold = {
   testFrom: string;
   testTo: string;
   ret: number;
-  bmRet: number;
+  buyHoldRet: number;
   excess: number;
   mdd: number;
-  bmMdd: number;
+  buyHoldMdd: number;
   sharpe: number;
 };
 
@@ -211,7 +228,7 @@ export const folds: Fold[] = (() => {
     const slice = series.slice(from, to + 1);
     if (slice.length < 3) continue;
     const s = computeMetrics(slice.map((p) => p.equity));
-    const b = computeMetrics(slice.map((p) => p.benchmark));
+    const b = computeMetrics(slice.map((p) => p.buyHold));
     const testFrom = series[from].date;
     out.push({
       id: `WF-${k + 1}`,
@@ -223,10 +240,10 @@ export const folds: Fold[] = (() => {
       testFrom,
       testTo: series[to].date,
       ret: s.total,
-      bmRet: b.total,
+      buyHoldRet: b.total,
       excess: s.total - b.total,
       mdd: s.mdd,
-      bmMdd: b.mdd,
+      buyHoldMdd: b.mdd,
       sharpe: s.sharpe,
     });
   }

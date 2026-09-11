@@ -17,7 +17,7 @@ import {
 } from "recharts";
 import {
   bestMonth,
-  benchmark,
+  buyHold,
   capLogs,
   COST_MODEL,
   drawdownSeries,
@@ -34,6 +34,7 @@ import {
   integratedProb,
   integratedSignal,
   lastRebalance,
+  LAST_MONTH_PARTIAL,
   monthlyReturns,
   num,
   PERIOD_END,
@@ -303,12 +304,19 @@ function DdTip({ active, payload, label }: TipProps) {
 function MonthTip({ active, payload, label }: TipProps) {
   if (!active || !payload?.length) return null;
   const v = payload[0].value ?? 0;
+  // 워크포워드 차트와 공유하는 툴팁이다. 거기 라벨은 "WF-1" 이라 찾히지 않는다.
+  const partial = monthlyReturns.find((m) => m.month === label)?.partial ?? false;
   return (
     <TipShell label={String(label)}>
       <div style={{ fontFamily: MONO, fontSize: 12, color: sign(v) }}>
         {v >= 0 ? "+" : "−"}
         {Math.abs(v).toFixed(2)}%
       </div>
+      {partial && (
+        <div style={{ fontFamily: SANS, fontSize: 11, color: C.warn, marginTop: 4 }}>
+          진행 중 · {SNAPSHOT} 까지
+        </div>
+      )}
     </TipShell>
   );
 }
@@ -460,12 +468,12 @@ export default function Report() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 1 }}>
           <Kpi label="누적수익률" value={pct(strategy.total, 1)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
           <Kpi label="연환산 (CAGR)" value={pct(strategy.cagr, 1)} color={sign(strategy.cagr)} sub="기하평균" />
-          <Kpi label="Buy & Hold 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(benchmark.total, 1)}`} />
+          <Kpi label="Buy & Hold 대비" value={pp(excess, 1)} color={sign(excess)} sub={`KODEX 200 ${pct(buyHold.total, 1)}`} />
           <Kpi label="최대낙폭 (MDD)" value={pct(strategy.mdd, 1)} color={C.loss} sub={`제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`} />
           <Kpi label="샤프지수" value={num(strategy.sharpe)} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
           <Kpi label="소르티노" value={num(strategy.sortino)} sub="하방편차 기준" />
           <Kpi label="칼마지수" value={num(strategy.calmar)} sub="CAGR / |MDD|" />
-          <Kpi label="연변동성" value={pctPlain(strategy.vol, 1)} sub={`Buy & Hold ${pctPlain(benchmark.vol, 1)}`} />
+          <Kpi label="연변동성" value={pctPlain(strategy.vol, 1)} sub={`Buy & Hold ${pctPlain(buyHold.vol, 1)}`} />
         </div>
 
         {/* 탭 */}
@@ -524,7 +532,7 @@ export default function Report() {
                     height={26}
                     wrapperStyle={{ fontFamily: MONO, fontSize: 11, color: C.muted }}
                   />
-                  <Area isAnimationActive={false} type="monotone" dataKey="benchmark" name="Buy & Hold" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
+                  <Area isAnimationActive={false} type="monotone" dataKey="buyHold" name="Buy & Hold" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
                   <Area isAnimationActive={false} type="monotone" dataKey="equity" name="전략" stroke={C.accent} strokeWidth={2} fill="url(#gEq)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -555,7 +563,11 @@ export default function Report() {
               </ResponsiveContainer>
             </Panel>
 
-            <Panel title="월별 수익률" sub="최근 18개월" source={equitySource}>
+            <Panel
+              title="월별 수익률"
+              sub={`최근 18개월${LAST_MONTH_PARTIAL ? " · 마지막 달은 진행 중이라 흐리게 표시" : ""}`}
+              source={equitySource}
+            >
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={monthlyReturns} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
@@ -565,7 +577,7 @@ export default function Report() {
                   <ReferenceLine y={0} stroke={C.grid} />
                   <Bar dataKey="ret" isAnimationActive={false} radius={[2, 2, 0, 0]}>
                     {monthlyReturns.map((m) => (
-                      <Cell key={m.month} fill={sign(m.ret)} fillOpacity={0.82} />
+                      <Cell key={m.month} fill={sign(m.ret)} fillOpacity={m.partial ? 0.3 : 0.82} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -578,7 +590,7 @@ export default function Report() {
                   rows={[
                     ["누적수익률", pct(strategy.total), sign(strategy.total)],
                     ["연환산 수익률 (CAGR)", pct(strategy.cagr), sign(strategy.cagr)],
-                    ["Buy & Hold 누적", pct(benchmark.total), sign(benchmark.total)],
+                    ["Buy & Hold 누적", pct(buyHold.total), sign(buyHold.total)],
                     ["초과수익", pp(excess), sign(excess)],
                     [`최고 월 (${ym(bestMonth.month)})`, `+${bestMonth.ret.toFixed(2)}%`, C.profit],
                     [`최저 월 (${ym(worstMonth.month)})`, `${worstMonth.ret.toFixed(2)}%`, C.loss],
@@ -589,7 +601,7 @@ export default function Report() {
                 <KeyValue
                   rows={[
                     ["최대낙폭 (MDD)", pct(strategy.mdd), C.loss],
-                    ["Buy & Hold MDD", pct(benchmark.mdd), C.loss],
+                    ["Buy & Hold MDD", pct(buyHold.mdd), C.loss],
                     ["연변동성", pctPlain(strategy.vol)],
                     ["샤프지수", num(strategy.sharpe)],
                     ["소르티노지수", num(strategy.sortino)],
@@ -938,12 +950,12 @@ export default function Report() {
                       {ym(f.testFrom)} ~ {ym(f.testTo)}
                     </Cel>
                     <Cel color={sign(f.ret)}>{pct(f.ret, 1)}</Cel>
-                    <Cel color={C.muted}>{pct(f.bmRet, 1)}</Cel>
+                    <Cel color={C.muted}>{pct(f.buyHoldRet, 1)}</Cel>
                     <Cel bold color={sign(f.excess)}>
                       {pp(f.excess)}
                     </Cel>
                     <Cel color={C.loss}>{pct(f.mdd, 1)}</Cel>
-                    <Cel color={C.muted}>{pct(f.bmMdd, 1)}</Cel>
+                    <Cel color={C.muted}>{pct(f.buyHoldMdd, 1)}</Cel>
                     <Cel>{num(f.sharpe)}</Cel>
                   </tr>
                 ))}
