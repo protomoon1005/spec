@@ -79,17 +79,18 @@ INDICATORS: tuple[MacroIndicator, ...] = (
     ),
     MacroIndicator(
         code="KOSPI200",
-        label="코스피200 지수",
-        source="ecos",
-        external_id="802Y001",
+        label="코스피200 지수 종가",
+        source="krx",
+        external_id="KS200",
         frequency="daily",
         release_lag_days=1,
-        available=False,
+        available=True,
         released_at_is_estimated=True,
         note=(
-            "추세 지수. 아직 못 받는다 — ECOS 인증키가 없고, FRED 의 한국 주가지수"
-            "(SPASTT01KRM661N)는 월간이라 이동평균 이격도에 못 쓴다. price_daily 에"
-            "069500(KODEX 200)이 적재되면 거기서도 만들 수 있으나 그건 질의 8번이 막고 있다."
+            "추세 지수. FinanceDataReader 로 받는다. pykrx 는 2026-09-12 실측상 KRX "
+            "계정(KRX_ID/KRX_PW)이 있어야 하고 세션 없이는 400 LOGOUT 이 돌아온다. "
+            "이건 지수라 price_daily(ETF 일봉, 질의 8번)와 자물쇠를 공유하지 않는다. "
+            "**종가만 적재한다** — 이동평균 이격도는 판정 로직이 계산한다."
         ),
     ),
 )

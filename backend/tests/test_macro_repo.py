@@ -89,12 +89,20 @@ def test_spec_code_sets_only_contain_registered_codes() -> None:
         assert spec_code in BY_CODE
 
 
-def test_trend_index_is_registered_but_not_available_yet() -> None:
-    # 질의 8번(가격 적재)과 같은 자물쇠다. 사실을 테스트로 고정해 둔다 —
-    # 데이터가 들어오면 이 테스트가 깨지고, 그때 T4b 를 열면 된다.
+def test_trend_index_is_available(engine) -> None:
+    # 2026-09-12 확보. 지수는 ETF 일봉(price_daily)과 자물쇠를 공유하지 않는다 —
+    # FinanceDataReader 가 인증 없이 준다.
     assert "KOSPI200" in BY_CODE
-    assert BY_CODE["KOSPI200"].available is False
-    assert "KOSPI200" not in available_codes()
+    assert BY_CODE["KOSPI200"].available is True
+    assert "KOSPI200" in available_codes()
+    assert BY_CODE["KOSPI200"].source == "krx"
+
+
+def test_trend_index_is_actually_queryable(engine) -> None:
+    # 코드만 등록하고 데이터가 없으면 M1 이 Spec 에 넣었을 때 조용히 결측이 된다.
+    # 실제로 조회되는지까지 본다.
+    value = get_macro("KOSPI200", as_of=date(2025, 6, 30))
+    assert value is not None and value > 0
 
 
 def test_sources_match_the_db_check_constraint() -> None:
