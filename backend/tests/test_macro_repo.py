@@ -73,9 +73,14 @@ def test_released_before_as_of_is_rejected(engine, code) -> None:
 # ── 코드 레지스트리 (DB 불필요하지만 같은 관심사라 여기 둔다) ────────
 
 
-def test_daily_indicators_are_released_the_next_day() -> None:
-    # 거래일 d 의 값은 장 마감 뒤 확정되므로 d 에는 아직 못 본다고 본다.
-    assert estimate_released_at("VIX_CLOSE", AS_OF) == AS_OF + timedelta(days=1)
+def test_release_lag_is_per_series_not_uniform() -> None:
+    # 관측 빈도가 일별이어도 갱신 주기는 시리즈마다 다르다. 전부 +1일로
+    # 뭉뚱그리면 낙관적이고, 그 차이만큼 미래를 미리 보게 된다.
+    # 2026-09-12 실측: VIXCLS/BAA10Y 2일 지연, DEXKOUS 8일 지연(주 1회 갱신).
+    assert estimate_released_at("VIX_CLOSE", AS_OF) == AS_OF + timedelta(days=3)
+    assert estimate_released_at("CREDIT_SPREAD_BAA10Y", AS_OF) == AS_OF + timedelta(days=3)
+    assert estimate_released_at("USDKRW", AS_OF) == AS_OF + timedelta(days=10)
+    assert estimate_released_at("KOSPI200", AS_OF) == AS_OF + timedelta(days=1)
 
 
 def test_unknown_code_raises() -> None:
