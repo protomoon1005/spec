@@ -17,19 +17,21 @@ import {
 } from "recharts";
 import {
   bestMonth,
-  buyHold,
+  control,
+  market,
+  signalAlphaAnnual,
+  capApplicationCount,
+  rebalanceCount,
   capLogs,
+  constraintResolved,
   COST_MODEL,
   drawdownSeries,
   ETA,
   EVAL_WINDOW,
-  excess,
+  signalAlpha,
   FEATURESET,
   folds,
   GROUP_CAPS,
-  GROUP_LABEL,
-  HARDCAP,
-  constraintResolved,
   INITIAL,
   integratedProb,
   integratedSignal,
@@ -59,7 +61,8 @@ import {
   won,
   worstMonth,
   ym,
-} from "@/lib/backtest-mock";
+  HARDCAP,
+} from "@/lib/data";
 
 // --- 디자인 토큰 -------------------------------------------------------------
 const C = {
@@ -429,20 +432,9 @@ function KeyValue({ rows }: { rows: [string, string, string?][] }) {
   return (
     <div className="flex flex-col gap-2">
       {rows.map(([k, v, color]) => (
-        <div key={k} className="flex items-baseline justify-between gap-4 flex-wrap">
-          <span style={{ fontFamily: SANS, fontSize: 13, color: C.muted, whiteSpace: "nowrap" }}>{k}</span>
-          <span
-            style={{
-              fontFamily: MONO,
-              fontSize: 13,
-              fontWeight: 500,
-              color: color ?? C.text,
-              textAlign: "right",
-              marginLeft: "auto",
-            }}
-          >
-            {v}
-          </span>
+        <div key={k} className="flex items-center justify-between gap-4">
+          <span style={{ fontFamily: SANS, fontSize: 13, color: C.muted }}>{k}</span>
+          <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 500, color: color ?? C.text }}>{v}</span>
         </div>
       ))}
     </div>
@@ -667,13 +659,10 @@ export default function Report() {
   const up = (v: number, f: (n: number) => string, i = 0) => <CountUp value={v} format={f} delay={i * 60} />;
 
   const provenance = `데이터 스냅샷 ${SNAPSHOT} 종가 · 피처셋 ${FEATURESET} · seed ${SEED} · 비용모델 수수료 ${(COST_MODEL.fee * 100).toFixed(3)}% / 세금 ${(COST_MODEL.tax * 100).toFixed(0)}% / 슬리피지 ${(COST_MODEL.slippage * 10000).toFixed(0)}bp`;
-  const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · Buy & Hold 069500 KODEX 200 · ${provenance}`;
+  const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · 대조군: 동일 제약·신호 미사용 · 시장: 069500 KODEX 200 · ${provenance}`;
 
   return (
-    <div
-      style={{ background: C.bg, fontFamily: SANS, color: C.text, minHeight: "100vh" }}
-      className="report-root flex flex-col"
-    >
+    <div style={{ background: C.bg, fontFamily: SANS, color: C.text, minHeight: "100vh" }} className="flex flex-col">
       {/* 헤더 */}
       <header style={{ borderBottom: `1px solid ${C.border}`, background: C.bg }} className="sticky top-0 z-10">
         <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-start justify-between gap-6 flex-wrap">
@@ -738,12 +727,23 @@ export default function Report() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 10 }}>
           <Kpi label="누적수익률" value={up(strategy.total, (n) => pct(n, 1), 0)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
           <Kpi label="연환산 (CAGR)" value={up(strategy.cagr, (n) => pct(n, 1), 1)} color={sign(strategy.cagr)} sub="기하평균" />
-          <Kpi label="Buy & Hold 대비" value={up(excess, (n) => pp(n, 1), 2)} color={sign(excess)} sub={`KODEX 200 ${pct(buyHold.total, 1)}`} />
+          <Kpi
+            label="신호 기여"
+            value={up(signalAlpha, (n) => pp(n, 1), 2)}
+            color={sign(signalAlpha)}
+            sub={`연 ${pp(signalAlphaAnnual, 1)} · 대조군 ${pct(control.total, 1)}`}
+          />
           <Kpi label="최대낙폭 (MDD)" value={up(strategy.mdd, (n) => pct(n, 1), 3)} color={C.loss} sub={`제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`} />
           <Kpi label="샤프지수" value={up(strategy.sharpe, (n) => num(n), 4)} onExplain={() => explain("sharpe")} sub={`무위험 ${pctPlain(0.025, 1)} 기준`} />
           <Kpi label="소르티노" value={up(strategy.sortino, (n) => num(n), 5)} onExplain={() => explain("sortino")} sub="하방편차 기준" />
           <Kpi label="칼마지수" value={up(strategy.calmar, (n) => num(n), 6)} onExplain={() => explain("calmar")} sub="CAGR / |MDD|" />
-          <Kpi label="연변동성" value={up(strategy.vol, (n) => pctPlain(n, 1), 7)} sub={`Buy & Hold ${pctPlain(buyHold.vol, 1)}`} />
+          <Kpi label="연변동성" value={up(strategy.vol, (n) => pctPlain(n, 1), 7)} sub={`시장 ${pctPlain(market.vol, 1)}`} />
+          <Kpi
+            label="시장 대비"
+            value={up(strategy.mdd - market.mdd, (n) => pp(n, 1), 8)}
+            color={C.profit}
+            sub={`낙폭 방어 · 시장 MDD ${pct(market.mdd, 1)}`}
+          />
         </div>
 
         {/* 탭 */}
@@ -776,7 +776,7 @@ export default function Report() {
         {/* 성과 개요 */}
         {tab === "overview" && (
           <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" className="flex flex-col gap-5">
-            <Panel title="자산곡선" sub="전략 vs Buy & Hold (069500 KODEX 200 매수 후 보유)" source={equitySource}>
+            <Panel title="자산곡선" sub="전략 vs 대조군 — 같은 유니버스·같은 제약, 대조군만 3관점 신호를 쓰지 않는다" source={equitySource}>
               <ResponsiveContainer width="100%" height={280}>
                 <AreaChart data={series} margin={{ top: 4, right: 20, left: 8, bottom: 0 }}>
                   <defs>
@@ -802,13 +802,13 @@ export default function Report() {
                     height={26}
                     wrapperStyle={{ fontFamily: MONO, fontSize: 11, color: C.muted }}
                   />
-                  <Area {...draw(0)} type="monotone" dataKey="buyHold" name="Buy & Hold" stroke={C.dim} strokeWidth={1.2} fill="none" dot={false} />
-                  <Area {...draw(160)} type="monotone" dataKey="equity" name="전략" stroke={C.accent} strokeWidth={2} fill="url(#gEq)" dot={false} />
+                  <Area {...draw(0)} type="monotone" dataKey="control" name="대조군 (신호 없음)" stroke={C.muted} strokeWidth={1.3} fill="none" dot={false} />
+                  <Area {...draw(160)} type="monotone" dataKey="strategy" name="전략 (3관점 신호)" stroke={C.accent} strokeWidth={2} fill="url(#gEq)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
 
-            <Panel title="낙폭" sub="고점 대비 하락률" source={equitySource}>
+            <Panel title="낙폭" sub="고점 대비 하락률 — 전략과 시장을 겹쳐 방어 효과를 본다" source={equitySource}>
               <ResponsiveContainer width="100%" height={170}>
                 <AreaChart data={drawdownSeries} margin={{ top: 4, right: 20, left: 8, bottom: 8 }}>
                   <defs>
@@ -828,7 +828,8 @@ export default function Report() {
                     strokeDasharray="4 4"
                     label={{ value: `제약 상한 ${pctPlain(spec.constraint.max_drawdown, 0)}`, fill: C.warn, fontSize: 10, fontFamily: MONO, position: "insideBottomLeft" }}
                   />
-                  <Area {...draw(0)} type="monotone" dataKey="drawdown" stroke={C.loss} strokeWidth={1.5} fill="url(#gDd)" dot={false} />
+                  <Area {...draw(0)} type="monotone" dataKey="marketDrawdown" name="시장" stroke={C.dim} strokeWidth={1.1} fill="none" dot={false} />
+                  <Area {...draw(160)} type="monotone" dataKey="drawdown" name="전략" stroke={C.loss} strokeWidth={1.6} fill="url(#gDd)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -860,8 +861,9 @@ export default function Report() {
                   rows={[
                     ["누적수익률", pct(strategy.total), sign(strategy.total)],
                     ["연환산 수익률 (CAGR)", pct(strategy.cagr), sign(strategy.cagr)],
-                    ["Buy & Hold 누적", pct(buyHold.total), sign(buyHold.total)],
-                    ["초과수익", pp(excess), sign(excess)],
+                    ["대조군 누적 (신호 없음)", pct(control.total), sign(control.total)],
+                    ["시장 누적 (KODEX 200)", pct(market.total), C.muted],
+                    ["신호 기여 (전략 − 대조군)", pp(signalAlpha), sign(signalAlpha)],
                     [`최고 월 (${ym(bestMonth.month)})`, `+${bestMonth.ret.toFixed(2)}%`, C.profit],
                     [`최저 월 (${ym(worstMonth.month)})`, `${worstMonth.ret.toFixed(2)}%`, C.loss],
                   ]}
@@ -871,7 +873,7 @@ export default function Report() {
                 <KeyValue
                   rows={[
                     ["최대낙폭 (MDD)", pct(strategy.mdd), C.loss],
-                    ["Buy & Hold MDD", pct(buyHold.mdd), C.loss],
+                    ["시장 MDD (KODEX 200)", pct(market.mdd), C.loss],
                     ["연변동성", pctPlain(strategy.vol)],
                     ["샤프지수", num(strategy.sharpe)],
                     ["소르티노지수", num(strategy.sortino)],
@@ -931,7 +933,7 @@ export default function Report() {
                     <td style={{ padding: "11px 14px", textAlign: "left" }}>
                       <div style={{ fontFamily: MONO, fontSize: 13, color: C.bright, whiteSpace: "nowrap" }}>{r.asset.name}</div>
                       <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted, whiteSpace: "nowrap" }}>
-                        {r.asset.ticker} · {GROUP_LABEL[r.asset.assetGroup]} · {GROUP_LABEL[r.asset.sectorGroup]} · {GROUP_LABEL[r.asset.countryGroup]}
+                        {r.asset.ticker} · {r.asset.assetGroup} · {r.asset.sectorGroup} · {r.asset.countryGroup}
                       </div>
                     </td>
                     <Cel align="left">
@@ -982,7 +984,7 @@ export default function Report() {
             <Panel
               title="그룹 캡 적용 내역"
               sub="상위 자산군을 먼저 적용하고 하위 국가·섹터를 적용한다"
-              source={`출처: db/seeds/03_asset_groups.sql · group_caps(preset_version=v0.1) · EQUITY ${pctPlain(GROUP_CAPS.EQUITY, 0)} / BOND ${pctPlain(GROUP_CAPS.BOND, 0)} / COMMODITY ${pctPlain(GROUP_CAPS.COMMODITY, 0)} / 단일 국가 ${pctPlain(GROUP_CAPS.COUNTRY_KR, 0)} / 단일 섹터 ${pctPlain(GROUP_CAPS.SECTOR_SEMICONDUCTOR, 0)}`}
+              source={`상한 출처: 운영자 그룹 정의 v0.1 · 주식계 ${pctPlain(GROUP_CAPS.EQUITY, 0)} / 원자재계 ${pctPlain(GROUP_CAPS.COMMODITY, 0)} / 단일 국가 ${pctPlain(GROUP_CAPS.COUNTRY_KR, 0)} / 단일 섹터 ${pctPlain(GROUP_CAPS.SECTOR_SEMICONDUCTOR, 0)}`}
             >
               {capLogs.length === 0 ? (
                 <div style={{ fontFamily: SANS, fontSize: 13, color: C.muted }}>적용된 캡이 없습니다.</div>
@@ -1011,29 +1013,6 @@ export default function Report() {
                   <div style={{ fontFamily: SANS, fontSize: 13, color: C.muted }}>
                     축소로 남은 {pctPlain(targetCash - PROFILE.cashMin)}는 현금으로 보냈습니다. 현금 하한{" "}
                     {pctPlain(PROFILE.cashMin, 0)}을 만족합니다.
-                  </div>
-                  <div
-                    style={{
-                      background: "#0e141b",
-                      border: `1px solid ${C.border}`,
-                      borderLeft: `3px solid ${C.dim}`,
-                      borderRadius: R.inner,
-                      padding: "12px 16px",
-                      fontFamily: SANS,
-                      fontSize: 13,
-                      color: C.muted,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    <b style={{ color: C.text }}>미적용 · SECTOR_OTHER(기타) 30%</b> — 시드의 섹터 그룹은 산업 섹터
-                    6개와 기타 하나뿐이라, 시장대표·국채·원자재 ETF가 전부 기타 한 바구니에 들어갑니다. 이
-                    유니버스에서 기타 합은 {pctPlain(
-                      weightRows
-                        .filter((r) => r.asset.sectorGroup === "SECTOR_OTHER")
-                        .reduce((a, r) => a + r.final, 0),
-                    )}
-                    이라 캡을 그대로 걸면 항상 걸리고 잔여가 전부 현금으로 빠집니다. 팀 확정 전까지 적용하지
-                    않았습니다.
                   </div>
                 </div>
               )}
@@ -1224,10 +1203,10 @@ export default function Report() {
                   { key: "tr", label: "학습", align: "left" },
                   { key: "te", label: "검증", align: "left" },
                   { key: "r", label: "전략", align: "right" },
-                  { key: "b", label: "Buy & Hold", align: "right" },
+                  { key: "b", label: "대조군", align: "right" },
                   { key: "e", label: "초과", align: "right" },
                   { key: "m", label: "전략 MDD", align: "right" },
-                  { key: "bm", label: "Buy & Hold MDD", align: "right" },
+                  { key: "bm", label: "시장 MDD", align: "right" },
                   { key: "s", label: "샤프", align: "right" },
                 ]}
               >
@@ -1243,19 +1222,19 @@ export default function Report() {
                       {ym(f.testFrom)} ~ {ym(f.testTo)}
                     </Cel>
                     <Cel color={sign(f.ret)}>{pct(f.ret, 1)}</Cel>
-                    <Cel color={C.muted}>{pct(f.buyHoldRet, 1)}</Cel>
+                    <Cel color={C.muted}>{pct(f.controlRet, 1)}</Cel>
                     <Cel bold color={sign(f.excess)}>
                       {pp(f.excess)}
                     </Cel>
                     <Cel color={C.loss}>{pct(f.mdd, 1)}</Cel>
-                    <Cel color={C.muted}>{pct(f.buyHoldMdd, 1)}</Cel>
+                    <Cel color={C.muted}>{pct(f.marketMdd, 1)}</Cel>
                     <Cel>{num(f.sharpe)}</Cel>
                   </tr>
                 ))}
               </DataTable>
             </Panel>
 
-            <Panel title="구간별 초과수익" sub="전략 − Buy & Hold" source={`기준시점 ${SNAPSHOT}`}>
+            <Panel title="구간별 초과수익" sub="전략 − 대조군 (신호가 더한 값)" source={`기준시점 ${SNAPSHOT}`}>
               <ResponsiveContainer width="100%" height={230}>
                 <BarChart data={folds.map((f) => ({ id: f.id, excess: Number((f.excess * 100).toFixed(2) )}))} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
