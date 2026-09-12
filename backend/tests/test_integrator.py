@@ -12,8 +12,9 @@ from datetime import date
 
 import pytest
 
+from app.contracts.integrated_signal import IntegratedSignal
 from app.contracts.view_score import ViewScore
-from app.views.integrator import DEADZONE, TANH_SCALE, IntegratedSignal, integrate
+from app.views.integrator import DEADZONE, TANH_SCALE, integrate
 
 AS_OF = date(2026, 9, 11)
 TICKER = "069500"

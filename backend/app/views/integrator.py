@@ -28,17 +28,16 @@
 # ViewScore.calibrated_prob 는 신호 통합에 쓰지 않는다. 그건 Hedge(FN-408)가
 # Brier score 손실로 쓰는 값이다. 여기서 쓰는 것은 raw_score 뿐이다.
 #
-# IntegratedSignal 을 app/contracts/ 가 아니라 여기에 둔 이유: 계약 추가는 전원
-# 합의 사항이고 "계약 ⑤로 승격할지"(팀 질의 4번)가 아직 미결이다. 승격으로
-# 결론나면 그때 옮긴다.
+# IntegratedSignal(출력 형식)은 2026-09-12 팀 합의로 계약 ⑤가 되어
+# app/contracts/integrated_signal.py 로 옮겼다. 여기 남은 것은 구현이다 —
+# 계약은 형식이고 구현은 M3 소유라는 경계를 지킨다.
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict
-
+from app.contracts.integrated_signal import IntegratedSignal
 from app.contracts.view_score import ViewScore
 
 # 2026-09-08 확정본. 임의로 바꾸지 않는다.
@@ -52,18 +51,6 @@ WEIGHT_SUM_TOLERANCE = 1e-9
 # 출력 반올림 자릿수. 데드존(0.10)보다 네 자리 아래라 판정에 영향을 주지 않는다.
 # 반드시 데드존 적용 "뒤"에만 쓴다.
 OUTPUT_PRECISION = 6
-
-
-class IntegratedSignal(BaseModel):
-    # decision_records.integrated_signal / 같은 행의 가중치 JSONB 컬럼에 이 형태
-    # 그대로 들어간다. M2(RiskSizer)로 넘어가는 인계 형식이기도 하다.
-    model_config = ConfigDict(extra="forbid")
-
-    as_of: date
-    signals: dict[str, float]  # ticker -> s, [-1, 1]
-    view_weights_used: dict[str, float]  # view_type -> w
-    per_view_scores: dict[str, dict[str, float]]  # view_type -> {ticker: s_k}
-    deadzone_applied: list[str]  # |s| < 0.10 이라 0으로 눌린 ticker
 
 
 def _validate_weights(weights: dict[str, float]) -> None:
