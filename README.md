@@ -135,3 +135,33 @@
   형태를 보여주는 최소 모델만 두었다. 이 모델들은 나중에 실구현 시 바뀔 수
   있다는 뜻이다 — Spec JSON 스키마(계약 ①)처럼 전원 합의가 필요한 고정
   계약이 아니다.
+
+## M3 ML 의존성 설치 (판단 계층)
+
+3관점 판단 계층(학습·추론·PLM)의 의존성은 `backend/pyproject.toml` 의 `ml` extra에 있다.
+평소 개발·CI에는 필요 없고, 모델 학습·추론과 KF-DeBERTa 감성 분류를 돌릴 때만 필요하다.
+
+```
+pip install -e "backend[dev,ml]" --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+**`--extra-index-url` 을 빼지 마라.** linux x86_64에서 `pip install torch` 는 기본이
+CUDA 휠(2.5GB+)이다. api·worker·beat가 `backend/Dockerfile` 하나를 공유하므로
+(쪼개지 않기로 확정, 2026-09-12) CUDA 휠이 잡히면 세 서비스 이미지가 한꺼번에 부푼다.
+`pyproject.toml` 로는 패키지별 인덱스를 지정할 수 없어서, 이 플래그가 Dockerfile과
+이 문서 양쪽에 적혀 있어야 한다. 설치 후 확인:
+
+```
+python -c "import torch; print(torch.__version__, torch.version.cuda)"
+# 2.x.x+cpu None   <- cuda가 None이어야 CPU 빌드다
+```
+
+**worker 이미지에 ML 의존성을 넣는 것은 T3(LightGBM)에서 실제로 필요해질 때.
+그 시점에 buildx 캐시 도입을 함께 검토한다.** 지금 `backend/Dockerfile` 은 `.[dev]` 만
+설치한다 — 이미지 안에서 ML을 쓰는 코드가 아직 없고(`train_model`·`daily_judge` 는 스텁),
+CPU 휠이어도 torch가 769MB라 레이어 캐시 없이는 PR마다 그만큼을 다시 받게 된다.
+
+ML이 필요한 테스트에는 `requires_ml` 마커를 단다. CI는
+`pytest -m "not requires_ollama and not requires_ml" -q` 로 그 테스트들을 빼고 돈다
+(현서가 만들어 둔 `requires_ollama` 선례와 같은 방식). 따라서 **CI는 `ml` extra를
+설치하지 않으며, 신호 통합·Hedge 같은 순수 함수 회귀 테스트는 ML 의존성 없이 항상 돈다.**
