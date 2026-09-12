@@ -241,3 +241,51 @@ DataFrame 은 어댑터가 받으므로 호출부는 그대로 pandas 를 쓸 �
 
 **결측은 `None`(JSON null)으로 남긴다. 0으로 채우지 않는다** — 윈도우보다 이력이
 짧은 것과 지표값이 실제로 0인 것을 모델이 구분하지 못하게 되기 때문이다.
+
+## 뉴스 전방 수집 (M3, 2026-09-12 가동)
+
+`docs/news-archive-feasibility.md` 판정이 **"과거 아카이브 확보 불가"** 로 나왔다.
+감성 관점을 살리려면 오늘부터 쌓는 수밖에 없어서 전방 수집을 걸어 뒀다.
+하루라도 늦으면 그만큼 데모에서 쓸 구간이 줄어든다.
+
+```
+DATABASE_URL=postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec \
+  backend/.venv/bin/python scripts/collect_news.py
+```
+
+멱등하다 — 하루에 여러 번 돌려도 이미 있는 기사는 `dedup_hash`/`url` UNIQUE 로
+건너뛴다. RSS 는 최근 1~2일치만 주므로 **하루 두 번 이상 돌리는 것이 전제다.**
+
+수집 결과는 `logs/news_collection.log` 에 JSON Lines 로 쌓인다(`.gitignore` 의
+`*.log` 에 걸려 커밋되지 않는다). 소스별 수신·적재·중복·정형제외·시각파싱 실패
+건수가 날짜별로 남아서 **나중에 빈 날을 찾을 수 있다.** `NEWS_COLLECT_LOG` 로 경로를
+바꿀 수 있다.
+
+### 스케줄 거는 법
+
+지금은 systemd 사용자 타이머로 6시간마다 돈다 (`00,06,12,18:05`).
+
+```
+# 유닛 파일: ~/.config/systemd/user/spec-collect-news.{service,timer}
+systemctl --user daemon-reload
+systemctl --user enable --now spec-collect-news.timer
+systemctl --user list-timers spec-collect-news.timer   # 다음 실행 확인
+journalctl --user -u spec-collect-news.service -n 50   # 실행 로그
+```
+
+cron 이 있는 환경이라면 `5 */6 * * * cd /home/jun/spec && DATABASE_URL=... \
+backend/.venv/bin/python scripts/collect_news.py` 로 같은 일을 할 수 있다.
+Windows 라면 작업 스케줄러에 같은 명령을 등록한다.
+
+### 알려진 리스크
+
+- **개발 PC 가 꺼져 있으면 그날이 빈다.** 로그로 감지는 되지만 복구는 안 된다
+  (RSS 가 과거를 안 준다). 더구나 지금은 `Linger=no` 라 **WSL 세션이 닫히면 타이머도
+  멈춘다** — `sudo loginctl enable-linger jun` 을 걸면 세션과 무관하게 돈다.
+  **상시 켜진 서버로 옮길 수 있는지 팀에 물어볼 값어치가 있다.**
+- **중복 임계값 0.97 은 정밀도를 택한 값이라 재게재 기사가 일부 남는다.** 섹터 감성
+  집계에서 같은 뉴스가 중복 계산되면 **감성 점수가 체계적으로 과대평가될 수 있다.**
+  알려진 한계다.
+- 정형 기사(인사·부고·시세표·공시)는 수집 단계에서 거른다 — 서로 다른 기사끼리도
+  유사도가 높게 나와(실측 0.9598) 임계값을 낮추지 못하게 만든 주범이었다. 제외
+  건수는 로그에 `dropped_routine` 으로 남는다. 시황 기사(개장·마감)는 거르지 않는다.

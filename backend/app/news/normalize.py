@@ -124,3 +124,22 @@ def _try_iso8601(text: str) -> datetime | None:
         return datetime.fromisoformat(candidate)
     except ValueError:
         return None
+
+
+# 정형 기사 제목 패턴. 인사·부고·시세표 같은 기사는 내용이 매일 같은 틀이라
+# 서로 다른 기사끼리도 임베딩 유사도가 높게 나온다 — 2026-09-12 실측에서
+# "[인사] 국세청" 서로 다른 발표 두 건이 0.9598 로, 진짜 중복(0.9375)보다 높았다.
+# 중복제거 임계값을 정밀도 우선(0.97)으로 올릴 수밖에 없었던 주범이다.
+# 수집 단계에서 걸러내면 임계값을 낮출 여지가 생긴다.
+#
+# 시황 기사(개장·마감)는 빼지 않는다 — 그건 감성 관점이 실제로 읽어야 할 기사다.
+_ROUTINE_TITLE = re.compile(
+    r"^\s*\[(인사|부고|부음|동정|표|알림|게시판|신간|공시|특파원 시각)\]|주요\s*공시"
+)
+
+
+def is_routine_notice(title: str | None) -> bool:
+    """인사·부고·시세표 같은 정형 기사인가. 감성 분석 대상이 아니다."""
+    if not title:
+        return False
+    return _ROUTINE_TITLE.search(title) is not None

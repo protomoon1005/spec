@@ -20,23 +20,11 @@ from __future__ import annotations
 
 import argparse
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from app.news.rss import parse_feed  # noqa: E402
-from app.news.sources import RSS_SOURCES  # noqa: E402
-
-USER_AGENT = "Mozilla/5.0 (spec-graduation-project; RSS reader)"
-TIMEOUT_SECONDS = 20
-
-
-def fetch(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310
-        return response.read()
+from app.news.collect import collect_once  # noqa: E402
 
 
 def main() -> int:
@@ -45,53 +33,29 @@ def main() -> int:
     parser.add_argument(
         "--embed", action="store_true", help="임베딩까지 계산해 저장한다 (ml extra 필요)"
     )
+    parser.add_argument(
+        "--keep-routine",
+        action="store_true",
+        help="인사·부고·시세표 같은 정형 기사도 적재한다 (기본은 거른다)",
+    )
     args = parser.parse_args()
 
-    embed_texts = None
-    if args.embed:
-        from app.news.embedding import embed_texts  # noqa: PLC0415
-
-    inserted = skipped = failed_sources = 0
-    for source in RSS_SOURCES:
-        try:
-            raw = fetch(source.url)
-        except (urllib.error.URLError, TimeoutError) as exc:
-            print(f"[ingest_news] {source.source_id} 수집 실패: {exc}", file=sys.stderr)
-            failed_sources += 1
-            continue
-
-        result = parse_feed(raw, source_id=source.source_id)
-        print(
-            f"[ingest_news] {source.source_id}: 항목 {result.total} · 유효 {len(result.items)} "
-            f"· 시각없음 {result.dropped_no_timestamp} · 링크없음 {result.dropped_no_url} "
-            f"· 본문없음 {result.dropped_empty_text}"
-        )
-        if args.dry_run:
-            continue
-
-        vectors = None
-        if embed_texts is not None and result.items:
-            vectors = embed_texts([f"{item.title} {item.body}"[:600] for item in result.items])
-
-        from app.repositories.news import insert_article  # noqa: PLC0415
-
-        for index, item in enumerate(result.items):
-            article_id = insert_article(
-                source=item.source_id,
-                title=item.title,
-                body=item.body,
-                url=item.url,
-                published_at=item.published_at,
-                dedup_hash=item.dedup_hash,
-                embedding=None if vectors is None else vectors[index],
+    result = collect_once(
+        embed=args.embed, dry_run=args.dry_run, skip_routine=not args.keep_routine
+    )
+    for source in result.sources:
+        if source.ok:
+            print(
+                f"[ingest_news] {source.source_id}: 항목 {source.entries} · 유효 {source.usable} "
+                f"· 적재 {source.inserted} · 중복 {source.duplicate} "
+                f"· 정형제외 {source.dropped_routine} · 시각없음 {source.dropped_no_timestamp}"
             )
-            if article_id is None:
-                skipped += 1
-            else:
-                inserted += 1
+        else:
+            print(f"[ingest_news] {source.source_id} 수집 실패: {source.error}", file=sys.stderr)
 
-    print(f"[ingest_news] 적재 {inserted}건 · 중복으로 건너뜀 {skipped}건 · 소스 실패 {failed_sources}개")
-    return 1 if failed_sources == len(RSS_SOURCES) else 0
+    print(f"[ingest_news] 적재 {result.inserted}건 · 중복으로 건너뜀 {result.duplicate}건 "
+          f"· 소스 실패 {result.failed_sources}개")
+    return 1 if result.failed_sources == len(result.sources) else 0
 
 
 if __name__ == "__main__":
