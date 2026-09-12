@@ -14,7 +14,7 @@ import pytest
 from app.views.market.features import (
     CURRENT_FEATURE_SET_VERSION,
     FEATURE_SETS,
-    RECOMMENDED_WARMUP_ROWS,
+    FEATURE_WARMUP_ROWS,
     PriceBar,
     compute_features,
     feature_names,
@@ -256,7 +256,7 @@ def test_wilder_features_converge_after_the_recommended_warmup() -> None:
     as_of = full[-1].trade_date
     reference = compute_features(full, as_of=as_of)
 
-    enough = compute_features(full[-RECOMMENDED_WARMUP_ROWS:], as_of=as_of)
+    enough = compute_features(full[-FEATURE_WARMUP_ROWS:], as_of=as_of)
     assert enough["rsi_14"] == pytest.approx(reference["rsi_14"], abs=0.01)
     assert enough["atr_14_pct"] == pytest.approx(reference["atr_14_pct"], abs=1e-5)
 

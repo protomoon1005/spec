@@ -71,10 +71,12 @@ CURRENT_FEATURE_SET_VERSION = "v0.1-ta9"
 # 차이(2026-09-12):
 #     이력 201행 -> rsi 61.7797 / 이력 141행 -> 61.7807 / 이력 31행 -> 65.0775
 # 윈도우 기반 피처(ma_gap·vol·volume_ratio·ret)는 이력 길이와 무관하게 같다.
-# 따라서 재현하려면 as_of 뿐 아니라 **입력 가격 구간의 시작일도 고정**해야 한다.
-# 실무 규칙: as_of 이전 RECOMMENDED_WARMUP_ROWS 행 이상을 넣는다. 그 지점부터
-# 전체 이력 값과 소수 둘째 자리까지 일치한다 (tests/test_market_features.py 가 고정).
-RECOMMENDED_WARMUP_ROWS = 120
+# ★ 그래서 워밍업 행수는 권고가 아니라 **피처셋 정의의 일부**다. 이 값이 달라지면
+#   같은 v0.1-ta9 로 다른 값이 나오고, 재현성의 축인 버전 문자열이 거짓말을 한다.
+#   적재 배치와 백테스트 러너는 **as_of 마다 직전 FEATURE_WARMUP_ROWS 행**을 입력으로
+#   준다 — 이건 계약이다. 120행이면 전체 이력 값과 소수 둘째 자리까지 일치한다
+#   (tests/test_market_features.py 가 고정한다).
+FEATURE_WARMUP_ROWS = 120
 
 # 버전 -> 피처 이름 목록. 데모 계획이 "소규모 구간과 적은 피처로 먼저 돌아가게
 # 만들고 정확도는 12월에 올린다"고 못 박아서 아홉 개로 시작한다.
