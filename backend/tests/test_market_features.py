@@ -14,6 +14,7 @@ import pytest
 from app.views.market.features import (
     CURRENT_FEATURE_SET_VERSION,
     FEATURE_SETS,
+    RECOMMENDED_WARMUP_ROWS,
     PriceBar,
     compute_features,
     feature_names,
@@ -221,3 +222,50 @@ def test_pandas_dataframe_with_trade_date_column() -> None:
     )
 
     assert compute_features(frame, as_of=as_of) == compute_features(bars, as_of=as_of)
+
+
+# ── Wilder 계열의 무한 기억 ──────────────────────────────────────────
+
+
+def _random_walk(days: int, seed: int = 7) -> list[PriceBar]:
+    import random
+
+    rng = random.Random(seed)
+    closes = [100.0]
+    for _ in range(days - 1):
+        closes.append(round(closes[-1] * (1 + rng.uniform(-0.02, 0.02)), 4))
+    return synthetic_series(START, closes)
+
+
+def test_window_features_do_not_depend_on_history_length() -> None:
+    full = _random_walk(200)
+    as_of = full[-1].trade_date
+    reference = compute_features(full, as_of=as_of)
+
+    for cut in (30, 100, 170):
+        trimmed = compute_features(full[cut:], as_of=as_of)
+        for name in ("ret_1", "ret_5", "ret_20", "ma_gap_20", "vol_20", "volume_ratio_20"):
+            assert trimmed[name] == reference[name], name
+
+
+def test_wilder_features_converge_after_the_recommended_warmup() -> None:
+    # rsi_14 · atr_14_pct 는 seed 이후 매 행을 지수적으로 섞어 기억이 무한하다.
+    # 이력이 짧으면 값이 달라지므로, 재현하려면 as_of 뿐 아니라 입력 구간의
+    # 시작일도 고정해야 한다. 권장 워밍업을 넘기면 실용적으로 일치한다.
+    full = _random_walk(300)
+    as_of = full[-1].trade_date
+    reference = compute_features(full, as_of=as_of)
+
+    enough = compute_features(full[-RECOMMENDED_WARMUP_ROWS:], as_of=as_of)
+    assert enough["rsi_14"] == pytest.approx(reference["rsi_14"], abs=0.01)
+    assert enough["atr_14_pct"] == pytest.approx(reference["atr_14_pct"], abs=1e-5)
+
+
+def test_too_little_history_visibly_changes_wilder_features() -> None:
+    # 위 성질의 반대쪽 — "짧아도 괜찮다"고 오해하지 않도록 차이를 고정해 둔다.
+    full = _random_walk(200)
+    as_of = full[-1].trade_date
+    reference = compute_features(full, as_of=as_of)
+    barely = compute_features(full[-31:], as_of=as_of)
+
+    assert abs(barely["rsi_14"] - reference["rsi_14"]) > 1.0

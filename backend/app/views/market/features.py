@@ -38,6 +38,44 @@ from datetime import date, datetime
 
 CURRENT_FEATURE_SET_VERSION = "v0.1-ta9"
 
+# ── v0.1-ta9 지표 정의 (정본) ────────────────────────────────────────
+# C_t = t 시점 종가, H/L = 고가/저가, V = 거래량. t 는 as_of 이하의 마지막 행.
+# "필요 행수"보다 이력이 짧으면 None(결측)이다. 0 으로 채우지 않는다.
+#
+#   ret_1            C_t / C_{t-1}  − 1                                필요 2행
+#   ret_5            C_t / C_{t-5}  − 1                                필요 6행
+#   ret_20           C_t / C_{t-20} − 1                                필요 21행
+#   ma_gap_20        C_t / SMA20(C) − 1      SMA = 단순평균             필요 20행
+#   ma_gap_60        C_t / SMA60(C) − 1                                필요 60행
+#   rsi_14           Wilder RSI(14)                                    필요 15행
+#   atr_14_pct       Wilder ATR(14) / C_t                              필요 15행
+#   vol_20           최근 20개 일간 단순수익률의 표본표준편차(n−1)        필요 21행
+#   volume_ratio_20  V_t / SMA20(V)                                    필요 20행
+#
+# Wilder RSI(14) 상세 — 구현체마다 가장 많이 갈리는 지표다:
+#   delta_i = C_i − C_{i-1}, gain = max(delta, 0), loss = max(−delta, 0)
+#   seed:   avgGain = mean(gain[0:14]),  avgLoss = mean(loss[0:14])    ← 단순평균
+#   이후:   avgGain = (avgGain·13 + gain_i) / 14                        ← Wilder smoothing
+#   RS = avgGain / avgLoss,  RSI = 100 − 100/(1+RS)
+#   avgLoss == 0 이면: avgGain > 0 → 100.0, 둘 다 0(완전 평탄) → 50.0
+#   (gain/loss 단순이동평균을 쓰는 구현과는 값이 다르다. 우리는 Wilder 다.)
+#
+# Wilder ATR(14) 상세:
+#   TR_i = max(H_i − L_i, |H_i − C_{i-1}|, |L_i − C_{i-1}|)
+#   seed = mean(TR[0:14]), 이후 ATR = (ATR·13 + TR_i) / 14              ← Wilder smoothing
+#   (SMA 기반 ATR 구현과는 값이 다르다.)
+#
+# ── 재현성 주의: Wilder 계열은 기억이 무한하다 ───────────────────────
+# rsi_14 와 atr_14_pct 는 seed 이후 매 행을 지수적으로 섞으므로, 같은 as_of 라도
+# **입력 이력을 어디서부터 줬는지에 따라 값이 달라진다.** 200행 랜덤워크로 실측한
+# 차이(2026-09-12):
+#     이력 201행 -> rsi 61.7797 / 이력 141행 -> 61.7807 / 이력 31행 -> 65.0775
+# 윈도우 기반 피처(ma_gap·vol·volume_ratio·ret)는 이력 길이와 무관하게 같다.
+# 따라서 재현하려면 as_of 뿐 아니라 **입력 가격 구간의 시작일도 고정**해야 한다.
+# 실무 규칙: as_of 이전 RECOMMENDED_WARMUP_ROWS 행 이상을 넣는다. 그 지점부터
+# 전체 이력 값과 소수 둘째 자리까지 일치한다 (tests/test_market_features.py 가 고정).
+RECOMMENDED_WARMUP_ROWS = 120
+
 # 버전 -> 피처 이름 목록. 데모 계획이 "소규모 구간과 적은 피처로 먼저 돌아가게
 # 만들고 정확도는 12월에 올린다"고 못 박아서 아홉 개로 시작한다.
 FEATURE_SETS: dict[str, tuple[str, ...]] = {
