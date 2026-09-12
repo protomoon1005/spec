@@ -1,0 +1,102 @@
+"""거시지표 적재 경로 테스트. postgres 가 필요하다.
+
+조회(get_macro)의 경계는 test_asof_repositories.py 가 이미 지키지만, 적재가
+released_at 을 잘못 넣으면 조회가 아무리 옳아도 소용없다 — 쓰기 경로로도 확인한다.
+"""
+from __future__ import annotations
+
+import uuid
+from datetime import date, timedelta
+
+import pytest
+from sqlalchemy import text
+
+from app.macro.codes import (
+    BY_CODE,
+    TREND_INDEX_CODES,
+    VOLATILITY_INDEX_CODES,
+    available_codes,
+    estimate_released_at,
+)
+from app.repositories.macro_indicators import get_macro, upsert_macro
+
+AS_OF = date(2026, 9, 10)
+
+
+@pytest.fixture
+def code(engine):
+    generated = f"TEST_{uuid.uuid4().hex[:8].upper()}"
+    yield generated
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM macro_indicators WHERE indicator_code = :c"), {"c": generated}
+        )
+
+
+def _count(engine, code: str) -> int:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT count(*) FROM macro_indicators WHERE indicator_code = :c"), {"c": code}
+        ).scalar_one()
+
+
+def test_roundtrip(engine, code) -> None:
+    upsert_macro(code, as_of=AS_OF, value=18.5, released_at=AS_OF, source="fred")
+    assert get_macro(code, as_of=AS_OF) == pytest.approx(18.5)
+
+
+def test_reingest_updates_in_place(engine, code) -> None:
+    # 거시지표는 잠정치가 확정치로 개정되는 일이 정상이다 — append-only 가 아니다.
+    upsert_macro(code, as_of=AS_OF, value=18.5, released_at=AS_OF, source="fred")
+    upsert_macro(code, as_of=AS_OF, value=19.2, released_at=AS_OF, source="fred")
+
+    assert _count(engine, code) == 1
+    assert get_macro(code, as_of=AS_OF) == pytest.approx(19.2)
+
+
+def test_value_released_after_as_of_is_not_visible(engine, code) -> None:
+    # 공표 전 값이 과거 판단에 섞이면 미래를 미리 보는 것이다.
+    upsert_macro(code, as_of=AS_OF, value=99.0, released_at=AS_OF + timedelta(days=1), source="fred")
+
+    assert get_macro(code, as_of=AS_OF) is None
+    assert get_macro(code, as_of=AS_OF + timedelta(days=1)) == pytest.approx(99.0)
+
+
+def test_released_before_as_of_is_rejected(engine, code) -> None:
+    with pytest.raises(ValueError, match="보다 빠르다"):
+        upsert_macro(
+            code, as_of=AS_OF, value=1.0, released_at=AS_OF - timedelta(days=1), source="fred"
+        )
+    assert _count(engine, code) == 0
+
+
+# ── 코드 레지스트리 (DB 불필요하지만 같은 관심사라 여기 둔다) ────────
+
+
+def test_daily_indicators_are_released_the_next_day() -> None:
+    # 거래일 d 의 값은 장 마감 뒤 확정되므로 d 에는 아직 못 본다고 본다.
+    assert estimate_released_at("VIX_CLOSE", AS_OF) == AS_OF + timedelta(days=1)
+
+
+def test_unknown_code_raises() -> None:
+    with pytest.raises(ValueError, match="등록되지 않은 지표 코드"):
+        estimate_released_at("NOPE", AS_OF)
+
+
+def test_spec_code_sets_only_contain_registered_codes() -> None:
+    # M1 이 Spec 에 넣을 값 집합이다. 등록되지 않은 코드가 새어 들어가면 안 된다.
+    for spec_code in TREND_INDEX_CODES + VOLATILITY_INDEX_CODES:
+        assert spec_code in BY_CODE
+
+
+def test_trend_index_is_registered_but_not_available_yet() -> None:
+    # 질의 8번(가격 적재)과 같은 자물쇠다. 사실을 테스트로 고정해 둔다 —
+    # 데이터가 들어오면 이 테스트가 깨지고, 그때 T4b 를 열면 된다.
+    assert "KOSPI200" in BY_CODE
+    assert BY_CODE["KOSPI200"].available is False
+    assert "KOSPI200" not in available_codes()
+
+
+def test_sources_match_the_db_check_constraint() -> None:
+    for indicator in BY_CODE.values():
+        assert indicator.source in {"ecos", "fred", "krx"}
