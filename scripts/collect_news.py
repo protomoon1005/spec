@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +33,48 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 from app.news.collect import collect_once  # noqa: E402
 
 DEFAULT_LOG = REPO_ROOT / "logs" / "news_collection.log"
+STALE_HOURS = 24
+
+
+def warn_if_stale(log_path: Path) -> None:
+    """직전 24시간 적재가 0건이면 경고한다.
+
+    로그만 쌓아두면 아무도 안 본다. 타이머가 멈췄거나 소스가 통째로 죽은 것을
+    **다음 실행이 알려주게** 만드는 게 목적이다. 두 경우를 다 잡는다 —
+    24시간 안에 실행 기록이 아예 없거나(타이머 정지), 실행은 됐는데 적재가
+    0건이거나(소스 사망·피드 구조 변경).
+    """
+    if not log_path.exists():
+        return
+
+    cutoff = datetime.now(UTC) - timedelta(hours=STALE_HOURS)
+    recent = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+            collected_at = datetime.fromisoformat(entry["collected_at"])
+        except (json.JSONDecodeError, KeyError, ValueError):
+            continue
+        if collected_at >= cutoff:
+            recent.append(entry)
+
+    if not recent:
+        print(
+            f"[collect_news] 경고: 최근 {STALE_HOURS}시간 안에 실행 기록이 없다. "
+            "타이머가 멈췄을 수 있다 (systemctl --user list-timers spec-collect-news.timer)."
+        )
+        return
+
+    inserted = sum(entry.get("inserted", 0) for entry in recent)
+    if inserted == 0:
+        failed = sum(entry.get("failed_sources", 0) for entry in recent)
+        print(
+            f"[collect_news] 경고: 최근 {STALE_HOURS}시간 적재 0건 "
+            f"(실행 {len(recent)}회 · 소스 실패 누적 {failed}회). "
+            "피드가 죽었거나 구조가 바뀌었을 수 있다."
+        )
 
 
 def main() -> int:
@@ -68,6 +111,7 @@ def main() -> int:
         f"[collect_news] 적재 {result.inserted} · 중복 {result.duplicate} "
         f"· 소스 실패 {result.failed_sources} · 로그 {log_path}"
     )
+    warn_if_stale(log_path)
     # 모든 소스가 실패했을 때만 실패로 본다 — 한둘이 죽어도 수집은 계속돼야 한다.
     return 1 if result.failed_sources == len(result.sources) else 0
 
