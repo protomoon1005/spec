@@ -74,3 +74,40 @@ def upsert_macro(
                 "source": source,
             },
         )
+
+
+def get_macro_window(
+    indicator_code: str, *, as_of: date, lookback_days: int
+) -> list[tuple[date, float]]:
+    """as_of 기준 최근 lookback_days 일의 (시점, 값) 목록. 오래된 것부터.
+
+    이동평균 이격도처럼 창이 필요한 파생값을 만들기 위한 조회다. 단건 조회를
+    반복하면 as_of 마다 수십 번씩 질의하게 되고, 그렇다고 응용 코드가 테이블을
+    직접 읽으면 시점 규약이 깨진다 — 그래서 창 조회도 저장소 계층에 둔다.
+
+    get_macro 와 같은 두 조건을 그대로 건다: as_of <= 이고 released_at <= as_of.
+    공표 전 값이 과거 판단에 섞이면 미래를 미리 보는 것이다.
+    """
+    if lookback_days <= 0:
+        raise ValueError(f"lookback_days 는 1 이상이어야 한다: {lookback_days!r}")
+
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT as_of, value
+                  FROM (
+                        SELECT as_of, value
+                          FROM macro_indicators
+                         WHERE indicator_code = :indicator_code
+                           AND as_of       <= :as_of
+                           AND released_at <= :as_of
+                         ORDER BY as_of DESC
+                         LIMIT :lookback_days
+                       ) recent
+                 ORDER BY as_of ASC
+                """
+            ),
+            {"indicator_code": indicator_code, "as_of": as_of, "lookback_days": lookback_days},
+        ).all()
+    return [(row.as_of, float(row.value)) for row in rows]
