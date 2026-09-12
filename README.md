@@ -165,3 +165,30 @@ ML이 필요한 테스트에는 `requires_ml` 마커를 단다. CI는
 `pytest -m "not requires_ollama and not requires_ml" -q` 로 그 테스트들을 빼고 돈다
 (현서가 만들어 둔 `requires_ollama` 선례와 같은 방식). 따라서 **CI는 `ml` extra를
 설치하지 않으며, 신호 통합·Hedge 같은 순수 함수 회귀 테스트는 ML 의존성 없이 항상 돈다.**
+
+## M3 피처셋 버전 (`feature_set_version`)
+
+시장분석 모델이 쓰는 가격 기반 피처의 버전 문자열이다. `decision_records.feature_set_version`
+과 `backtest_runs` 에 그대로 기록되고, 저장소 계층의 피처 조회가 이 값으로 찾는다.
+**재현성의 축이라 규칙이 두 개 있다.**
+
+1. **피처 목록이나 계산식이 바뀌면 버전을 올린다.** 같은 버전 문자열에 다른 정의가
+   섞이면 과거 결정을 다시 만들어낼 수 없다.
+2. 문자열만 보고 무엇이 들었는지 짐작할 수 있게 한다.
+
+형식은 `v<major>.<minor>-<피처셋 슬러그>`. 버전별 피처 목록은
+`backend/app/views/market/features.py` 의 `FEATURE_SETS` 상수가 정본이다
+(테이블을 새로 만드는 것은 스키마 변경이라 하지 않았다).
+
+| 버전 | 피처 |
+|---|---|
+| `v0.1-ta9` | `ret_1` · `ret_5` · `ret_20` · `ma_gap_20` · `ma_gap_60` · `rsi_14` · `atr_14_pct` · `vol_20` · `volume_ratio_20` |
+
+`v0.1-ta9` 는 데모 계획의 "소규모 구간과 적은 피처로 먼저 돌아가게 만들고 정확도는
+12월에 올린다"에 맞춘 출발점이다. 계산은 **pandas-ta 가 아니라 stdlib** 로 했다 —
+pandas 가 base dependencies 에 없어서, pandas 로 계산하면 미래 참조 금지 테스트에
+`requires_ml` 이 붙어 CI 에서 빠진다. 그 성질은 매 PR 에서 검증돼야 한다.
+DataFrame 은 어댑터가 받으므로 호출부는 그대로 pandas 를 쓸 수 있다.
+
+**결측은 `None`(JSON null)으로 남긴다. 0으로 채우지 않는다** — 윈도우보다 이력이
+짧은 것과 지표값이 실제로 0인 것을 모델이 구분하지 못하게 되기 때문이다.
