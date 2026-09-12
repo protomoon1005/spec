@@ -13,7 +13,7 @@ from app.views.regime.judge import (
     judge,
 )
 
-CALM = {"VIX_CLOSE": 14.0, "CREDIT_SPREAD_BAA10Y": 1.55, "USDKRW_GAP60": -0.01, "TREND_GAP": 0.03}
+CALM = {"VIX_CLOSE": 14.0, "CREDIT_SPREAD_BAA10Y": 1.55, "USDKRW_GAP60": -0.01, "TREND_GAP": 0.05}
 PANIC = {"VIX_CLOSE": 30.0, "CREDIT_SPREAD_BAA10Y": 2.30, "USDKRW_GAP60": 0.06, "TREND_GAP": -0.08}
 
 
@@ -115,3 +115,22 @@ def test_threshold_set_has_a_version_for_reproducibility() -> None:
     # 임계값이 바뀌면 과거 판정을 재현할 수 없다. 버전이 스냅샷에 남아야 한다.
     assert THRESHOLD_SET_VERSION.startswith("regime-v")
     assert judge(CALM).threshold_state["threshold_set_version"] == THRESHOLD_SET_VERSION
+
+
+def test_threshold_values_are_the_measured_ones() -> None:
+    # 임계값이 실수로 바뀌면 과거 판정을 재현할 수 없다. 버전과 함께 고정한다.
+    # 값을 바꾸려면 THRESHOLD_SET_VERSION 을 같이 올려야 한다.
+    assert THRESHOLD_SET_VERSION == "regime-v0.2-2026-09"
+    by_key = {rule.key: rule.threshold for rule in THRESHOLDS}
+    assert by_key == {
+        "VIX_CLOSE": 19.0,
+        "CREDIT_SPREAD_BAA10Y": 1.90,
+        "USDKRW_GAP60": 0.025,
+        "TREND_GAP": 0.0,
+    }
+
+
+def test_every_threshold_records_its_basis() -> None:
+    # 근거 없는 임계값은 나중에 아무도 못 고친다.
+    for rule in THRESHOLDS:
+        assert rule.basis
