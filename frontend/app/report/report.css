@@ -1,0 +1,51 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css');
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600;700&display=swap');
+
+/* Tailwind 를 preflight 없이 들여온다.
+   preflight(전역 리셋)는 <body>·<h1>·<ul> 같은 문서 전체 선택자를 건드리는데,
+   Next 개발 모드는 라우트별 CSS 청크를 항상 분리해 주지는 않는다. 그대로 두면
+   스캐폴드 페이지(/ 와 /health)까지 리셋이 새서 글머리표와 제목 크기가 깨진다.
+   대신 리포트가 실제로 필요로 하는 리셋만 .report-root 아래로 좁혀서 준다. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+:root {
+  --font-mono: 'Spline Sans Mono', 'Pretendard Variable', Pretendard, monospace;
+  --font-sans: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+}
+
+/* 리포트 전용 리셋. body 에는 손대지 않는다 — 배경은 .report-root 가 직접 칠한다. */
+.report-root,
+.report-root *,
+.report-root *::before,
+.report-root *::after {
+  box-sizing: border-box;
+}
+
+.report-root h1,
+.report-root h2,
+.report-root h3,
+.report-root p,
+.report-root pre {
+  margin: 0;
+}
+
+.report-root button {
+  font: inherit;
+}
+
+.report-root table {
+  border-collapse: collapse;
+}
+
+/* 숫자가 자리마다 폭이 달라 표 안에서 흔들리는 것을 막는다. */
+.report-root {
+  font-variant-numeric: tabular-nums;
+  scrollbar-color: #2b415a #0e141b;
+  scrollbar-width: thin;
+}
+
+.report-root ::selection {
+  background: #3d9bff33;
+}
