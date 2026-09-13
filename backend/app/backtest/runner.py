@@ -14,6 +14,8 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
+from app.views.bridge import BacktestJudge
+
 from .policy import CAP_EXEMPT_GROUPS, caps_for, profile_for, resolve_bounds
 
 FEE = 0.00015
@@ -22,14 +24,16 @@ TAX = 0.0
 
 
 # --- 지표 -------------------------------------------------------------------
-def momentum(closes: np.ndarray, window: int) -> float | None:
+# 아래 셋은 M3 판단 계층이 붙기 전까지 쓰던 임시 지표다. 지우지 않고 이름만
+# _stub_ 로 바꿨다 — 같은 이름의 다른 값이 돌아다니지 않게 하려는 것이다.
+def _stub_momentum(closes: np.ndarray, window: int) -> float | None:
     if len(closes) <= window:
         return None
     then = closes[-1 - window]
     return None if not then else float(closes[-1] / then - 1)
 
 
-def rsi(closes: np.ndarray, window: int = 14) -> float | None:
+def _stub_rsi(closes: np.ndarray, window: int = 14) -> float | None:
     if len(closes) <= window:
         return None
     diffs = np.diff(closes[-window - 1 :])
@@ -38,12 +42,12 @@ def rsi(closes: np.ndarray, window: int = 14) -> float | None:
     return 50.0 if gain + loss == 0 else 100.0 * gain / (gain + loss)
 
 
-def signal_from(closes: np.ndarray) -> float:
+def _stub_signal_from(closes: np.ndarray) -> float:
     """종목 신호 s ∈ [-1, +1]. Spec 의 signal_rules 가 지정한 지표를 쓴다.
 
     M3(LightGBM) 가 붙으면 이 함수가 그 보정 확률을 받는 자리가 된다.
     """
-    mom, r = momentum(closes, 20), rsi(closes, 14)
+    mom, r = _stub_momentum(closes, 20), _stub_rsi(closes, 14)
     if mom is None or r is None:
         return 0.0
     mom_score = max(-1.0, min(1.0, mom / 0.1))
@@ -152,6 +156,7 @@ def run(
     bounds = resolve_bounds(holdings, profile["grade_cap"])
     tickers = [h["ticker"] for h in holdings]
     rebal = set(rebalance_dates)
+    judge = BacktestJudge(tickers)
 
     # 평가 시점 그리드로 맞춘다. 없는 날은 직전 종가를 쓴다(TS 의 priceOn 과 같은 규칙).
     px = (
@@ -166,14 +171,12 @@ def run(
     for d in valuation_dates:
         if d not in rebal:
             continue
-        signals = {}
-        for t in tickers:
-            if use_signals:
-                # t 시점까지 확정된 종가만 본다
-                hist = prices_wide.loc[:d, t].dropna().to_numpy()
-                signals[t] = signal_from(hist)
-            else:
-                signals[t] = 0.0
+        if use_signals:
+            # as_of 이후 절단과 워밍업 120행 절단은 bridge 가 한다
+            judge.record_outcome(prices_wide, as_of=d)
+            signals = dict(judge.judge(prices_wide, as_of=d).signals)
+        else:
+            signals = {t: 0.0 for t in tickers}
         mapped, tgt, cash, apps = map_signals_to_weights(holdings, bounds, signals, profile["cash_min"], caps)
         target.loc[d] = [tgt[t] for t in tickers]
         decisions.append(
