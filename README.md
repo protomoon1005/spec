@@ -129,6 +129,14 @@
   아니므로(01_hardcap_v0_1.sql의 users insert 한 줄만 `ON CONFLICT`) 새 DB에
   한 번만 돌리는 게 전제다.
 
+- **compose의 `${VAR}`는 셸 환경변수가 `.env`보다 우선한다.** 위처럼 호스트
+  명령을 위해 `DATABASE_URL`/`REDIS_URL`을 `localhost`로 셸에 export한 채
+  `docker compose up`을 하면 api·worker 컨테이너에도 `localhost`가 들어가
+  DB/Redis에 못 붙는다. CI가 main에서 한 번도 통과하지 못한 원인 중 하나가
+  이것이었다(워크플로 전역 `env:` = 러너 셸 환경변수, 2026-09-08 첫 실패).
+  로컬에서 멀쩡하고 CI에서만 깨지면 먼저 셸에 뭐가 export돼 있는지 본다 —
+  `docker compose config`로 실제 치환된 값을 확인할 수 있다.
+
 - **501 스텁 라우터(profile/spec/backtest/portfolio/admin)의 응답 모델은
   `docs/db-erd.md` 확정 컬럼만으로 구성했다.** 실제 요청/응답 바디 설계(페이징,
   부분 업데이트, 에러 형식 등)는 각 라인이 실구현할 때 정할 문제라 지금은

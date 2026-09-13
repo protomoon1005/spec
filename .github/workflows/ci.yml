@@ -17,10 +17,12 @@ on:
   push:
     branches: [main]
 
-env:
-  DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
-  REDIS_URL: redis://localhost:6379/0
-  SMOKE_REQUIRE_LLM_HEALTHY: "false"
+# DATABASE_URL·REDIS_URL을 워크플로 전역 env에 두지 않는다. 전역에 두면 러너 셸
+# 환경변수가 되고, docker compose는 `${DATABASE_URL}`을 치환할 때 셸 환경변수를
+# .env보다 먼저 쓴다 — api·worker 컨테이너가 localhost로 붙어 /health가 깨졌다
+# (2026-09-08 첫 CI 실패: worker "Cannot connect to redis://localhost:6379").
+# 호스트에서 도는 단계(alembic·시드·asof guard·pytest·smoke)에만 step-level로 준다.
+# 값이 여러 스텝에 반복되는 것은 의도다 — 전역으로 올리지 마라.
 
 jobs:
   ci:
@@ -49,10 +51,21 @@ jobs:
       - name: 전 스택 기동 (gpu/cpu 프로필 없이 — vllm/ollama 컨테이너는 안 올린다)
         run: docker compose up -d --wait postgres redis minio api worker frontend prometheus grafana
 
-      - name: Alembic 마이그레이션 적용 (메인 spec DB)
-        run: alembic -c alembic.ini upgrade head
+      # 수용 기준 "마이그레이션 왕복" — upgrade → downgrade base → upgrade.
+      # 시드는 멱등이 아니므로 왕복을 끝낸 뒤 한 번만 넣는다.
+      - name: Alembic 마이그레이션 왕복 (메인 spec DB)
+        env:
+          DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          alembic -c alembic.ini upgrade head
+          alembic -c alembic.ini downgrade base
+          alembic -c alembic.ini upgrade head
 
       - name: 시드 적재 (db/seeds/*.sql)
+        env:
+          DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
+          REDIS_URL: redis://localhost:6379/0
         run: |
           sudo apt-get update -y && sudo apt-get install -y --no-install-recommends postgresql-client
           for f in db/seeds/*.sql; do
@@ -61,13 +74,23 @@ jobs:
           done
 
       - name: check_asof_guard.py
+        env:
+          DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
+          REDIS_URL: redis://localhost:6379/0
         run: python scripts/check_asof_guard.py
 
       - name: pytest (requires_ollama · requires_ml 제외)
         working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
+          REDIS_URL: redis://localhost:6379/0
         run: pytest -m "not requires_ollama and not requires_ml" -q
 
       - name: smoke_test.py
+        env:
+          DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
+          REDIS_URL: redis://localhost:6379/0
+          SMOKE_REQUIRE_LLM_HEALTHY: "false"
         run: python scripts/smoke_test.py
 
       - name: 컨테이너 로그 (실패 시 진단용)
