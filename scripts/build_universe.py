@@ -9,7 +9,7 @@ pykrx 를 쓰지 않는 이유: 2026년 현재 pykrx 는 KRX 로그인(KRX_ID / 
   data/prices.csv      long format 일별 종가 (ticker, date, close)
   data/meta.json       수집 시점·파라미터. 재현용
 
-실행:  python scripts/build_universe.py   (출력: frontend/data/)
+실행:  python scripts/build_universe.py
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "frontend" / "data"
+OUT = ROOT / "data"
 OUT.mkdir(exist_ok=True)
 
 AS_OF = date(2026, 9, 11)
@@ -54,7 +54,10 @@ SECTOR_RULES = [
     ("SECTOR_CONSUMER", [r"소비재", r"화장품", r"음식료", r"유통", r"консум", r"consumer"]),
 ]
 
-BOND_RE = re.compile(r"채권|국고채|회사채|통안|크레딧|단기채|금리|bond|만기매칭|CD금리|KOFR|머니마켓|MMF", re.IGNORECASE)
+BOND_RE = re.compile(
+    r"채권|국고채|국채|회사채|통안|크레딧|단기채|금리|bond|만기매칭|CD금리|KOFR|머니마켓|MMF",
+    re.IGNORECASE,
+)
 COMMODITY_RE = re.compile(r"금현물|골드|은선물|원유|WTI|구리|농산물|commodity|gold|silver|oil", re.IGNORECASE)
 US_RE = re.compile(r"미국|S&P|나스닥|다우|russell|필라델피아|미국채", re.IGNORECASE)
 KR_RE = re.compile(r"코스피|KOSPI|코스닥|KOSDAQ|200|한국|국고채|K-", re.IGNORECASE)

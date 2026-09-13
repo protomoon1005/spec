@@ -21,7 +21,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from backtest_py.policy import HARDCAP, profile_for, caps_for  # noqa: E402
+from backtest_py.policy import HARDCAP, caps_for, profile_for  # noqa: E402
 from backtest_py.runner import monthly_first, run, run_buy_and_hold, weekly_dates  # noqa: E402
 
 DATA = ROOT / "data"
@@ -116,7 +116,9 @@ def main() -> int:
             )
             cmp["차이%"] = (cmp["python"] - cmp["typescript"]) / cmp["typescript"] * 100
             print("\n=== TS 러너와 대조 ===")
-            print(f"최종 평가액   python {int(cmp['python'].iloc[-1]):,}   typescript {int(cmp['typescript'].iloc[-1]):,}")
+            py_final = int(cmp["python"].iloc[-1])
+            ts_final = int(cmp["typescript"].iloc[-1])
+            print(f"최종 평가액   python {py_final:,}   typescript {ts_final:,}")
             print(f"최대 괴리 {cmp['차이%'].abs().max():.4f}%   평균 {cmp['차이%'].abs().mean():.4f}%")
 
             # 목표 비중도 대조한다. 평가액보다 이쪽이 더 엄격한 검증이다.

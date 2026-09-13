@@ -14,7 +14,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
-from .policy import CAP_EXEMPT_GROUPS, HARDCAP, caps_for, profile_for, resolve_bounds
+from .policy import CAP_EXEMPT_GROUPS, caps_for, profile_for, resolve_bounds
 
 FEE = 0.00015
 SLIPPAGE = 0.0005
@@ -153,7 +153,12 @@ def run(
     tickers = [h["ticker"] for h in holdings]
     rebal = set(rebalance_dates)
 
-    px = prices_wide.reindex(prices_wide.index.union(valuation_dates)).ffill().reindex(valuation_dates)[tickers]
+    # 평가 시점 그리드로 맞춘다. 없는 날은 직전 종가를 쓴다(TS 의 priceOn 과 같은 규칙).
+    px = (
+        prices_wide.reindex(prices_wide.index.union(valuation_dates))
+        .ffill()
+        .reindex(valuation_dates)[tickers]
+    )
 
     target = pd.DataFrame(np.nan, index=px.index, columns=tickers)
     decisions: list[dict] = []
