@@ -55,6 +55,7 @@ pythonpath = ["."]
 markers = [
     "requires_ollama: 호스트에 뜬 Ollama(qwen3:8b)가 필요한 실통합 테스트. CI는 -m 'not requires_ollama'로 제외한다.",
     "requires_ml: ML 의존성(lightgbm·torch·transformers 등)이 필요한 테스트. CI는 -m 'not requires_ml'로 제외한다.",
+    "requires_backfill: 외부 소스(FDR·ECOS 등)에서 백필해 둔 실데이터가 DB에 있어야 하는 테스트. CI는 시드만 넣은 새 DB라 -m 'not requires_backfill'로 제외한다.",
 ]
 
 [tool.ruff]
