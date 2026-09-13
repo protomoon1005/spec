@@ -102,7 +102,7 @@ spec/
 |---|---|---|---|
 | `postgres` | `timescale/timescaledb-ha:pg16` (pgvector 포함본) | 5432 | `db/init` 자동 실행, named volume |
 | `redis` | `redis:7-alpine` | 6379 | Celery broker + result backend |
-| `minio` | `minio/minio` | 9000/9001 | 버킷 `models`, `reports` 자동 생성 |
+| `minio` | `quay.io/minio/minio` (digest 고정, 2026-09-13 Docker Hub 익명 pull 거부로 이전) | 9000/9001 | 버킷 `models`, `reports` 자동 생성 |
 | `api` | `./backend` | 8000 | uvicorn, `--reload` (dev) |
 | `worker` | `./backend` | — | `celery -A app.workers worker` |
 | `beat` | `./backend` | — | `celery -A app.workers beat` (일일 스케줄) |

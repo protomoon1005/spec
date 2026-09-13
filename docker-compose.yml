@@ -57,7 +57,14 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio
+    # Docker Hub의 minio/minio는 2026-09 기준 익명 pull이 거부된다(CI 기동 실패 원인).
+    # quay.io 미러로 옮기고 digest로 고정한다 — 태그가 사라지거나 옮겨져도 이 이미지는
+    # 그대로 받아진다. digest 출처: quay.io/minio/minio 의 RELEASE.2025-09-07T16-13-09Z
+    # 태그(= 2026-09-13 시점 latest, multi-arch manifest list). 로컬에서 쓰던 Docker Hub
+    # minio/minio:latest 캐시와 같은 digest라 동작 변화는 없다.
+    # 올릴 때: quay 태그 목록에서 새 RELEASE 태그를 고르고
+    #   docker buildx imagetools inspect quay.io/minio/minio:<태그>  의 Digest 로 교체한다.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address ":9001"
     ports:
       - "${MINIO_PORT}:9000"
@@ -74,7 +81,9 @@ services:
       retries: 10
 
   minio-init:
-    image: minio/mc
+    # minio 와 같은 이유로 quay + digest 고정. digest 출처: quay.io/minio/mc 의
+    # RELEASE.2025-08-13T08-35-41Z 태그(= 2026-09-13 시점 latest, manifest list).
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy
