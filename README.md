@@ -135,3 +135,157 @@
   형태를 보여주는 최소 모델만 두었다. 이 모델들은 나중에 실구현 시 바뀔 수
   있다는 뜻이다 — Spec JSON 스키마(계약 ①)처럼 전원 합의가 필요한 고정
   계약이 아니다.
+
+## M3 ML 의존성 설치 (판단 계층)
+
+3관점 판단 계층(학습·추론·PLM)의 의존성은 `backend/pyproject.toml` 의 `ml` extra에 있다.
+평소 개발·CI에는 필요 없고, 모델 학습·추론과 KF-DeBERTa 감성 분류를 돌릴 때만 필요하다.
+
+```
+pip install -e "backend[dev,ml]" --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+**`--extra-index-url` 을 빼지 마라.** linux x86_64에서 `pip install torch` 는 기본이
+CUDA 휠(2.5GB+)이다. api·worker·beat가 `backend/Dockerfile` 하나를 공유하므로
+(쪼개지 않기로 확정, 2026-09-12) CUDA 휠이 잡히면 세 서비스 이미지가 한꺼번에 부푼다.
+`pyproject.toml` 로는 패키지별 인덱스를 지정할 수 없어서, 이 플래그가 Dockerfile과
+이 문서 양쪽에 적혀 있어야 한다. 설치 후 확인:
+
+```
+python -c "import torch; print(torch.__version__, torch.version.cuda)"
+# 2.x.x+cpu None   <- cuda가 None이어야 CPU 빌드다
+```
+
+**worker 이미지에 ML 의존성을 넣는 것은 T3(LightGBM)에서 실제로 필요해질 때.
+그 시점에 buildx 캐시 도입을 함께 검토한다.** 지금 `backend/Dockerfile` 은 `.[dev]` 만
+설치한다 — 이미지 안에서 ML을 쓰는 코드가 아직 없고(`train_model`·`daily_judge` 는 스텁),
+CPU 휠이어도 torch가 769MB라 레이어 캐시 없이는 PR마다 그만큼을 다시 받게 된다.
+
+ML이 필요한 테스트에는 `requires_ml` 마커를 단다. CI는
+`pytest -m "not requires_ollama and not requires_ml" -q` 로 그 테스트들을 빼고 돈다
+(현서가 만들어 둔 `requires_ollama` 선례와 같은 방식). 따라서 **CI는 `ml` extra를
+설치하지 않으며, 신호 통합·Hedge 같은 순수 함수 회귀 테스트는 ML 의존성 없이 항상 돈다.**
+
+## M3 피처셋 버전 (`feature_set_version`)
+
+시장분석 모델이 쓰는 가격 기반 피처의 버전 문자열이다. `decision_records.feature_set_version`
+과 `backtest_runs` 에 그대로 기록되고, 저장소 계층의 피처 조회가 이 값으로 찾는다.
+**재현성의 축이라 규칙이 두 개 있다.**
+
+1. **피처 목록이나 계산식이 바뀌면 버전을 올린다.** 같은 버전 문자열에 다른 정의가
+   섞이면 과거 결정을 다시 만들어낼 수 없다.
+2. 문자열만 보고 무엇이 들었는지 짐작할 수 있게 한다.
+
+형식은 `v<major>.<minor>-<피처셋 슬러그>`. 버전별 피처 목록은
+`backend/app/views/market/features.py` 의 `FEATURE_SETS` 상수가 정본이다
+(테이블을 새로 만드는 것은 스키마 변경이라 하지 않았다).
+
+### `v0.1-ta9` 지표 정의
+
+`C` = 종가, `H`/`L` = 고가/저가, `V` = 거래량, `t` = `as_of` 이하의 마지막 행.
+"필요 행수"보다 이력이 짧으면 `None`(결측)이다.
+
+| 피처 | 정의 | 필요 행수 |
+|---|---|---|
+| `ret_1` | `C_t / C_{t-1} − 1` | 2 |
+| `ret_5` | `C_t / C_{t-5} − 1` | 6 |
+| `ret_20` | `C_t / C_{t-20} − 1` | 21 |
+| `ma_gap_20` | `C_t / SMA20(C) − 1` (SMA = 단순평균) | 20 |
+| `ma_gap_60` | `C_t / SMA60(C) − 1` | 60 |
+| `rsi_14` | **Wilder** RSI(14) | 15 |
+| `atr_14_pct` | **Wilder** ATR(14) `/ C_t` | 15 |
+| `vol_20` | 최근 20개 일간 단순수익률의 **표본**표준편차(n−1) | 21 |
+| `volume_ratio_20` | `V_t / SMA20(V)` | 20 |
+| **워밍업** | `FEATURE_WARMUP_ROWS = 120` — `as_of` 직전 120행을 입력으로 준다 | 120 |
+
+**워밍업 120행은 권고가 아니라 `v0.1-ta9` 정의의 일부다.** Wilder 계열(`rsi_14`·
+`atr_14_pct`)은 기억이 무한해서 입력 이력 길이가 달라지면 같은 버전 문자열로 다른 값이
+나온다. 그러면 재현성의 축이 거짓말을 한다. **적재 배치와 백테스트 러너는 `as_of` 마다
+직전 120행을 입력으로 준다 — 이건 계약이다.** 값을 바꾸려면 `feature_set_version` 을
+올려야 한다. (M4 전달 사항: 시점 주입 러너가 피처를 재계산하는 경로를 만들면 같은
+규칙을 따라야 한다.)
+
+**RSI(14)** — 구현체마다 가장 많이 갈리는 지표다. `delta_i = C_i − C_{i-1}`,
+`gain = max(delta,0)`, `loss = max(−delta,0)`. seed 는 앞 14개의 **단순평균**,
+이후 `avg = (avg×13 + 값)/14` (**Wilder smoothing**). `RS = avgGain/avgLoss`,
+`RSI = 100 − 100/(1+RS)`. `avgLoss == 0` 이면 `avgGain > 0` 은 100, 완전 평탄은 50.
+gain/loss 단순이동평균을 쓰는 구현과는 값이 다르다.
+
+**ATR(14)** — `TR_i = max(H_i−L_i, |H_i−C_{i-1}|, |L_i−C_{i-1}|)`, seed 는 앞 14개의
+단순평균, 이후 Wilder smoothing. SMA 기반 ATR 구현과는 값이 다르다.
+
+> **재현성 주의 — Wilder 계열은 기억이 무한하다.** `rsi_14`·`atr_14_pct` 는 seed 이후
+> 매 행을 지수적으로 섞으므로, **같은 `as_of` 라도 입력 이력을 어디서부터 줬는지에 따라
+> 값이 달라진다.** 200행 랜덤워크 실측: 이력 201행 → RSI 61.7797, 141행 → 61.7807,
+> 31행 → 65.0775. 윈도우 기반 피처(`ret_*`·`ma_gap_*`·`vol_20`·`volume_ratio_20`)는
+> 이력 길이와 무관하게 같다. **재현하려면 `as_of` 뿐 아니라 입력 가격 구간의 시작일도
+> 고정해야 한다.**
+
+### `indicators` 는 적재 목록이 아니라 모델 입력 마스크다 (2026-09-12 확정)
+
+피처 저장소에는 **`feature_set_version` 이 정의한 전체 지표를 항상 계산해 적재**한다.
+`signal_rules.market_analysis.indicators` 는 **그중 모델 입력으로 무엇을 쓸지 고르는
+마스크**로 해석한다.
+
+적재가 Spec 과 무관해지므로 배치가 한 번이면 되고, 샘플 10건이 각기 다른 지표를
+지목해도 피처 저장소가 갈라지지 않는다. 재현 조건도 둘로 깔끔히 나뉜다 —
+`feature_set_version` 이 "무엇이 계산되어 있는가"를, Spec 의 `indicators` 가
+"그중 무엇을 봤는가"를 책임진다. FN-401·403 의 "지표는 `signal_rules` 에서 파생된다"는
+이 해석으로 성립한다.
+
+`v0.1-ta9` 는 데모 계획의 "소규모 구간과 적은 피처로 먼저 돌아가게 만들고 정확도는
+12월에 올린다"에 맞춘 출발점이다. 계산은 **pandas-ta 가 아니라 stdlib** 로 했다 —
+pandas 가 base dependencies 에 없어서, pandas 로 계산하면 미래 참조 금지 테스트에
+`requires_ml` 이 붙어 CI 에서 빠진다. 그 성질은 매 PR 에서 검증돼야 한다.
+DataFrame 은 어댑터가 받으므로 호출부는 그대로 pandas 를 쓸 수 있다.
+
+**결측은 `None`(JSON null)으로 남긴다. 0으로 채우지 않는다** — 윈도우보다 이력이
+짧은 것과 지표값이 실제로 0인 것을 모델이 구분하지 못하게 되기 때문이다.
+
+## 뉴스 전방 수집 (M3, 2026-09-12 가동)
+
+`docs/news-archive-feasibility.md` 판정이 **"과거 아카이브 확보 불가"** 로 나왔다.
+감성 관점을 살리려면 오늘부터 쌓는 수밖에 없어서 전방 수집을 걸어 뒀다.
+하루라도 늦으면 그만큼 데모에서 쓸 구간이 줄어든다.
+
+```
+DATABASE_URL=postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec \
+  backend/.venv/bin/python scripts/collect_news.py
+```
+
+멱등하다 — 하루에 여러 번 돌려도 이미 있는 기사는 `dedup_hash`/`url` UNIQUE 로
+건너뛴다. RSS 는 최근 1~2일치만 주므로 **하루 두 번 이상 돌리는 것이 전제다.**
+
+수집 결과는 `logs/news_collection.log` 에 JSON Lines 로 쌓인다(`.gitignore` 의
+`*.log` 에 걸려 커밋되지 않는다). 소스별 수신·적재·중복·정형제외·시각파싱 실패
+건수가 날짜별로 남아서 **나중에 빈 날을 찾을 수 있다.** `NEWS_COLLECT_LOG` 로 경로를
+바꿀 수 있다.
+
+### 스케줄 거는 법
+
+지금은 systemd 사용자 타이머로 6시간마다 돈다 (`00,06,12,18:05`).
+
+```
+# 유닛 파일: ~/.config/systemd/user/spec-collect-news.{service,timer}
+systemctl --user daemon-reload
+systemctl --user enable --now spec-collect-news.timer
+systemctl --user list-timers spec-collect-news.timer   # 다음 실행 확인
+journalctl --user -u spec-collect-news.service -n 50   # 실행 로그
+```
+
+cron 이 있는 환경이라면 `5 */6 * * * cd /home/jun/spec && DATABASE_URL=... \
+backend/.venv/bin/python scripts/collect_news.py` 로 같은 일을 할 수 있다.
+Windows 라면 작업 스케줄러에 같은 명령을 등록한다.
+
+### 알려진 리스크
+
+- **개발 PC 가 꺼져 있으면 그날이 빈다.** 로그로 감지는 되지만 복구는 안 된다
+  (RSS 가 과거를 안 준다). 더구나 지금은 `Linger=no` 라 **WSL 세션이 닫히면 타이머도
+  멈춘다** — `sudo loginctl enable-linger jun` 을 걸면 세션과 무관하게 돈다.
+  **상시 켜진 서버로 옮길 수 있는지 팀에 물어볼 값어치가 있다.**
+- **중복 임계값 0.97 은 정밀도를 택한 값이라 재게재 기사가 일부 남는다.** 섹터 감성
+  집계에서 같은 뉴스가 중복 계산되면 **감성 점수가 체계적으로 과대평가될 수 있다.**
+  알려진 한계다.
+- 정형 기사(인사·부고·시세표·공시)는 수집 단계에서 거른다 — 서로 다른 기사끼리도
+  유사도가 높게 나와(실측 0.9598) 임계값을 낮추지 못하게 만든 주범이었다. 제외
+  건수는 로그에 `dropped_routine` 으로 남는다. 시황 기사(개장·마감)는 거르지 않는다.

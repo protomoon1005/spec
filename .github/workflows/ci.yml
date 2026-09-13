@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ml extra(.[dev,ml])는 일부러 설치하지 않는다 — 매 PR마다 torch를 받으면
+      # CI 시간이 크게 는다. ML이 필요한 테스트는 requires_ml 마커로 빠진다
+      # (2026-09-12 팀 합의, 현서의 requires_ollama 선례를 따른다).
       - name: 백엔드 의존성 설치
         working-directory: backend
         run: pip install -e ".[dev]"
@@ -60,9 +63,9 @@ jobs:
       - name: check_asof_guard.py
         run: python scripts/check_asof_guard.py
 
-      - name: pytest (requires_ollama 제외)
+      - name: pytest (requires_ollama · requires_ml 제외)
         working-directory: backend
-        run: pytest -m "not requires_ollama" -q
+        run: pytest -m "not requires_ollama and not requires_ml" -q
 
       - name: smoke_test.py
         run: python scripts/smoke_test.py
