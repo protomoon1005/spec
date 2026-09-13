@@ -103,9 +103,13 @@ def test_trend_index_is_available(engine) -> None:
     assert BY_CODE["KOSPI200"].source == "krx"
 
 
+@pytest.mark.requires_backfill
 def test_trend_index_is_actually_queryable(engine) -> None:
     # 코드만 등록하고 데이터가 없으면 M1 이 Spec 에 넣었을 때 조용히 결측이 된다.
     # 실제로 조회되는지까지 본다.
+    # scripts/ingest_macro.py 로 백필한 DB가 전제다 — CI의 새 DB(시드만)에는 없어서
+    # requires_backfill 로 뺀다. 테스트 안에서 행을 넣으면 이 테스트가 보려는
+    # "실데이터가 실제로 있다"가 사라지므로 그렇게 고치지 않는다.
     value = get_macro("KOSPI200", as_of=date(2025, 6, 30))
     assert value is not None and value > 0
 

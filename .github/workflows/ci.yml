@@ -79,12 +79,14 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: python scripts/check_asof_guard.py
 
-      - name: pytest (requires_ollama · requires_ml 제외)
+      # requires_backfill: 외부 소스에서 백필한 실데이터가 DB에 있어야 하는 테스트.
+      # 이 러너의 DB는 시드만 넣은 새 DB라 뺀다(로컬 백필 DB에서는 돈다).
+      - name: pytest (requires_ollama · requires_ml · requires_backfill 제외)
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec
           REDIS_URL: redis://localhost:6379/0
-        run: pytest -m "not requires_ollama and not requires_ml" -q
+        run: pytest -m "not requires_ollama and not requires_ml and not requires_backfill" -q
 
       - name: smoke_test.py
         env:
