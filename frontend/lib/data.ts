@@ -13,6 +13,16 @@
 // ---------------------------------------------------------------------------
 
 import result from "@/data/backtest-result.json";
+import {
+  GROUP_LABEL,
+  HARDCAP,
+  profileFor,
+  resolveBounds,
+  type Bound,
+  type Grade,
+} from "@/lib/policy";
+
+export { GROUP_LABEL, HARDCAP, type Bound };
 
 export const AS_OF = result.as_of;
 export const SNAPSHOT = AS_OF;
@@ -33,51 +43,14 @@ export const COST_MODEL = {
   slippage: result.costs.slippage,
 };
 
-export const HARDCAP = {
-  version: "v0.1",
-  maxWeightPerAsset: result.hardcap_max_per_asset,
-  cashMin: 0.05,
-  maxLossPerTrade: 0.05,
-  maxDrawdown: 0.25,
-  minIntervalDays: 5,
-  leverageAllowed: false,
-};
-
-// db/seeds/02_preset_v0_1.sql · asset_bound_presets
-const PRESET_GRADE_CAP: Record<number, Record<string, number>> = {
-  1: { G1: 0, G2: 0, G3: 0, G4: 0.1, G5: 0.3, G6: 1 },
-  2: { G1: 0, G2: 0, G3: 0.1, G4: 0.25, G5: 0.4, G6: 1 },
-  3: { G1: 0, G2: 0.1, G3: 0.25, G4: 0.35, G5: 0.5, G6: 1 },
-  4: { G1: 0.1, G2: 0.25, G3: 0.35, G4: 0.4, G5: 0.6, G6: 1 },
-  5: { G1: 0.25, G2: 0.35, G3: 0.4, G4: 0.5, G5: 0.7, G6: 1 },
-};
-
 export const PROFILE = {
-  label: result.profile.label,
-  gradeCap: PRESET_GRADE_CAP[result.profile.risk_level],
-  riskLevel: result.profile.risk_level,
+  ...profileFor(result.profile.risk_level),
   presetVersion: "v0.1",
-  cashMin: result.profile.cash_min,
   source: `허용범위 프리셋 v0.1 (asset_bound_presets, risk_level=${result.profile.risk_level})`,
 };
 
 export const GROUP_CAPS: Record<string, number> = result.caps;
 
-export const GROUP_LABEL: Record<string, string> = {
-  EQUITY: "주식계",
-  BOND: "채권계",
-  COMMODITY: "원자재계",
-  SECTOR_SEMICONDUCTOR: "반도체",
-  SECTOR_BATTERY: "2차전지",
-  SECTOR_BIOHEALTH: "바이오·헬스케어",
-  SECTOR_FINANCE: "금융",
-  SECTOR_INTERNET_PLATFORM: "인터넷·플랫폼",
-  SECTOR_CONSUMER: "소비재",
-  SECTOR_OTHER: "기타",
-  COUNTRY_KR: "한국",
-  COUNTRY_US: "미국",
-  COUNTRY_OTHER: "기타",
-};
 
 // --- 자산곡선 ----------------------------------------------------------------
 // strategy = 3관점 신호 사용, control = 같은 제약·신호 없음, market = KODEX 200 매수후보유
@@ -274,15 +247,15 @@ export const universe: Asset[] = result.universe.map((u) => ({
   signal: (lastDecision.signals as Record<string, number>)[u.ticker] ?? 0,
 }));
 
-export type Bound = { min: number; max: number; clampedBy: string | null };
-
-export const bounds: Record<string, Bound> = Object.fromEntries(
-  universe.map((a) => {
-    const presetCap = PROFILE.gradeCap[a.grade] ?? 1;
-    const cap = Math.min(a.maxRaw, presetCap, HARDCAP.maxWeightPerAsset);
-    const by = cap < a.maxRaw - 1e-9 ? (presetCap <= HARDCAP.maxWeightPerAsset ? "프리셋" : "하드캡") : null;
-    return [a.ticker, { min: Math.min(a.minRaw, cap), max: cap, clampedBy: by }];
-  }),
+export const bounds: Record<string, Bound> = resolveBounds(
+  universe.map((a) => ({
+    ticker: a.ticker,
+    grade: a.grade as Grade,
+    weightMinRaw: a.minRaw,
+    weightMaxRaw: a.maxRaw,
+  })),
+  PROFILE,
+  HARDCAP.maxWeightPerAsset,
 );
 
 export type WeightRow = {

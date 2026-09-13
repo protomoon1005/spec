@@ -7,10 +7,19 @@
 // 파이썬 러너(vectorbt)가 붙으면 이 구현이 대조군이 된다. 같은 입력에 같은
 // 주문이 나오는지 맞춰보면 재현성 주장이 검증된다.
 
+import {
+  resolveBounds,
+  type Bound,
+  type Caps,
+  type Grade,
+  type Profile,
+} from "./policy.ts";
+
+export type { Bound, Caps, Grade, Profile };
+export { resolveBounds };
+
 export type PriceBar = { date: string; close: number };
 export type PriceTable = Map<string, PriceBar[]>; // ticker -> 날짜 오름차순
-
-export type Grade = "G1" | "G2" | "G3" | "G4" | "G5" | "G6";
 
 export type Holding = {
   ticker: string;
@@ -23,23 +32,7 @@ export type Holding = {
   weightMaxRaw: number;
 };
 
-export type Profile = {
-  label: string;
-  riskLevel: number;
-  cashMin: number;
-  gradeCap: Record<Grade, number>;
-};
-
-export type Caps = {
-  /** group_id -> 합계 상한 */
-  group: Record<string, number>;
-  /** 캡을 적용하지 않을 group_id (미분류 버킷 등) */
-  exempt: string[];
-};
-
 export type Costs = { fee: number; slippage: number; tax: number };
-
-export type Bound = { min: number; max: number; clampedBy: string | null };
 
 export type CapApplication = {
   stage: "자산군" | "국가" | "섹터";
@@ -107,25 +100,6 @@ export function signalFrom(closes: number[]): number {
   // RSI 50 을 중립으로 두고 ±30 을 ±1 로 본다.
   const rsiScore = Math.max(-1, Math.min(1, (r - 50) / 30));
   return Math.max(-1, Math.min(1, 0.6 * momScore + 0.4 * rsiScore));
-}
-
-// --- 허용범위 (Validator 2단 프리셋 + 4단 하드캡) -----------------------------
-export function resolveBounds(
-  holdings: Holding[],
-  profile: Profile,
-  hardcapMaxPerAsset: number,
-): Record<string, Bound> {
-  const out: Record<string, Bound> = {};
-  for (const h of holdings) {
-    const presetCap = profile.gradeCap[h.grade];
-    const cap = Math.min(h.weightMaxRaw, presetCap, hardcapMaxPerAsset);
-    let by: string | null = null;
-    if (cap < h.weightMaxRaw - 1e-9) {
-      by = presetCap <= hardcapMaxPerAsset ? "프리셋" : "하드캡";
-    }
-    out[h.ticker] = { min: Math.min(h.weightMinRaw, cap), max: cap, clampedBy: by };
-  }
-  return out;
 }
 
 // --- 신호 → 비중 매핑 (통제 계층) --------------------------------------------

@@ -13,17 +13,8 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  runBacktest,
-  runBuyAndHold,
-  type Caps,
-  type Costs,
-  type Grade,
-  type Holding,
-  type PriceBar,
-  type PriceTable,
-  type Profile,
-} from "../lib/backtest.ts";
+import { runBacktest, runBuyAndHold, type Costs, type Holding, type PriceTable } from "../lib/backtest.ts";
+import { capsFor, HARDCAP, profileFor, type Grade } from "../lib/policy.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const DATA = join(ROOT, "data");
@@ -32,25 +23,12 @@ const DATA = join(ROOT, "data");
 const MARKET_TICKER = "069500"; // KODEX 200
 const INITIAL = 10_000_000;
 const COSTS: Costs = { fee: 0.00015, slippage: 0.0005, tax: 0 };
-const HARDCAP_MAX_PER_ASSET = 0.3; // hardcap_versions v0.1
 
-// 데모 Spec 의 성향. 러너는 성향을 인자로 받으므로 여기만 바꾸면 다른 성향으로 돌아간다.
-const PROFILES: Record<number, Profile> = {
-  1: { label: "안정투자형", riskLevel: 1, cashMin: 0.2, gradeCap: { G1: 0, G2: 0, G3: 0, G4: 0.1, G5: 0.3, G6: 1 } },
-  2: { label: "안정추구형", riskLevel: 2, cashMin: 0.15, gradeCap: { G1: 0, G2: 0, G3: 0.1, G4: 0.25, G5: 0.4, G6: 1 } },
-  3: { label: "위험중립형", riskLevel: 3, cashMin: 0.1, gradeCap: { G1: 0, G2: 0.1, G3: 0.25, G4: 0.35, G5: 0.5, G6: 1 } },
-  4: { label: "성장투자형", riskLevel: 4, cashMin: 0.05, gradeCap: { G1: 0.1, G2: 0.25, G3: 0.35, G4: 0.4, G5: 0.6, G6: 1 } },
-  5: { label: "공격투자형", riskLevel: 5, cashMin: 0.05, gradeCap: { G1: 0.25, G2: 0.35, G3: 0.4, G4: 0.5, G5: 0.7, G6: 1 } },
-};
 
-const ASSET_CAP: Record<string, Record<number, number>> = {
-  EQUITY: { 1: 0.25, 2: 0.4, 3: 0.6, 4: 0.75, 5: 0.85 },
-  BOND: { 1: 0.7, 2: 0.6, 3: 0.5, 4: 0.35, 5: 0.25 },
-  COMMODITY: { 1: 0.05, 2: 0.1, 3: 0.15, 4: 0.2, 5: 0.25 },
-};
-
-const RISK_LEVEL = Number(process.env.RISK_LEVEL ?? 4); // 기본 성장투자형
-const profile = PROFILES[RISK_LEVEL];
+// 성향은 러너 인자다. 환경변수로 바꿔 5개 성향 아무거나 돌릴 수 있다.
+const RISK_LEVEL = Number(process.env.RISK_LEVEL ?? 4);
+const profile = profileFor(RISK_LEVEL);
+const caps = capsFor(RISK_LEVEL);
 
 // 데모 Spec 의 유니버스. 자산군 3개와 반도체 섹터, 국내·미국이 모두 들어가도록 골랐다.
 // 그래야 그룹캡 세 계층이 전부 시연된다.
@@ -108,53 +86,46 @@ for (const spec of SPEC_UNIVERSE) {
   });
 }
 
-const caps: Caps = {
-  group: {
-    EQUITY: ASSET_CAP.EQUITY[RISK_LEVEL],
-    BOND: ASSET_CAP.BOND[RISK_LEVEL],
-    COMMODITY: ASSET_CAP.COMMODITY[RISK_LEVEL],
-    SECTOR_SEMICONDUCTOR: 0.3,
-    SECTOR_BATTERY: 0.3,
-    SECTOR_BIOHEALTH: 0.3,
-    SECTOR_FINANCE: 0.3,
-    SECTOR_INTERNET_PLATFORM: 0.3,
-    SECTOR_CONSUMER: 0.3,
-    COUNTRY_KR: 0.5,
-    COUNTRY_US: 0.5,
-    COUNTRY_OTHER: 0.5,
-  },
-  // SECTOR_OTHER 는 산업 섹터가 아니라 미분류 버킷이라 캡을 걸지 않는다.
-  exempt: ["SECTOR_OTHER"],
-};
 
 // --- 평가·리밸런싱 일정 ------------------------------------------------------
 // 평가는 주간(각 주의 마지막 거래일), 리밸런싱은 월간(각 달의 첫 평가일).
 const marketBars = prices.get(MARKET_TICKER) ?? [];
 const allDates = marketBars.map((b) => b.date);
 
-const weekly: string[] = [];
-let lastWeekKey = "";
-for (const d of allDates) {
-  const dt = new Date(`${d}T00:00:00Z`);
-  const week = `${dt.getUTCFullYear()}-${Math.floor((dt.getTime() / 86400000 + 4) / 7)}`;
-  if (week !== lastWeekKey && weekly.length) weekly[weekly.length - 1] = weekly[weekly.length - 1];
-  if (week !== lastWeekKey) {
-    weekly.push(d);
-    lastWeekKey = week;
-  } else {
-    weekly[weekly.length - 1] = d;
+/** 각 주의 마지막 거래일 */
+function weeklyDates(dates: string[]): string[] {
+  const out: string[] = [];
+  let lastKey = "";
+  for (const d of dates) {
+    // +4 는 1970-01-01(목)을 주 시작 요일에 맞추는 보정이다. 연도를 키에 넣어
+    // 해를 넘는 주가 두 구간으로 갈리게 한다 — 원래 동작을 그대로 유지한다.
+    const dt = new Date(`${d}T00:00:00Z`);
+    const key = `${dt.getUTCFullYear()}-${Math.floor((dt.getTime() / 86400000 + 4) / 7)}`;
+    if (key === lastKey) out[out.length - 1] = d;
+    else {
+      out.push(d);
+      lastKey = key;
+    }
   }
+  return out;
 }
 
-const rebalance: string[] = [];
-let lastMonth = "";
-for (const d of weekly) {
-  const m = d.slice(0, 7);
-  if (m !== lastMonth) {
-    rebalance.push(d);
-    lastMonth = m;
+/** 각 달의 첫 평가일 */
+function monthlyFirst(dates: string[]): string[] {
+  const out: string[] = [];
+  let lastMonth = "";
+  for (const d of dates) {
+    const m = d.slice(0, 7);
+    if (m !== lastMonth) {
+      out.push(d);
+      lastMonth = m;
+    }
   }
+  return out;
 }
+
+const weekly = weeklyDates(allDates);
+const rebalance = monthlyFirst(weekly);
 
 console.log(`성향        ${profile.label} (risk_level ${RISK_LEVEL})`);
 console.log(`유니버스    ${holdings.length}종목`);
@@ -164,14 +135,14 @@ console.log(`리밸런싱    ${rebalance.length}회`);
 // --- 실행 -------------------------------------------------------------------
 const strategy = runBacktest({
   holdings, prices, profile, caps, costs: COSTS,
-  hardcapMaxPerAsset: HARDCAP_MAX_PER_ASSET,
+  hardcapMaxPerAsset: HARDCAP.maxWeightPerAsset,
   valuationDates: weekly, rebalanceDates: rebalance,
   initialCash: INITIAL, mode: "signal",
 });
 
 const control = runBacktest({
   holdings, prices, profile, caps, costs: COSTS,
-  hardcapMaxPerAsset: HARDCAP_MAX_PER_ASSET,
+  hardcapMaxPerAsset: HARDCAP.maxWeightPerAsset,
   valuationDates: weekly, rebalanceDates: rebalance,
   initialCash: INITIAL, mode: "equalWeight",
 });
@@ -186,7 +157,7 @@ const out = {
   initial: INITIAL,
   profile: { label: profile.label, risk_level: RISK_LEVEL, cash_min: profile.cashMin },
   costs: COSTS,
-  hardcap_max_per_asset: HARDCAP_MAX_PER_ASSET,
+  hardcap_max_per_asset: HARDCAP.maxWeightPerAsset,
   data_source: meta.source,
   price_field: meta.price_field,
   universe: holdings.map((h) => ({
