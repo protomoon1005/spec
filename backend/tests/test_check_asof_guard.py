@@ -8,8 +8,12 @@ import importlib.util
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-_SCRIPT_PATH = REPO_ROOT / "scripts" / "check_asof_guard.py"
+# /app/tests/ 에서 실행되면 parents[2]=/  이므로 /repo 를 직접 시도한다.
+_candidates = [
+    Path(__file__).resolve().parents[2] / "scripts" / "check_asof_guard.py",
+    Path("/repo/scripts/check_asof_guard.py"),
+]
+_SCRIPT_PATH = next((p for p in _candidates if p.exists()), _candidates[0])
 
 _spec = importlib.util.spec_from_file_location("check_asof_guard", _SCRIPT_PATH)
 check_asof_guard = importlib.util.module_from_spec(_spec)
