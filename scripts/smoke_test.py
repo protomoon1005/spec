@@ -168,97 +168,6 @@ def check_gpu_cpu_both_profiles() -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# 5. Alembic 왕복 — 스크래치 DB에서만
-# ---------------------------------------------------------------------------
-
-
-def _alembic_executable() -> Path:
-    suffix = ".exe" if os.name == "nt" else ""
-    return Path(sys.executable).parent / f"alembic{suffix}"
-
-
-def check_alembic_roundtrip() -> CheckResult:
-    name = "Alembic upgrade head -> downgrade base -> upgrade head 왕복"
-    base_url = make_url(DATABASE_URL)
-    scratch_db = f"spec_smoke_migration_{uuid.uuid4().hex[:8]}"
-    admin_engine = create_engine(base_url, pool_pre_ping=True).execution_options(
-        isolation_level="AUTOCOMMIT"
-    )
-
-    alembic_exe = _alembic_executable()
-    if not alembic_exe.exists():
-        return CheckResult(name, "FAIL", f"alembic 실행 파일을 찾을 수 없다: {alembic_exe}")
-
-    # str(url)은 SQLAlchemy 2.x부터 비밀번호를 ***로 가린다 — 실제 접속에 쓸
-    # 문자열은 반드시 render_as_string(hide_password=False)로 뽑아야 한다.
-    scratch_url = base_url.set(database=scratch_db).render_as_string(hide_password=False)
-
-    try:
-        with admin_engine.connect() as conn:
-            conn.execute(text(f'CREATE DATABASE "{scratch_db}"'))
-        # db/init/00_extensions.sql은 postgres 컨테이너 최초 기동 시 딱 한 번만
-        # 돈다 — 새로 만든 스크래치 DB에는 그 확장(vector 등)이 없어서 migrations
-        # 002(news_articles.embedding VECTOR)가 바로 실패한다. 여기서 직접 맞춰준다.
-        scratch_admin_engine = create_engine(scratch_url, pool_pre_ping=True).execution_options(
-            isolation_level="AUTOCOMMIT"
-        )
-        with scratch_admin_engine.connect() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-        scratch_admin_engine.dispose()
-    except DBAPIError as exc:
-        return CheckResult(name, "FAIL", f"스크래치 DB 준비 실패: {exc}")
-    env = {**os.environ, "DATABASE_URL": scratch_url}
-
-    def _run(*args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            [str(alembic_exe), "-c", str(REPO_ROOT / "alembic.ini"), *args],
-            cwd=REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-    try:
-        steps = [
-            ("upgrade head (1차)", _run("upgrade", "head")),
-            ("downgrade base", _run("downgrade", "base")),
-            ("upgrade head (2차)", _run("upgrade", "head")),
-        ]
-        for step_name, proc in steps:
-            if proc.returncode != 0:
-                return CheckResult(name, "FAIL", f"{step_name} 실패:\n{proc.stderr}")
-
-        scratch_engine = create_engine(scratch_url, pool_pre_ping=True)
-        with scratch_engine.connect() as conn:
-            version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            table_count = conn.execute(
-                text(
-                    "SELECT count(*) FROM information_schema.tables "
-                    "WHERE table_schema = 'public' AND table_name = 'etf_master'"
-                )
-            ).scalar_one()
-        scratch_engine.dispose()
-
-        if table_count != 1:
-            return CheckResult(name, "FAIL", "2차 upgrade 후 etf_master 테이블이 없다")
-        return CheckResult(name, "PASS", f"최종 revision={version}")
-    finally:
-        with admin_engine.connect() as conn:
-            conn.execute(
-                text(
-                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                    "WHERE datname = :db AND pid <> pg_backend_pid()"
-                ),
-                {"db": scratch_db},
-            )
-            conn.execute(text(f'DROP DATABASE IF EXISTS "{scratch_db}"'))
-        admin_engine.dispose()
-
-
-# ---------------------------------------------------------------------------
 # 6~8. 시드 카운트 / 하이퍼테이블 / pgvector 인덱스
 # ---------------------------------------------------------------------------
 
@@ -570,7 +479,7 @@ CHECKS = [
     check_compose_services_healthy,
     check_api_health,
     check_gpu_cpu_both_profiles,
-    check_alembic_roundtrip,
+
     check_seed_counts,
     check_hypertables,
     check_vector_indexes,

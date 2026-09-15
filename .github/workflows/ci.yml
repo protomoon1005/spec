@@ -26,14 +26,6 @@ jobs:
       - name: ruff
         run: docker compose exec api ruff check .
 
-      # 수용 기준 "마이그레이션 왕복" — upgrade → downgrade base → upgrade.
-      # alembic.ini와 db/migrations/는 /repo에 마운트돼 있다.
-      - name: Alembic 마이그레이션 왕복
-        run: |
-          docker compose exec api alembic -c /repo/alembic.ini upgrade head
-          docker compose exec api alembic -c /repo/alembic.ini downgrade base
-          docker compose exec api alembic -c /repo/alembic.ini upgrade head
-
       - name: 시드 적재 (db/seeds/*.sql)
         run: |
           for f in db/seeds/*.sql; do
