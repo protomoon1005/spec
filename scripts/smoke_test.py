@@ -40,10 +40,6 @@ DATABASE_URL = os.environ.get(
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:3000")
-GRAFANA_BASE_URL = os.environ.get("GRAFANA_BASE_URL", "http://localhost:3001")
-GRAFANA_ADMIN_USER = os.environ.get("GRAFANA_ADMIN_USER", "admin")
-GRAFANA_ADMIN_PASSWORD = os.environ.get("GRAFANA_ADMIN_PASSWORD", "admin_dev")
-PROMETHEUS_BASE_URL = os.environ.get("PROMETHEUS_BASE_URL", "http://localhost:9090")
 
 os.environ.setdefault("DATABASE_URL", DATABASE_URL)
 os.environ.setdefault("REDIS_URL", REDIS_URL)
@@ -563,30 +559,6 @@ def check_frontend_health_page() -> CheckResult:
     return CheckResult(name, "PASS", "HTML 본문에 API 상태가 렌더됨을 확인")
 
 
-# ---------------------------------------------------------------------------
-# 14. Grafana 대시보드 프로비저닝
-# ---------------------------------------------------------------------------
-
-
-def check_grafana_dashboard_provisioned() -> CheckResult:
-    name = "Grafana에 API 요청 지연 대시보드 1장이 프로비저닝되어 뜸"
-    try:
-        response = httpx.get(
-            f"{GRAFANA_BASE_URL}/api/search",
-            params={"query": "API"},
-            auth=(GRAFANA_ADMIN_USER, GRAFANA_ADMIN_PASSWORD),
-            timeout=10.0,
-        )
-    except httpx.HTTPError as exc:
-        return CheckResult(name, "FAIL", f"요청 실패: {exc}")
-
-    if response.status_code != 200:
-        return CheckResult(name, "FAIL", f"HTTP {response.status_code}")
-
-    dashboards = response.json()
-    if not any(d.get("uid") == "spec-api-latency" for d in dashboards):
-        return CheckResult(name, "FAIL", f"provisioning된 대시보드를 못 찾음: {dashboards}")
-    return CheckResult(name, "PASS", "spec-api-latency 대시보드 확인")
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +579,6 @@ CHECKS = [
     check_asof_boundary_tests,
     check_asof_guard,
     check_frontend_health_page,
-    check_grafana_dashboard_provisioned,
 ]
 
 

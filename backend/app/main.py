@@ -1,4 +1,4 @@
-"""FastAPI 엔트리 (docs/infra-spec.md 7단계).
+"""FastAPI 엔트리.
 
 라우터 6종(auth·profile·spec·backtest·portfolio·admin) + jobs(202/SSE 패턴)를
 붙인다. 본체는 auth/login·refresh, spec/compile, jobs/stream을 뺀 나머지가
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.core.config import get_settings
 from app.routers import admin, auth, backtest, health, jobs, portfolio, profile, spec
@@ -31,5 +30,3 @@ app.include_router(backtest.router)
 app.include_router(portfolio.router)
 app.include_router(admin.router)
 app.include_router(jobs.router)
-
-Instrumentator().instrument(app).expose(app)
