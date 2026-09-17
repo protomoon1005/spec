@@ -39,7 +39,9 @@ DATABASE_URL = os.environ.get(
 )
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
-FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:3000")
+FRONTEND_BASE_URL = os.environ.get(
+    "FRONTEND_BASE_URL", "http://frontend:3000" if Path("/.dockerenv").exists() else "http://localhost:3000"
+)
 
 os.environ.setdefault("DATABASE_URL", DATABASE_URL)
 os.environ.setdefault("REDIS_URL", REDIS_URL)
@@ -48,6 +50,8 @@ os.environ.setdefault("REDIS_URL", REDIS_URL)
 # 비현실적이다) — GPU/CPU 프로필 항목과 같은 이유로, LLM 백엔드 판정만 완화할
 # 수 있게 한다. 로컬(기본값)에서는 그대로 필수다.
 REQUIRE_LLM_HEALTHY = os.environ.get("SMOKE_REQUIRE_LLM_HEALTHY", "true").lower() != "false"
+
+_IN_CONTAINER = Path("/.dockerenv").exists()
 
 
 @dataclass
@@ -89,6 +93,8 @@ def check_compose_services_healthy() -> CheckResult:
             check=False,
         )
     except FileNotFoundError:
+        if _IN_CONTAINER:
+            return CheckResult(name, "SKIP", "컨테이너 안에서는 docker CLI가 없어 생략")
         return CheckResult(name, "FAIL", "docker CLI를 찾을 수 없다")
 
     if proc.returncode != 0:

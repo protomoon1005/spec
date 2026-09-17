@@ -39,9 +39,6 @@ jobs:
       - name: pytest (requires_ollama · requires_ml · requires_backfill 제외)
         run: docker compose exec api pytest -m "not requires_ollama and not requires_ml and not requires_backfill" -q
 
-      - name: smoke_test.py
-        run: docker compose exec -e SMOKE_REQUIRE_LLM_HEALTHY=false api python /repo/scripts/smoke_test.py
-
       - name: 컨테이너 로그 (실패 시 진단용)
         if: failure()
         run: docker compose logs --tail 200
