@@ -1,18 +1,8 @@
 #!/usr/bin/env python3
-"""전 스택 수용 기준 검증 (docs/infra-spec.md 8단계).
+"""전 스택 수용 기준 검증.
 
-`docker compose up` 으로 스택이 이미 떠 있다는 것을 전제로, 호스트에 공개된
-포트(localhost:5432/6379/8000/3000/3001/9090)로 직접 검증한다 — 그래서
-`.\\tasks.ps1 smoke`는 컨테이너 안이 아니라 백엔드 venv로 이 스크립트를 돌린다
-(TODO였던 `docker compose exec api ...` 방식은 backend/만 마운트돼 있어 scripts/를
-못 찾는다).
-
-DB 마이그레이션 왕복(항목 5)만 예외적으로 부수효과가 있다 — 별도 스크래치
-데이터베이스(spec_smoke_migration_check)를 만들어 그 안에서만 upgrade/downgrade를
-돌리고 끝나면 지운다. 개발 중인 `spec` DB는 절대 건드리지 않는다.
-
-GPU가 없어 "--profile gpu와 --profile cpu가 둘 다 기동" 항목만 SKIP으로 표시한다
-(이유는 해당 체크 함수 docstring 참조). 나머지는 전부 실행해서 PASS/FAIL을 낸다.
+docker compose up 으로 스택이 떠 있는 상태에서 호스트 또는 컨테이너 안에서 실행한다.
+GPU가 없어 "--profile gpu/cpu 둘 다 기동" 항목은 SKIP.
 """
 from __future__ import annotations
 
@@ -31,7 +21,6 @@ sys.path.insert(0, str(BACKEND_ROOT))
 import httpx  # noqa: E402
 import redis  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
-from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.exc import DBAPIError  # noqa: E402
 
 DATABASE_URL = os.environ.get(

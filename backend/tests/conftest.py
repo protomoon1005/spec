@@ -1,7 +1,7 @@
 """as_of 경계 테스트 공통 픽스처.
 
 DATABASE_URL이 없으면 로컬 docker-compose postgres(localhost:5432)를 기본값으로
-쓴다 — db/migrations/env.py 상단 주석의 호스트 실행 예시와 동일한 접속 정보다.
+쓴다.
 """
 from __future__ import annotations
 

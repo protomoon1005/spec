@@ -32,11 +32,11 @@
 
 1. 모노레포 디렉터리 구조
 2. `docker-compose.yml` — 전 스택 1회 기동
-3. DB 스키마 DDL + Alembic 마이그레이션
+3. DB 스키마 DDL (`db/init/` SQL로 자동 생성)
 4. 시드 데이터 (허용범위 프리셋 v0.1 · 그룹/그룹캡 · 하드캡 v0.1 · ETF 마스터)
 5. 저장소 계층 `as_of` 질의 규약 구현
 6. 모듈 계약 4종 스텁 (Pydantic 모델 + 목업 응답)
-7. 헬스체크 · 스모크 테스트 · `Makefile`
+7. 헬스체크 · 스모크 테스트
 8. `README.md` — 팀원이 clone 후 3개 명령으로 뜨게
 
 # 확정 기술 스택 (변경 금지)
@@ -57,15 +57,13 @@
 ```
 spec/
 ├── docker-compose.yml
-├── docker-compose.gpu.yml          # vLLM 오버레이
 ├── .env.example
-├── Makefile
 ├── README.md
 ├── db/
 │   ├── init/
 │   │   ├── 00_extensions.sql       # timescaledb, vector, pg_trgm
-│   │   └── 01_roles.sql
-│   ├── migrations/                 # Alembic
+│   │   ├── 01_roles.sql
+│   │   └── 02_schema.sql           # 전체 DDL (테이블·인덱스·하이퍼테이블·트리거)
 │   └── seeds/
 │       ├── 01_hardcap_v0_1.sql
 │       ├── 02_preset_v0_1.sql      # 성향5 x 위험등급6 매트릭스
@@ -86,9 +84,6 @@ spec/
 ├── frontend/
 │   ├── Dockerfile
 │   └── (Next.js 스캐폴드 + /health 페이지)
-├── ops/
-│   ├── prometheus/prometheus.yml
-│   └── grafana/provisioning/
 └── scripts/
     ├── smoke_test.py               # 전 스택 기동 검증
     └── check_asof_guard.py         # 저장소 계층 우회 검사
@@ -109,8 +104,6 @@ spec/
 | `frontend` | `./frontend` | 3000 | Next.js dev |
 | `vllm` | `vllm/vllm-openai:latest` | 8001 | **profile: `gpu`** |
 | `ollama` | `ollama/ollama` | 11434 | **profile: `cpu`** |
-| `prometheus` | `prom/prometheus` | 9090 | api `/metrics` 스크레이프 |
-| `grafana` | `grafana/grafana` | 3001 | 프로비저닝된 대시보드 1장 |
 
 ## 요구사항
 
@@ -275,7 +268,7 @@ def get_view_weights(portfolio_id: int, as_of: date) -> dict[str, float]:
 
 - JWT 액세스/리프레시 + `retail` · `pro` · `admin` 3역할 RBAC 의존성은 실제로 동작하게 만든다 (다른 라인이 여기 붙는다)
 - 장시간 작업은 `202 Accepted` + `job_id` 반환 → `GET /jobs/{job_id}/stream` SSE 구독 패턴. **이 패턴만 실제로 뚫어 둔다** (`compile_spec` 더미 태스크가 3초 뒤 완료 이벤트를 흘리는 수준)
-- `/health`, `/metrics`(prometheus-fastapi-instrumentator)
+- `/health`
 
 Celery 태스크 이름도 미리 박는다: `compile_spec`, `run_backtest`, `daily_judge`, `ingest_market`, `train_model`, `update_view_weights`.
 
@@ -311,9 +304,9 @@ Celery 태스크 이름도 미리 박는다: `compile_spec`, `run_backtest`, `da
 
 # 10. 작업 순서와 보고
 
-1. 디렉터리 구조 + `.env.example` + `Makefile`
-2. `docker-compose.yml` (postgres/redis/minio 먼저) → `make up` 으로 3종 healthy 확인
-3. DDL + Alembic 001~004 → 왕복 테스트
+1. 디렉터리 구조 + `.env.example`
+2. `docker-compose.yml` (postgres/redis/minio 먼저) → `docker compose up` 으로 3종 healthy 확인
+3. DDL (`db/init/` SQL) → 컨테이너 최초 기동 시 자동 생성
 4. 시드 4종 → 행 수 검증
 5. `repositories/` as_of 규약 + 경계 테스트 + `check_asof_guard.py`
 6. `contracts/` 4종 + 목업

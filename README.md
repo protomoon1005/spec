@@ -117,17 +117,10 @@
   breaking major 업그레이드 없이는 못 없앰)는 남아 있다 — `npm audit`
   참고.
 
-- **`tasks.ps1 migrate`가 원래 `docker compose exec api alembic ...`였는데
-  실제로는 항상 실패했다.** api 컨테이너에는 `backend/`만 마운트돼 있어
-  `alembic.ini`와 `db/migrations/`(둘 다 저장소 루트)를 컨테이너 안에서
-  못 찾는다 — `scripts/smoke_test.py`를 작성하며 `docker compose exec api
-  python scripts/smoke_test.py`도 같은 이유로 안 된다는 걸 먼저 발견하고
-  고치면서 같이 발견했다. 지금은 둘 다 호스트(백엔드 venv)에서 돌고
-  `DATABASE_URL`만 `localhost` 공개 포트로 오버라이드한다. `db/seeds/*.sql`을
-  적재하는 절차도 그동안 스크립트가 없어서(직전 세션들에서 수동으로
-  `psql`을 돌렸던 것으로 보인다) `tasks.ps1 seed`로 새로 추가했다 — 멱등이
-  아니므로(01_hardcap_v0_1.sql의 users insert 한 줄만 `ON CONFLICT`) 새 DB에
-  한 번만 돌리는 게 전제다.
+- **DB 스키마는 `db/init/` SQL로 자동 생성된다.** postgres 컨테이너 최초 기동 시
+  `docker-entrypoint-initdb.d`에 마운트된 SQL이 순서대로 실행된다. 시드 데이터는
+  `docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql`
+  식으로 넣는다. 멱등이 아니므로 새 DB에 한 번만 돌리는 게 전제다.
 
 - **compose의 `${VAR}`는 셸 환경변수가 `.env`보다 우선한다.** 위처럼 호스트
   명령을 위해 `DATABASE_URL`/`REDIS_URL`을 `localhost`로 셸에 export한 채
