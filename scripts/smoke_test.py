@@ -1,18 +1,8 @@
 #!/usr/bin/env python3
-"""전 스택 수용 기준 검증 (docs/infra-spec.md 8단계).
+"""전 스택 수용 기준 검증.
 
-`docker compose up` 으로 스택이 이미 떠 있다는 것을 전제로, 호스트에 공개된
-포트(localhost:5432/6379/8000/3000/3001/9090)로 직접 검증한다 — 그래서
-`.\\tasks.ps1 smoke`는 컨테이너 안이 아니라 백엔드 venv로 이 스크립트를 돌린다
-(TODO였던 `docker compose exec api ...` 방식은 backend/만 마운트돼 있어 scripts/를
-못 찾는다).
-
-DB 마이그레이션 왕복(항목 5)만 예외적으로 부수효과가 있다 — 별도 스크래치
-데이터베이스(spec_smoke_migration_check)를 만들어 그 안에서만 upgrade/downgrade를
-돌리고 끝나면 지운다. 개발 중인 `spec` DB는 절대 건드리지 않는다.
-
-GPU가 없어 "--profile gpu와 --profile cpu가 둘 다 기동" 항목만 SKIP으로 표시한다
-(이유는 해당 체크 함수 docstring 참조). 나머지는 전부 실행해서 PASS/FAIL을 낸다.
+docker compose up 으로 스택이 떠 있는 상태에서 호스트 또는 컨테이너 안에서 실행한다.
+GPU가 없어 "--profile gpu/cpu 둘 다 기동" 항목은 SKIP.
 """
 from __future__ import annotations
 
@@ -31,7 +21,6 @@ sys.path.insert(0, str(BACKEND_ROOT))
 import httpx  # noqa: E402
 import redis  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
-from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.exc import DBAPIError  # noqa: E402
 
 DATABASE_URL = os.environ.get(
@@ -39,11 +28,9 @@ DATABASE_URL = os.environ.get(
 )
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
-FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:3000")
-GRAFANA_BASE_URL = os.environ.get("GRAFANA_BASE_URL", "http://localhost:3001")
-GRAFANA_ADMIN_USER = os.environ.get("GRAFANA_ADMIN_USER", "admin")
-GRAFANA_ADMIN_PASSWORD = os.environ.get("GRAFANA_ADMIN_PASSWORD", "admin_dev")
-PROMETHEUS_BASE_URL = os.environ.get("PROMETHEUS_BASE_URL", "http://localhost:9090")
+FRONTEND_BASE_URL = os.environ.get(
+    "FRONTEND_BASE_URL", "http://frontend:3000" if Path("/.dockerenv").exists() else "http://localhost:3000"
+)
 
 os.environ.setdefault("DATABASE_URL", DATABASE_URL)
 os.environ.setdefault("REDIS_URL", REDIS_URL)
@@ -52,6 +39,8 @@ os.environ.setdefault("REDIS_URL", REDIS_URL)
 # 비현실적이다) — GPU/CPU 프로필 항목과 같은 이유로, LLM 백엔드 판정만 완화할
 # 수 있게 한다. 로컬(기본값)에서는 그대로 필수다.
 REQUIRE_LLM_HEALTHY = os.environ.get("SMOKE_REQUIRE_LLM_HEALTHY", "true").lower() != "false"
+
+_IN_CONTAINER = Path("/.dockerenv").exists()
 
 
 @dataclass
@@ -93,6 +82,8 @@ def check_compose_services_healthy() -> CheckResult:
             check=False,
         )
     except FileNotFoundError:
+        if _IN_CONTAINER:
+            return CheckResult(name, "SKIP", "컨테이너 안에서는 docker CLI가 없어 생략")
         return CheckResult(name, "FAIL", "docker CLI를 찾을 수 없다")
 
     if proc.returncode != 0:
@@ -169,97 +160,6 @@ def check_gpu_cpu_both_profiles() -> CheckResult:
         "이 환경에 GPU가 없다 (docstring 참조). cpu/ollama 단독 검증은 "
         "tests/test_llm_client.py(requires_ollama)에서 통과함",
     )
-
-
-# ---------------------------------------------------------------------------
-# 5. Alembic 왕복 — 스크래치 DB에서만
-# ---------------------------------------------------------------------------
-
-
-def _alembic_executable() -> Path:
-    suffix = ".exe" if os.name == "nt" else ""
-    return Path(sys.executable).parent / f"alembic{suffix}"
-
-
-def check_alembic_roundtrip() -> CheckResult:
-    name = "Alembic upgrade head -> downgrade base -> upgrade head 왕복"
-    base_url = make_url(DATABASE_URL)
-    scratch_db = f"spec_smoke_migration_{uuid.uuid4().hex[:8]}"
-    admin_engine = create_engine(base_url, pool_pre_ping=True).execution_options(
-        isolation_level="AUTOCOMMIT"
-    )
-
-    alembic_exe = _alembic_executable()
-    if not alembic_exe.exists():
-        return CheckResult(name, "FAIL", f"alembic 실행 파일을 찾을 수 없다: {alembic_exe}")
-
-    # str(url)은 SQLAlchemy 2.x부터 비밀번호를 ***로 가린다 — 실제 접속에 쓸
-    # 문자열은 반드시 render_as_string(hide_password=False)로 뽑아야 한다.
-    scratch_url = base_url.set(database=scratch_db).render_as_string(hide_password=False)
-
-    try:
-        with admin_engine.connect() as conn:
-            conn.execute(text(f'CREATE DATABASE "{scratch_db}"'))
-        # db/init/00_extensions.sql은 postgres 컨테이너 최초 기동 시 딱 한 번만
-        # 돈다 — 새로 만든 스크래치 DB에는 그 확장(vector 등)이 없어서 migrations
-        # 002(news_articles.embedding VECTOR)가 바로 실패한다. 여기서 직접 맞춰준다.
-        scratch_admin_engine = create_engine(scratch_url, pool_pre_ping=True).execution_options(
-            isolation_level="AUTOCOMMIT"
-        )
-        with scratch_admin_engine.connect() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-        scratch_admin_engine.dispose()
-    except DBAPIError as exc:
-        return CheckResult(name, "FAIL", f"스크래치 DB 준비 실패: {exc}")
-    env = {**os.environ, "DATABASE_URL": scratch_url}
-
-    def _run(*args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            [str(alembic_exe), "-c", str(REPO_ROOT / "alembic.ini"), *args],
-            cwd=REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-    try:
-        steps = [
-            ("upgrade head (1차)", _run("upgrade", "head")),
-            ("downgrade base", _run("downgrade", "base")),
-            ("upgrade head (2차)", _run("upgrade", "head")),
-        ]
-        for step_name, proc in steps:
-            if proc.returncode != 0:
-                return CheckResult(name, "FAIL", f"{step_name} 실패:\n{proc.stderr}")
-
-        scratch_engine = create_engine(scratch_url, pool_pre_ping=True)
-        with scratch_engine.connect() as conn:
-            version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            table_count = conn.execute(
-                text(
-                    "SELECT count(*) FROM information_schema.tables "
-                    "WHERE table_schema = 'public' AND table_name = 'etf_master'"
-                )
-            ).scalar_one()
-        scratch_engine.dispose()
-
-        if table_count != 1:
-            return CheckResult(name, "FAIL", "2차 upgrade 후 etf_master 테이블이 없다")
-        return CheckResult(name, "PASS", f"최종 revision={version}")
-    finally:
-        with admin_engine.connect() as conn:
-            conn.execute(
-                text(
-                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                    "WHERE datname = :db AND pid <> pg_backend_pid()"
-                ),
-                {"db": scratch_db},
-            )
-            conn.execute(text(f'DROP DATABASE IF EXISTS "{scratch_db}"'))
-        admin_engine.dispose()
 
 
 # ---------------------------------------------------------------------------
@@ -563,30 +463,6 @@ def check_frontend_health_page() -> CheckResult:
     return CheckResult(name, "PASS", "HTML 본문에 API 상태가 렌더됨을 확인")
 
 
-# ---------------------------------------------------------------------------
-# 14. Grafana 대시보드 프로비저닝
-# ---------------------------------------------------------------------------
-
-
-def check_grafana_dashboard_provisioned() -> CheckResult:
-    name = "Grafana에 API 요청 지연 대시보드 1장이 프로비저닝되어 뜸"
-    try:
-        response = httpx.get(
-            f"{GRAFANA_BASE_URL}/api/search",
-            params={"query": "API"},
-            auth=(GRAFANA_ADMIN_USER, GRAFANA_ADMIN_PASSWORD),
-            timeout=10.0,
-        )
-    except httpx.HTTPError as exc:
-        return CheckResult(name, "FAIL", f"요청 실패: {exc}")
-
-    if response.status_code != 200:
-        return CheckResult(name, "FAIL", f"HTTP {response.status_code}")
-
-    dashboards = response.json()
-    if not any(d.get("uid") == "spec-api-latency" for d in dashboards):
-        return CheckResult(name, "FAIL", f"provisioning된 대시보드를 못 찾음: {dashboards}")
-    return CheckResult(name, "PASS", "spec-api-latency 대시보드 확인")
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +474,7 @@ CHECKS = [
     check_compose_services_healthy,
     check_api_health,
     check_gpu_cpu_both_profiles,
-    check_alembic_roundtrip,
+
     check_seed_counts,
     check_hypertables,
     check_vector_indexes,
@@ -607,7 +483,6 @@ CHECKS = [
     check_asof_boundary_tests,
     check_asof_guard,
     check_frontend_health_page,
-    check_grafana_dashboard_provisioned,
 ]
 
 

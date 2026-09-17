@@ -1,4 +1,4 @@
-"""DB 엔진. DATABASE_URL 환경변수로만 접속 정보를 받는다 (db/migrations/env.py와 동일 규약).
+"""DB 엔진. DATABASE_URL 환경변수로만 접속 정보를 받는다.
 
 app/repositories/ 만 이 모듈을 통해 DB에 접근한다. 다른 계층은 이 모듈이 아니라
 repositories/의 as_of 질의 함수를 거쳐야 한다 (docs/infra-spec.md 5단계).

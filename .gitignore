@@ -18,6 +18,9 @@ frontend/dist/
 # Docker 볼륨 로컬 마운트 잔여물
 *.log
 
+# Celery Beat
+celerybeat-schedule
+
 # OS
 .DS_Store
 Thumbs.db
