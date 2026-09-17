@@ -122,12 +122,9 @@
   `docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql`
   식으로 넣는다. 멱등이 아니므로 새 DB에 한 번만 돌리는 게 전제다.
 
-- **compose의 `${VAR}`는 셸 환경변수가 `.env`보다 우선한다.** 위처럼 호스트
-  명령을 위해 `DATABASE_URL`/`REDIS_URL`을 `localhost`로 셸에 export한 채
-  `docker compose up`을 하면 api·worker 컨테이너에도 `localhost`가 들어가
-  DB/Redis에 못 붙는다. CI가 main에서 한 번도 통과하지 못한 원인 중 하나가
-  이것이었다(워크플로 전역 `env:` = 러너 셸 환경변수, 2026-09-08 첫 실패).
-  로컬에서 멀쩡하고 CI에서만 깨지면 먼저 셸에 뭐가 export돼 있는지 본다 —
+- **compose의 `${VAR}`는 셸 환경변수가 `.env`보다 우선한다.** 호스트에
+  `DATABASE_URL`/`REDIS_URL`을 `localhost`로 export한 채 `docker compose up`을
+  하면 api·worker 컨테이너에도 `localhost`가 들어가 DB/Redis에 못 붙는다.
   `docker compose config`로 실제 치환된 값을 확인할 수 있다.
 
 - **501 스텁 라우터(profile/spec/backtest/portfolio/admin)의 응답 모델은
@@ -140,7 +137,7 @@
 ## M3 ML 의존성 설치 (판단 계층)
 
 3관점 판단 계층(학습·추론·PLM)의 의존성은 `backend/pyproject.toml` 의 `ml` extra에 있다.
-평소 개발·CI에는 필요 없고, 모델 학습·추론과 KF-DeBERTa 감성 분류를 돌릴 때만 필요하다.
+평소 개발에는 필요 없고, 모델 학습·추론과 KF-DeBERTa 감성 분류를 돌릴 때만 필요하다.
 
 ```
 pip install -e "backend[dev,ml]" --extra-index-url https://download.pytorch.org/whl/cpu
@@ -162,10 +159,9 @@ python -c "import torch; print(torch.__version__, torch.version.cuda)"
 설치한다 — 이미지 안에서 ML을 쓰는 코드가 아직 없고(`train_model`·`daily_judge` 는 스텁),
 CPU 휠이어도 torch가 769MB라 레이어 캐시 없이는 PR마다 그만큼을 다시 받게 된다.
 
-ML이 필요한 테스트에는 `requires_ml` 마커를 단다. CI는
-`pytest -m "not requires_ollama and not requires_ml" -q` 로 그 테스트들을 빼고 돈다
-(현서가 만들어 둔 `requires_ollama` 선례와 같은 방식). 따라서 **CI는 `ml` extra를
-설치하지 않으며, 신호 통합·Hedge 같은 순수 함수 회귀 테스트는 ML 의존성 없이 항상 돈다.**
+ML이 필요한 테스트에는 `requires_ml` 마커를 단다. 로컬 테스트 시
+`pytest -m "not requires_ollama and not requires_ml" -q` 로 제외할 수 있다.
+신호 통합·Hedge 같은 순수 함수 회귀 테스트는 ML 의존성 없이 돈다.
 
 ## M3 피처셋 버전 (`feature_set_version`)
 
@@ -237,7 +233,7 @@ gain/loss 단순이동평균을 쓰는 구현과는 값이 다르다.
 `v0.1-ta9` 는 데모 계획의 "소규모 구간과 적은 피처로 먼저 돌아가게 만들고 정확도는
 12월에 올린다"에 맞춘 출발점이다. 계산은 **pandas-ta 가 아니라 stdlib** 로 했다 —
 pandas 가 base dependencies 에 없어서, pandas 로 계산하면 미래 참조 금지 테스트에
-`requires_ml` 이 붙어 CI 에서 빠진다. 그 성질은 매 PR 에서 검증돼야 한다.
+`requires_ml` 이 붙는다. 테스트 시 해당 마커를 제외하고 돌린다.
 DataFrame 은 어댑터가 받으므로 호출부는 그대로 pandas 를 쓸 수 있다.
 
 **결측은 `None`(JSON null)으로 남긴다. 0으로 채우지 않는다** — 윈도우보다 이력이

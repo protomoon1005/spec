@@ -247,7 +247,7 @@ def get_view_weights(portfolio_id: int, as_of: date) -> dict[str, float]:
 
 - `as_of`는 **키워드 인자 필수**로 만든다. 기본값 `date.today()` 를 절대 두지 않는다 (실운용에서만 오늘을 주입).
 - 세 함수 각각에 **경계 테스트**를 작성한다: `as_of` 당일 데이터, 하루 뒤 데이터, `released_at`이 미래인 거시지표를 넣고 반환되지 않음을 단언한다. `get_view_weights`는 `as_of` 당일 행이 반환되지 **않는지** 확인한다 (부등호 방향이 다르다).
-- `scripts/check_asof_guard.py` — `app/` 전체를 AST로 훑어 `repositories/` 밖에서 `feature_store` · `macro_indicators` · `view_weights` 를 문자열로 참조하는 코드를 찾아 실패시킨다. CI에 넣는다.
+- `scripts/check_asof_guard.py` — `app/` 전체를 AST로 훑어 `repositories/` 밖에서 `feature_store` · `macro_indicators` · `view_weights` 를 문자열로 참조하는 코드를 찾아 실패시킨다.
 
 # 6. 모듈 계약 4종 (스텁)
 

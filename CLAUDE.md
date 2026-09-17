@@ -39,7 +39,7 @@ docker compose logs -f                      # 로그
 - `tests/conftest.py`가 `CELERY_TASK_ALWAYS_EAGER=true`를 넣는다.
   DB 픽스처를 쓰는 테스트는 seed된 상태여야 한다.
   `test_hedge`·`test_views_base` 등 순수 함수 테스트는 DB 없이 돈다.
-- 마커: `requires_ollama` · `requires_ml` · `requires_backfill`. CI는 셋 다 뺀다.
+- 마커: `requires_ollama` · `requires_ml` · `requires_backfill`. 로컬 테스트 시 제외.
 - ML extra 설치 시 `--extra-index-url https://download.pytorch.org/whl/cpu` 필수(CUDA 휠 방지).
 - 프론트: `frontend/`에서 `npm run dev`. TS 백테스트는 `node --experimental-strip-types scripts/run-backtest.ts`.
 
@@ -53,7 +53,7 @@ docker compose logs -f                      # 로그
   `scripts/check_asof_guard.py`가 `app/` 전체 AST에서 가드 테이블 참조를 잡는다 —
   **docstring도 걸린다.** `app/views/*`는 설명을 `#` 주석으로 쓴다.
 - **계약** (`app/contracts/`, Pydantic v2): ① Spec ② ViewScore ③ view_weights ④ TargetWeights ⑤ IntegratedSignal.
-- **판단 계층** (`app/views/`): `as_of`를 받는 순수 함수. stdlib만 사용(numpy/pandas 금지 — CI 회귀 테스트가 빠짐).
+- **판단 계층** (`app/views/`): `as_of`를 받는 순수 함수. stdlib만 사용(numpy/pandas 금지).
   `integrator.py`: tanh 스케일 0.5, 데드존 0.10, 연산 순서 고정.
   `hedge.py`: 롤링 재계산 + water-filling 하한. `app/llm/` import 금지.
 - **피처셋** `v0.1-ta9` (`views/market/features.py`의 `FEATURE_SETS`가 정본): 워밍업 120행은 정의의 일부. 결측은 None.
