@@ -3,9 +3,14 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 
 // 서버에서 정적 프리렌더되므로 첫 렌더는 반드시 최종값이어야 한다. 0 으로
-// 시작하면 서버 HTML 과 클라이언트 첫 렌더가 달라져 하이드레이션이 어긋난다.
-// 그래서 최종값으로 렌더한 뒤, 브라우저가 그리기 전(useLayoutEffect)에 0 으로
-// 되돌리고 애니메이션을 시작한다 — 최종값이 한 프레임 번쩍이지 않는다.
+// 시작하면 서버 HTML 과 클라이언트 첫 렌더가 달라져 하이드레이션이 어긋나고,
+// JS 가 꺼진 환경에서는 0 만 남는다. 그래서 최종값으로 렌더한 뒤 애니메이션을
+// 시작한다.
+//
+// 되돌리는 시점이 중요하다. 예전에는 useLayoutEffect 안에서 곧바로 0 으로
+// 되돌렸는데, 그러면 rAF 가 오지 않는 경로(숨은 탭 · 백그라운드 iframe ·
+// 스크린샷/PDF 캡처)에서 0 만 남고 영영 올라오지 않는다. 지금은 첫 프레임이
+// 실제로 돈 것을 확인한 뒤에만 0 으로 내린다.
 export const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 const COUNT_UP_MS = 1000;
@@ -23,12 +28,17 @@ export function useCountUp(target: number, delay = 0, duration = COUNT_UP_MS): n
       return;
     }
 
+    // 숨은 탭에서는 rAF 가 아예 돌지 않는다. 애니메이션을 걸지 않고 최종값을 둔다.
+    if (document.hidden) {
+      setValue(target);
+      return;
+    }
+
     let raf = 0;
     let startedAt = 0;
-    setValue(0);
+    let settle = 0;
 
     const tick = (now: number) => {
-      if (startedAt === 0) startedAt = now;
       const elapsed = now - startedAt - delay;
       if (elapsed < 0) {
         raf = requestAnimationFrame(tick);
@@ -39,8 +49,21 @@ export function useCountUp(target: number, delay = 0, duration = COUNT_UP_MS): n
       if (t < 1) raf = requestAnimationFrame(tick);
     };
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // 0 으로 되돌리는 것은 첫 프레임이 실제로 돈 뒤다. 여기서 되돌려 놓고
+    // rAF 가 오지 않으면(백그라운드 iframe, 스크린샷·PDF 캡처 경로) 숫자가
+    // 0 에 영영 멈춘다 — 승인 화면이 ₩0, 0.0% 로 뜬다.
+    raf = requestAnimationFrame((now) => {
+      setValue(0);
+      startedAt = now;
+      raf = requestAnimationFrame(tick);
+      // 도중에 프레임이 멎어도 최종값은 반드시 남긴다.
+      settle = window.setTimeout(() => setValue(target), delay + duration + 200);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(settle);
+    };
   }, [target, delay, duration]);
 
   return value;
