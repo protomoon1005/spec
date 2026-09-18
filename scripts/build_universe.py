@@ -5,9 +5,9 @@ pykrx 를 쓰지 않는 이유: 2026년 현재 pykrx 는 KRX 로그인(KRX_ID / 
 인증 없이 동작하는 것을 확인했다(2026-09-11 실측).
 
 산출물
-  frontend/data/universe.csv    선별된 종목과 분류 (risk_tag 산정 근거 포함)
-  frontend/data/prices.csv      long format 일별 종가 (ticker, date, close)
-  frontend/data/meta.json       수집 시점·파라미터. 재현용
+  data/universe.csv    선별된 종목과 분류 (risk_tag 산정 근거 포함)
+  data/prices.csv      long format 일별 종가 (ticker, date, close)
+  data/meta.json       수집 시점·파라미터. 재현용
 
 실행:  python scripts/build_universe.py
 """
@@ -24,8 +24,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-# 화면이 번들하는 자리에 바로 쓴다.
-OUT = ROOT / "frontend" / "data"
+OUT = ROOT / "data"
 OUT.mkdir(exist_ok=True)
 
 AS_OF = date(2026, 9, 11)
@@ -61,7 +60,19 @@ BOND_RE = re.compile(
 )
 COMMODITY_RE = re.compile(r"금현물|골드|은선물|원유|WTI|구리|농산물|commodity|gold|silver|oil", re.IGNORECASE)
 US_RE = re.compile(r"미국|S&P|나스닥|다우|russell|필라델피아|미국채", re.IGNORECASE)
-KR_RE = re.compile(r"코스피|KOSPI|코스닥|KOSDAQ|200|한국|국고채|K-", re.IGNORECASE)
+# 미국 외 해외. 국내 상장 ETF 는 기초자산이 국내면 이름에 나라를 적지 않지만
+# (KODEX 반도체, TIGER 200) 해외물은 반드시 적는다 — 그래야 팔리기 때문이다.
+# 그래서 국가 판정은 "해외 표지를 찾고, 없으면 한국" 이어야 한다. 반대로 짜면
+# 국내 섹터 ETF 가 전부 기타로 새고 국가 캡이 엉뚱한 묶음에 걸린다.
+FOREIGN_RE = re.compile(
+    r"글로벌|차이나|중국|항셍|홍콩|일본|닛케이|유로|유럽|독일|영국|인도|베트남|대만|"
+    r"인도네시아|필리핀|멕시코|브라질|신흥국|선진국|아시아|월드|"
+    r"global|china|japan|india|vietnam|taiwan|europe|emerging|world",
+    re.IGNORECASE,
+)
+# 해외 지수 제공자 이름이 붙어도 기초자산은 국내인 경우가 있다("MSCI Korea TR").
+# 그래서 해외 표지보다 한국 표지를 먼저 본다.
+KR_OVERRIDE_RE = re.compile(r"korea|코리아|한국|코스피|kospi|코스닥|kosdaq|K-", re.IGNORECASE)
 
 
 def classify(name: str) -> tuple[str, str, str]:
@@ -80,14 +91,17 @@ def classify(name: str) -> tuple[str, str, str]:
                 sector = sid
                 break
 
-    if US_RE.search(name):
-        country = "COUNTRY_US"
-    elif COMMODITY_RE.search(name):
-        country = "COUNTRY_OTHER"
-    elif KR_RE.search(name) or asset == "BOND":
+    if KR_OVERRIDE_RE.search(name):
         country = "COUNTRY_KR"
-    else:
+    elif US_RE.search(name):
+        country = "COUNTRY_US"
+    elif FOREIGN_RE.search(name):
         country = "COUNTRY_OTHER"
+    elif asset == "COMMODITY":
+        # 금·원유는 특정 국가의 자산이 아니다. 국내 상장분이어도 한국으로 묶지 않는다.
+        country = "COUNTRY_OTHER"
+    else:
+        country = "COUNTRY_KR"
 
     return asset, sector, country
 
