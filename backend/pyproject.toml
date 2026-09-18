@@ -18,6 +18,17 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
+# M4(백테스트 러너) 전용. app/backtest/ 가 numpy·pandas 를 최상단에서, vectorbt 를
+# run() 안에서 import 하고 scripts/build_universe.py 가 FinanceDataReader 를 쓴다.
+# base 에 넣지 않은 이유: api 서비스는 이 모듈을 쓰지 않고, pandas 를 base 로 올리는
+# 것은 의존성 지형을 바꾸는 결정이라 팀이 정할 일이다(plans/M3_3관점판단.md 참고).
+# CI 는 .[dev] 만 설치하므로 이 extra 가 필요한 테스트는 requires_backtest 로 막는다.
+backtest = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "vectorbt>=1.1",
+    "finance-datareader>=0.9",
+]
 # M3(판단 계층) 전용. 학습·추론·PLM 의존성이라 api 서비스에는 런타임에 필요 없지만,
 # worker(daily_judge·train_model)에는 필요하다. Dockerfile을 쪼개지 않기로 했으므로
 # (2026-09-12 팀 합의) 단일 이미지에 같이 들어간다 — 대신 torch는 CPU 전용 휠을 쓴다.
@@ -54,6 +65,7 @@ markers = [
     "requires_ollama: 호스트에 뜬 Ollama(qwen3:8b)가 필요한 실통합 테스트. CI는 -m 'not requires_ollama'로 제외한다.",
     "requires_ml: ML 의존성(lightgbm·torch·transformers 등)이 필요한 테스트. CI는 -m 'not requires_ml'로 제외한다.",
     "requires_backfill: 외부 소스(FDR·ECOS 등)에서 백필해 둔 실데이터가 DB에 있어야 하는 테스트. CI는 시드만 넣은 새 DB라 -m 'not requires_backfill'로 제외한다.",
+    "requires_backtest: 백테스트 의존성(numpy·pandas·vectorbt)이 필요한 테스트. CI는 .[dev]만 설치하므로 -m 'not requires_backtest'로 제외한다.",
 ]
 
 [tool.ruff]

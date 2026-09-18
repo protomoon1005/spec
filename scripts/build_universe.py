@@ -5,9 +5,9 @@ pykrx 를 쓰지 않는 이유: 2026년 현재 pykrx 는 KRX 로그인(KRX_ID / 
 인증 없이 동작하는 것을 확인했다(2026-09-11 실측).
 
 산출물
-  data/universe.csv    선별된 종목과 분류 (risk_tag 산정 근거 포함)
-  data/prices.csv      long format 일별 종가 (ticker, date, close)
-  data/meta.json       수집 시점·파라미터. 재현용
+  frontend/data/universe.csv    선별된 종목과 분류 (risk_tag 산정 근거 포함)
+  frontend/data/prices.csv      long format 일별 종가 (ticker, date, close)
+  frontend/data/meta.json       수집 시점·파라미터. 재현용
 
 실행:  python scripts/build_universe.py
 """
@@ -24,7 +24,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "data"
+# 화면이 번들하는 자리에 바로 쓴다.
+OUT = ROOT / "frontend" / "data"
 OUT.mkdir(exist_ok=True)
 
 AS_OF = date(2026, 9, 11)
