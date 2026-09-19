@@ -57,6 +57,13 @@ export const GROUP_CAPS: Record<string, number> = result.caps;
 export type Point = { date: string; strategy: number; control: number; market: number };
 export const series: Point[] = result.series;
 
+// 자산곡선 Y축 눈금. 그 차트가 그리는 두 계열(전략·대조군)의 범위에서 낸다.
+// 시장은 별도 차트라 여기 넣지 않는다 — 스케일이 달라 두 계열이 납작해진다.
+export const equityTicks: number[] = niceTicks(
+  Math.min(...series.map((p) => Math.min(p.strategy, p.control))),
+  Math.max(...series.map((p) => Math.max(p.strategy, p.control))),
+);
+
 // --- 성과지표 ----------------------------------------------------------------
 export type Metrics = {
   total: number;
@@ -421,6 +428,14 @@ export const spec = {
   },
 };
 
+// 낙폭 차트 Y축 눈금. 위는 항상 0(고점)이고 아래만 데이터에서 정한다.
+// 제약 상한선(max_drawdown)도 이 안에 들어와야 기준선이 잘리지 않는다.
+export const drawdownTicks: number[] = niceTicks(
+  Math.min(...ddStrategy, ...ddMarket, -spec.constraint.max_drawdown * 100),
+  0,
+  4,
+);
+
 export type ClampRow = { field: string; requested: number; hardcap: number; resolved: number; clamped: boolean };
 
 export const constraintResolved: ClampRow[] = [
@@ -496,8 +511,39 @@ export const METRIC_GUIDES: MetricGuide[] = [
 // --- 포맷터 ------------------------------------------------------------------
 export const won = (n: number) =>
   new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 }).format(n);
-export const pct = (n: number, d = 2) => `${n >= 0 ? "+" : "−"}${Math.abs(n * 100).toFixed(d)}%`;
+// 부호는 반올림한 뒤에 붙인다. 표시되는 자릿수가 전부 0 인데 "+" 가 붙으면
+// (+0.0%) 늘지도 줄지도 않은 값이 는 것처럼 읽힌다. 카운트업이 0 을 지나갈 때도
+// 같은 문제가 생긴다.
+const signed = (scaled: number, d: number, unit: string) => {
+  const body = Math.abs(scaled).toFixed(d);
+  if (Number(body) === 0) return `${body}${unit}`;
+  return `${scaled >= 0 ? "+" : "−"}${body}${unit}`;
+};
+export const pct = (n: number, d = 2) => signed(n * 100, d, "%");
 export const pctPlain = (n: number, d = 1) => `${(n * 100).toFixed(d)}%`;
-export const pp = (n: number, d = 1) => `${n >= 0 ? "+" : "−"}${Math.abs(n * 100).toFixed(d)}%p`;
+export const pp = (n: number, d = 1) => signed(n * 100, d, "%p");
 export const num = (n: number, d = 2) => n.toFixed(d);
 export const ym = (iso: string) => iso.slice(2, 7).replace("-", ".");
+
+/**
+ * 읽히는 Y축 눈금을 만든다.
+ *
+ * recharts 의 기본 눈금은 데이터 범위를 그대로 쪼개서 909만 · 1168만 같은
+ * 값을 낸다. 사람이 축을 훑으면서 "지금 얼마쯤" 을 가늠하려면 눈금이 먼저
+ * 반올림돼 있어야 한다. 그래서 간격을 1 · 2 · 2.5 · 5 × 10ⁿ 중에서 고르고
+ * 양 끝을 그 간격에 맞춰 넓힌다.
+ *
+ * 반환값의 첫/마지막 원소를 그대로 domain 으로 주면 축이 눈금에서 끝난다.
+ */
+export function niceTicks(min: number, max: number, count = 5): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min, max];
+  const raw = (max - min) / Math.max(1, count);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag;
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  const out: number[] = [];
+  // 부동소수 누적 오차로 마지막 눈금이 빠지는 것을 막는다.
+  for (let v = lo; v <= hi + step / 2; v += step) out.push(Number(v.toFixed(10)));
+  return out;
+}
