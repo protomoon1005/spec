@@ -127,6 +127,12 @@
   `docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql`
   식으로 넣는다. 멱등이 아니므로 새 DB에 한 번만 돌리는 게 전제다.
 
+- **스키마를 바꿀 때는 `db/init/`을 고치지 말고 `db/migrate/`에 `NNN_설명.sql`을 추가한다.**
+  `db/init/`은 최초 기동 전용이라 이미 떠 있는 DB에는 반영되지 않는다. 적용은
+  `docker compose exec api python /repo/scripts/apply_migrations.py` — 이미 적용된 파일은
+  건너뛰므로 여러 번 실행해도 안전하다. `docker compose down -v`는 `price_daily` 등
+  실데이터를 볼륨째 지우므로 스키마 변경 목적으로 쓰지 않는다.
+
 - **compose의 `${VAR}`는 셸 환경변수가 `.env`보다 우선한다.** 호스트에
   `DATABASE_URL`/`REDIS_URL`을 `localhost`로 export한 채 `docker compose up`을
   하면 api·worker 컨테이너에도 `localhost`가 들어가 DB/Redis에 못 붙는다.
