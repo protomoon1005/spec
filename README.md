@@ -33,6 +33,7 @@ docker compose up -d --build
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/02_preset_v0_1.sql
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.sql
+docker compose exec -T postgres psql -U spec -d spec < db/seeds/04_etf_master.sql
 ```
 
 - `01_hardcap` — 모든 전략에 공통으로 걸리는 상한선 (한 종목 30%, 현금 최소 5% 등)
@@ -41,6 +42,10 @@ docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.
   - 없으면 종목별 허용범위를 정할 수 없음
 - `03_asset_groups` — 자산군·업종·국가 묶음과 각 묶음의 상한
   - 없으면 종목을 한 줄도 못 넣음
+- `04_etf_master` — ETF 173종목 (종목코드·이름·업종·자산군·위험등급)
+  - 없으면 담을 종목이 없어서 전략을 못 만듦
+  - 현재는 백테스팅시에 frontend/universe.csv에서 읽는거로 경로 설정되있음 추후에 쓰일예정(일단은 만들기만 하는 상태)
+
 
 - **한 번만 넣을 것.** 두 번 돌리면 같은 값이 중복으로 들어감
 - 데이터 볼륨을 지우지 않는 한 계속 남아 있으므로 다시 넣을 일 없음
@@ -55,6 +60,53 @@ docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.
   - 계정·전략서 — 쓰면서 쌓임
   - 종목 목록·주가 — `frontend/data/` 에 파일로 이미 공유돼 있음
   - 뉴스 — 매일 따로 수집
+
+### 표 구조가 바뀌었을 때 (기존 사용자)
+
+- `db/init/02_schema.sql` 이 바뀐 커밋을 받았다면 **기존 DB에는 반영되지 않음**
+  - `db/init/` 은 볼륨이 빈 채로 처음 뜰 때만 실행됨. 그 뒤엔 파일이 바뀌어도 다시 안 돎
+  - 그래서 **볼륨을 지우고 다시 만드는 것 외에 방법이 없음**
+- 내 DB가 낡았는지 확인하는 법
+
+```sh
+docker compose exec -T postgres psql -U spec -d spec -c "\dt" | tail -3
+```
+
+  - `Did not find any relations` → 표가 아예 없음
+  - 표가 나오는데 최근에 추가된 표가 안 보임 → 낡은 것
+
+#### 뉴스가 없는 사람 (처음 사용자)
+
+```sh
+docker compose down
+docker volume rm spec_pgdata
+docker compose up -d
+docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql
+docker compose exec -T postgres psql -U spec -d spec < db/seeds/02_preset_v0_1.sql
+docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.sql
+docker compose exec -T postgres psql -U spec -d spec < db/seeds/05_etf_master.sql
+```
+
+- 계정과 전략서는 같이 사라짐. 테스트용이라 다시 만들면 됨
+
+#### 뉴스를 쌓고 있는 사람
+
+- **지우기 전에 반드시 백업할 것.** 지나간 뉴스는 다시 받을 수 없음
+
+```sh
+# 1) 백업 — 표 구조는 빼고 데이터만
+docker compose exec -T postgres pg_dump -U spec -d spec \
+  --data-only -t news_articles -t news_sentiment > news_backup.sql
+
+# 2) 위 "뉴스가 없는 사람" 절차를 그대로 수행
+
+# 3) 복원
+docker compose exec -T postgres psql -U spec -d spec < news_backup.sql
+```
+
+- 기사 표와 감성 표는 **한 파일에 같이** 뽑을 것. 감성이 기사 번호를 참조하므로 따로 뽑으면 어긋남
+- 기사 번호와 다음 번호까지 그대로 복원됨 (실측 확인)
+- **백업 파일을 저장소에 커밋하지 말 것** — 기사 원문이 들어 있고, "뉴스 원문은 저장하지 않는다" 규칙에 걸림
 
 ### 자주 겪는 문제
 
@@ -86,21 +138,31 @@ docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.
 
 ### 종목 데이터 — M1 이 제일 먼저 막히는 곳
 
-- **종목 표가 사실상 비어 있음**
-  - `db/seeds/04_etf_master.csv` 는 60종목을 담기로 했는데 지금 4종목만, 그것도 이름만
-  - 자산군 칸이 필수값이라 비어 있는 동안은 **데이터베이스에 한 줄도 안 들어감**
-  - 종목을 못 찾으면 전략서를 못 만듦
+- **종목 표에 빠진 칸이 있음** (2026-09-20 기준 173종목 적재 완료)
+  - `db/seeds/05_etf_master.sql` 로 173종목이 들어감. 종목코드·이름·업종·자산군·위험등급까지
+  - 비어 있는 칸 — 1년 변동성, 상장일, 3년 최대낙폭, 보수율, 상장폐지일
+    - 원본(`frontend/data/universe.csv`)에 없거나, 있어도 기간·의미가 달라서 일부러 안 넣음
+    - 예: 원본 변동성은 3년치인데 표의 칸은 1년치. 넣으면 나중에 1년으로 오해함
+  - **레버리지·인버스 종목과 상장폐지 종목이 통째로 빠져 있음**
+    - 원본 수집 단계에서 걸러짐
+    - 데모의 "생성 불가" / "상장폐지 차단" 장면을 보이려면 몇 종목 따로 넣어야 함
+  - 옛 `db/seeds/04_etf_master.csv`(4종목)는 대체됨
 
 - **종목의 국가를 담을 칸이 표에 없음**
   - 국가별 상한(한국·미국·기타 각 50%)을 걸려면 종목이 어느 나라인지 알아야 함
   - 표에는 업종과 자산군만 있음
   - CSV 에는 국가 칸을 넣어 뒀지만(CSV 는 표 구조가 아니라 입력 파일이라) 실제로 쓰려면 나중에 표에 칸 추가 필요
 
-- **위험등급을 사람이 다시 봐야 함**
-  - `frontend/data/universe.csv` 에 173종목이 분류까지 끝난 채로 있음
-  - 그런데 **위험등급이 변동성으로 자동 계산된 값**
-  - 예: KODEX 200 이 초고위험(G1)으로 잡혀서, 그대로 쓰면 안정형 투자자는 국내 대표지수 ETF 를 한 주도 못 담음. 실무 기준으로는 보통 2등급
-  - **자동 추정은 원래 금지 규칙. 사람이 검토해서 정해야 함**
+- **위험등급을 사람이 다시 봐야 함 — M1 최대 걸림돌**
+  - 지금 들어간 위험등급은 **3년 변동성으로 자동 계산된 값.** 협회 공시 등급이 아님
+  - 173종목 중 **87개가 G1(초고위험)** 으로 쏠려 있음. 주식형만 보면 122개 중 85개
+  - 성향별로 담을 수 있는 종목이 이렇게 됨
+    - 안정투자형 57종목 (주식 **14** · 채권 43)
+    - 위험중립형 86종목 (주식 37 · 채권 48)
+    - 공격투자형 173종목 (주식 122 · 채권 48)
+  - **KODEX 200·TIGER 200·KODEX 코스피가 전부 G1 이라 위험중립형도 국내 대표지수를 못 담음.**
+    실무 기준으로 KODEX 200 은 보통 2등급
+  - **자동 추정은 원래 금지 규칙. 사람이 검토해서 재배정해야 함**
 
 - **자산군을 배정하지 않으면 새로 상장한 ETF 를 자동으로 못 넣음**
   - 자산군이 필수값인데 그 배정은 사람이 하는 일이라서

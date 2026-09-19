@@ -161,9 +161,21 @@ SELECT create_hypertable('feature_store',    'as_of',      if_not_exists => TRUE
 SELECT create_hypertable('macro_indicators', 'as_of',      if_not_exists => TRUE);
 ```
 
-**주의** — TimescaleDB 하이퍼테이블은 파티션 키가 PK에 포함되어야 한다. 위 복합 PK 설계가 이미 이를 만족하는지 확인하고, 충돌하면 하이퍼테이블 전환을 마이그레이션 후반부로 분리한다.
+**주의** — TimescaleDB 하이퍼테이블은 파티션 키가 PK에 포함되어야 한다. 위 복합 PK 설계가 이미 이를 만족하는지 확인하고, 충돌하면 하이퍼테이블 전환을 `02_schema.sql` 후반부로 분리한다.
 
-Alembic으로 관리하되 초기 리비전 하나에 전부 넣지 말고 `001_core` / `002_timeseries` / `003_hypertables` / `004_triggers` 로 쪼갠다.
+스키마는 `db/init/` 의 SQL 로 관리한다. postgres 컨테이너가 **빈 볼륨으로 처음 뜰 때** 파일명 순서대로
+자동 실행된다 (`00_extensions` → `01_roles` → `02_schema`). 마이그레이션 도구는 쓰지 않는다.
+
+> **2026-09-15 변경.** 원래 이 문서는 Alembic 리비전 4개(`001_core` / `002_timeseries` /
+> `003_hypertables` / `004_triggers`)로 관리하도록 적혀 있었다. 호스트에서 따로 돌려야 하는
+> 도구를 없애고 실행 환경을 도커로 통일하면서 `db/init/` 으로 바꿨다 — 기동하면 스키마가
+> 이미 서 있으므로 팀원이 칠 명령이 하나 줄어든다.
+>
+> **대신 감수하는 것: 한 번 만들어진 볼륨에는 다시 실행되지 않는다.** 스키마를 고치면
+> 각자 볼륨을 지우고 다시 띄워야 하고, 그때 그 DB의 데이터는 전부 사라진다.
+> 뉴스처럼 다시 받을 수 없는 데이터가 쌓인 DB는 미리 백업해야 한다 (README 참고).
+> 스키마 변경이 잦아지면 마이그레이션 도구 복원을 다시 검토한다 —
+> 지운 Alembic 파일은 커밋 `53241b2` 직전 시점에 그대로 남아 있다.
 
 # 4. 시드 데이터
 
@@ -280,7 +292,7 @@ Celery 태스크 이름도 미리 박는다: `compile_spec`, `run_backtest`, `da
 - [ ] `docker compose ps` 에서 전 서비스 `healthy`
 - [ ] `GET /health` 200, DB·Redis·MinIO·LLM 백엔드 연결 상태를 각각 보고
 - [ ] `--profile gpu` 와 `--profile cpu` 가 **둘 다** 기동되고, 양쪽에서 동일한 프롬프트로 JSON 응답 1건을 받는다
-- [ ] Alembic `upgrade head` → `downgrade base` → `upgrade head` 왕복 성공
+- [ ] 빈 볼륨으로 기동 시 `db/init/` 3개가 전부 실행되고 표가 생성됨 (postgres 로그에 `running /docker-entrypoint-initdb.d/02_schema.sql` 이 찍히는지 확인)
 - [ ] 시드 적재 후 `ASSET_BOUND_PRESETS` 30행(5×6), `GROUP_CAPS` 상위 15행(3×5) + 하위 10행, `HARDCAP_VERSIONS` 1행 활성
 - [ ] 하이퍼테이블 3종 전환 확인 (`SELECT * FROM timescaledb_information.hypertables`)
 - [ ] pgvector HNSW 인덱스 2종 생성 확인
