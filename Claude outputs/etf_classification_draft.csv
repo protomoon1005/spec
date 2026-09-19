@@ -1,0 +1,64 @@
+ticker,name,risk_tag,group_id,sector,country,review
+069500,KODEX 200,G3,EQUITY,기타,한국,
+122630,KODEX 레버리지,G1,EQUITY,기타,한국,
+102110,TIGER 200,G3,EQUITY,기타,한국,
+360750,TIGER 미국S&P500,G3,EQUITY,기타,미국,
+114800,KODEX 인버스,G1,EQUITY,기타,한국,
+133690,TIGER 미국나스닥100,G3,EQUITY,기타,미국,
+459580,KODEX CD금리액티브(합성),G6,BOND,기타,한국,합성(파생)이지만 위험은 극저 — 등급 확인
+379810,KODEX 미국나스닥100,G3,EQUITY,기타,미국,
+252670,KODEX 200선물인버스2X,G1,EQUITY,기타,한국,
+379800,KODEX 미국S&P500,G3,EQUITY,기타,미국,
+233740,KODEX 코스닥150레버리지,G1,EQUITY,기타,한국,
+229200,KODEX 코스닥150,G3,EQUITY,기타,한국,
+396500,TIGER 반도체TOP10,G2,EQUITY,반도체,한국,
+0193T0,KODEX SK하이닉스단일종목레버리지,G1,EQUITY,반도체,한국,단일종목 레버리지 — 분산 효과 없음
+494310,KODEX 반도체레버리지,G1,EQUITY,반도체,한국,
+0167A0,SOL AI반도체TOP2플러스,G2,EQUITY,반도체,한국,
+091160,KODEX 반도체,G2,EQUITY,반도체,한국,
+488080,TIGER 반도체TOP10레버리지,G1,EQUITY,반도체,한국,
+232080,TIGER 코스닥150,G3,EQUITY,기타,한국,
+395160,KODEX AI반도체TOP2플러스,G2,EQUITY,반도체,한국,
+498400,KODEX 200타겟위클리커버드콜,G3,EQUITY,기타,한국,커버드콜 — 등급 확인
+0197X0,SOL SK하이닉스선물단일종목인버스2X,G1,EQUITY,반도체,한국,
+0195S0,TIGER SK하이닉스단일종목레버리지,G1,EQUITY,반도체,한국,
+251340,KODEX 코스닥150선물인버스,G1,EQUITY,기타,한국,
+148020,RISE 200,G3,EQUITY,기타,한국,
+0193W0,KODEX 삼성전자단일종목레버리지,G1,EQUITY,반도체,한국,
+487240,KODEX AI전력핵심설비,G2,EQUITY,기타,한국,전력설비 섹터 없음 → 기타
+472150,TIGER 배당커버드콜액티브,G3,EQUITY,기타,한국,커버드콜 — 등급 확인
+0162Z0,RISE 삼성전자SK하이닉스채권혼합50,G4,BOND,반도체,한국,혼합형 — group_id 판단 필요
+462330,KODEX 2차전지산업레버리지,G1,EQUITY,2차전지,한국,
+475630,TIGER CD1년금리액티브(합성),G6,BOND,기타,한국,
+381180,TIGER 미국필라델피아반도체나스닥,G2,EQUITY,반도체,미국,
+0195R0,TIGER 삼성전자단일종목레버리지,G1,EQUITY,반도체,한국,
+488770,KODEX 머니마켓액티브,G6,BOND,기타,한국,
+395270,HANARO Fn K-반도체,G2,EQUITY,반도체,한국,
+0177N0,KODEX 삼성전자SK하이닉스채권혼합50,G4,BOND,반도체,한국,혼합형 — group_id 판단 필요
+305720,KODEX 2차전지산업,G2,EQUITY,2차전지,한국,
+0091P0,TIGER 코리아원자력,G2,EQUITY,기타,한국,원자력 섹터 없음 → 기타
+442580,PLUS 글로벌HBM반도체,G2,EQUITY,반도체,기타,글로벌 — 국가 기타
+139260,TIGER 200 IT,G2,EQUITY,반도체,한국,코스피200 IT — 반도체 편중이나 광의 IT
+152100,PLUS 200,G3,EQUITY,기타,한국,
+0219E0,KODEX 200커버드콜액티브,G3,EQUITY,기타,한국,커버드콜 — 등급 확인
+243880,TIGER 200IT레버리지,G1,EQUITY,반도체,한국,
+278530,KODEX 200TR,G3,EQUITY,기타,한국,
+228790,TIGER 화장품,G2,EQUITY,소비재,한국,
+455850,SOL AI반도체소부장,G2,EQUITY,반도체,한국,
+0148J0,TIGER 코리아휴머노이드로봇산업,G2,EQUITY,기타,한국,로봇 섹터 없음 → 기타
+0008T0,SOL 화장품TOP3플러스,G2,EQUITY,소비재,한국,
+226490,KODEX 코스피,G3,EQUITY,기타,한국,
+364980,TIGER 2차전지TOP10,G2,EQUITY,2차전지,한국,
+426030,TIME 미국나스닥100액티브,G3,EQUITY,기타,미국,액티브 — 등급 확인
+481050,KODEX CD1년금리플러스액티브(합성),G6,BOND,기타,한국,
+390390,KODEX 미국반도체,G2,EQUITY,반도체,미국,
+458730,TIGER 미국배당다우존스,G3,EQUITY,기타,미국,배당 광의지수 — 등급 확인
+0117V0,TIGER 코리아AI전력기기TOP3플러스,G2,EQUITY,기타,한국,전력기기 섹터 없음 → 기타
+411060,ACE KRX금현물,G2,COMMODITY,기타,한국,금 현물 — 유일한 원자재
+466920,SOL 조선TOP3플러스,G2,EQUITY,기타,한국,조선 섹터 없음 → 기타
+471990,KODEX AI반도체핵심장비,G2,EQUITY,반도체,한국,
+469150,ACE AI반도체TOP3+,G2,EQUITY,반도체,한국,
+486290,TIGER 미국나스닥100타겟데일리커버드콜,G3,EQUITY,기타,미국,커버드콜 — 등급 확인
+248260,TIGER 일본TOPIX헬스케어(합성),G2,EQUITY,바이오와헬스케어,기타,상장폐지 · 일본
+098560,TIGER 방송통신,G2,EQUITY,기타,한국,상장폐지 · 통신을 인터넷과플랫폼에 넣을지 판단 필요
+301410,PLUS 코스닥150선물인버스,G1,EQUITY,기타,한국,상장폐지 · 실패 장면 1에 활용 가능

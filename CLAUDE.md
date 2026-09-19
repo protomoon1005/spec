@@ -9,6 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 절대 규칙
 
 - 기준 문서는 docs/infra-spec.md. 시작 전 반드시 읽는다.
+- B 라인(M2 검증·통제) 구현의 알고리즘 정본은 docs/m2-algorithms.md 다.
+  거기 적힌 수치와 실행 순서를 임의로 바꾸지 않는다.
 - 확정 수치(프리셋 v0.1, 성향별 제약, 2계층 그룹캡)를 임의로 바꾸지 않는다. 2026-09-08 팀 확정본.
 - docs/infra-spec.md 9장 "하지 말 것"은 구현하지 않는다. 인터페이스와 NotImplementedError만.
 - 피처 / 거시지표 / 관점 가중치는 app/repositories/ 밖에서 직접 SELECT 하지 않는다.
