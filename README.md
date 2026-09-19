@@ -26,6 +26,9 @@
   중복제거 M3) 마이그레이션에서 정의·인덱스를 따로 둬서 한쪽만 바꿀 수 있게 했다.
   **pgvector는 차원을 바꾸려면 컬럼 타입 변경 + 인덱스 재생성이 필요해서, 임베딩
   모델 확정이 늦어질수록 나중에 되돌릴 비용이 커진다.**
+  **[종결 2026-09-19]** 뉴스 임베딩 모델은 `jhgan/ko-sroberta-multitask`(hidden size 768)로
+  확정돼 `vector(768)` 과 일치한다. 뉴스 수집·임베딩 코드는 데모 경량화로 제거했고
+  `pre-demo-refactor` 태그에 보존돼 있다(DB 컬럼은 그대로 둔다).
 
 - **NEWS_ARTICLES에 원문 컬럼(title/body)이 있다.** `docs/db-erd.md` 4.2에는
   `title text`, `body text`가 있지만, 최상위(graduation-project) `CLAUDE.md`는
@@ -48,9 +51,11 @@
   004_triggers 코드를 바꾸지 않는다.
 
 - **ETF_MASTER는 4/60행만 채워져 있다.** `069500`/`232080`/`133690`/`148070`
-  네 종목만 문서에 있는 이름으로 채웠고, 나머지 56종목은 `scripts/build_etf_master.py`
-  실행 결과로 채워야 한다(아직 실행 안 함). risk_tag/group_id는 이 스크립트도
-  절대 자동으로 채우지 않는다 — 사람이 검토해서 채우는 컬럼이다. group_id가 비어
+  네 종목만 문서에 있는 이름으로 채웠다. 나머지 56종목을 채우려던 `scripts/build_etf_master.py`
+  는 pykrx 기반이라 **동작하지 않는다**(KRX 계정을 요구, 2026-09-12 실측 400 LOGOUT).
+  FDR 기반 `scripts/build_universe.py` 가 같은 목적의 국내 ETF 유니버스 수집을 대신하지만
+  산출물은 `data/universe.csv` 이고 `04_etf_master.csv` 를 직접 채우지는 않는다.
+  risk_tag/group_id는 어느 스크립트도 절대 자동으로 채우지 않는다 — 사람이 검토해서 채우는 컬럼이다. group_id가 비어
   있는 동안은 DB `etf_master` 테이블(FK NOT NULL)에 아예 적재하지 않는다; CSV
   단계에만 존재한다.
 
@@ -136,28 +141,20 @@
 
 ## M3 ML 의존성 설치 (판단 계층)
 
-3관점 판단 계층(학습·추론·PLM)의 의존성은 `backend/pyproject.toml` 의 `ml` extra에 있다.
-평소 개발에는 필요 없고, 모델 학습·추론과 KF-DeBERTa 감성 분류를 돌릴 때만 필요하다.
+시장분석 관점(LightGBM + scikit-learn isotonic 보정 + SHAP)의 의존성은 `backend/pyproject.toml` 의
+`ml` extra에 있다. 평소 개발에는 필요 없고, 모델 학습·추론을 돌릴 때만 필요하다.
 
 ```
-pip install -e "backend[dev,ml]" --extra-index-url https://download.pytorch.org/whl/cpu
+pip install -e "backend[dev,ml]"
 ```
 
-**`--extra-index-url` 을 빼지 마라.** linux x86_64에서 `pip install torch` 는 기본이
-CUDA 휠(2.5GB+)이다. api·worker·beat가 `backend/Dockerfile` 하나를 공유하므로
-(쪼개지 않기로 확정, 2026-09-12) CUDA 휠이 잡히면 세 서비스 이미지가 한꺼번에 부푼다.
-`pyproject.toml` 로는 패키지별 인덱스를 지정할 수 없어서, 이 플래그가 Dockerfile과
-이 문서 양쪽에 적혀 있어야 한다. 설치 후 확인:
-
-```
-python -c "import torch; print(torch.__version__, torch.version.cuda)"
-# 2.x.x+cpu None   <- cuda가 None이어야 CPU 빌드다
-```
+torch·transformers 는 뉴스 임베딩과 보류된 KF-DeBERTa 전용이었고 데모 경량화(2026-09-19)로
+`ml` extra 에서 뺐다. CUDA 휠을 피하려던 `--extra-index-url` 도 더 필요 없다.
+되살려야 하면 `pre-demo-refactor` 태그의 `pyproject.toml` 을 보라.
 
 **worker 이미지에 ML 의존성을 넣는 것은 T3(LightGBM)에서 실제로 필요해질 때.
 그 시점에 buildx 캐시 도입을 함께 검토한다.** 지금 `backend/Dockerfile` 은 `.[dev]` 만
-설치한다 — 이미지 안에서 ML을 쓰는 코드가 아직 없고(`train_model`·`daily_judge` 는 스텁),
-CPU 휠이어도 torch가 769MB라 레이어 캐시 없이는 PR마다 그만큼을 다시 받게 된다.
+설치한다 — 이미지 안에서 ML을 쓰는 코드가 아직 없다(`train_model`·`daily_judge` 는 스텁).
 
 ML이 필요한 테스트에는 `requires_ml` 마커를 단다. 로컬 테스트 시
 `pytest -m "not requires_ollama and not requires_ml" -q` 로 제외할 수 있다.
@@ -239,50 +236,6 @@ DataFrame 은 어댑터가 받으므로 호출부는 그대로 pandas 를 쓸 �
 **결측은 `None`(JSON null)으로 남긴다. 0으로 채우지 않는다** — 윈도우보다 이력이
 짧은 것과 지표값이 실제로 0인 것을 모델이 구분하지 못하게 되기 때문이다.
 
-## 뉴스 전방 수집 (M3, 2026-09-12 가동)
+## 감성 관점 (M3)
 
-`docs/news-archive-feasibility.md` 판정이 **"과거 아카이브 확보 불가"** 로 나왔다.
-감성 관점을 살리려면 오늘부터 쌓는 수밖에 없어서 전방 수집을 걸어 뒀다.
-하루라도 늦으면 그만큼 데모에서 쓸 구간이 줄어든다.
-
-```
-DATABASE_URL=postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec \
-  backend/.venv/bin/python scripts/collect_news.py
-```
-
-멱등하다 — 하루에 여러 번 돌려도 이미 있는 기사는 `dedup_hash`/`url` UNIQUE 로
-건너뛴다. RSS 는 최근 1~2일치만 주므로 **하루 두 번 이상 돌리는 것이 전제다.**
-
-수집 결과는 `logs/news_collection.log` 에 JSON Lines 로 쌓인다(`.gitignore` 의
-`*.log` 에 걸려 커밋되지 않는다). 소스별 수신·적재·중복·정형제외·시각파싱 실패
-건수가 날짜별로 남아서 **나중에 빈 날을 찾을 수 있다.** `NEWS_COLLECT_LOG` 로 경로를
-바꿀 수 있다.
-
-### 스케줄 거는 법
-
-지금은 systemd 사용자 타이머로 6시간마다 돈다 (`00,06,12,18:05`).
-
-```
-# 유닛 파일: ~/.config/systemd/user/spec-collect-news.{service,timer}
-systemctl --user daemon-reload
-systemctl --user enable --now spec-collect-news.timer
-systemctl --user list-timers spec-collect-news.timer   # 다음 실행 확인
-journalctl --user -u spec-collect-news.service -n 50   # 실행 로그
-```
-
-cron 이 있는 환경이라면 `5 */6 * * * cd /home/jun/spec && DATABASE_URL=... \
-backend/.venv/bin/python scripts/collect_news.py` 로 같은 일을 할 수 있다.
-Windows 라면 작업 스케줄러에 같은 명령을 등록한다.
-
-### 알려진 리스크
-
-- **개발 PC 가 꺼져 있으면 그날이 빈다.** 로그로 감지는 되지만 복구는 안 된다
-  (RSS 가 과거를 안 준다). 더구나 지금은 `Linger=no` 라 **WSL 세션이 닫히면 타이머도
-  멈춘다** — `sudo loginctl enable-linger jun` 을 걸면 세션과 무관하게 돈다.
-  **상시 켜진 서버로 옮길 수 있는지 팀에 물어볼 값어치가 있다.**
-- **중복 임계값 0.97 은 정밀도를 택한 값이라 재게재 기사가 일부 남는다.** 섹터 감성
-  집계에서 같은 뉴스가 중복 계산되면 **감성 점수가 체계적으로 과대평가될 수 있다.**
-  알려진 한계다.
-- 정형 기사(인사·부고·시세표·공시)는 수집 단계에서 거른다 — 서로 다른 기사끼리도
-  유사도가 높게 나와(실측 0.9598) 임계값을 낮추지 못하게 만든 주범이었다. 제외
-  건수는 로그에 `dropped_routine` 으로 남는다. 시황 기사(개장·마감)는 거르지 않는다.
+감성 관점은 과거 뉴스 확보 불가 판정(`docs/news-archive-feasibility.md`)으로 중립 고정이다. 수집 파이프라인은 `pre-demo-refactor` 태그에 보존.

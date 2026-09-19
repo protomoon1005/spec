@@ -38,8 +38,10 @@
 # 결측을 어떻게 다룰지는 스코어러 몫이다. OHLCV 가 갖춰져 들어오면 그대로 둔다.
 #
 # ── 스코어러 교체 지점은 SCORERS 한 곳이다 ───────────────────────────
-# 세 관점 실물이 아직 하나도 없다(시장분석은 price_daily 대기, 감성은 Q2 대기,
-# 온도는 etf_master 대기). 그때까지 계약 ② 의 고정 시드 목업으로 채운다.
+# 시장분석·온도 실물은 아직 없다(시장분석은 price_daily 대기, 온도는 etf_master
+# 대기). 그때까지 계약 ② 의 고정 시드 목업으로 채운다.
+# 감성은 과거 뉴스 확보 불가 판정(docs/news-archive-feasibility.md)으로 목업이
+# 아니라 중립 고정이다 — 관점은 남기고 항상 "모른다"를 낸다.
 # 실물이 나오면 SCORERS dict 의 한 줄만 바뀐다.
 from __future__ import annotations
 
@@ -69,6 +71,7 @@ CLOSE_ONLY_UNAVAILABLE: tuple[str, ...] = ("atr_14_pct", "volume_ratio_20")
 # 스코어러 출처 표시. 리포트를 보는 사람이 목업임을 알아야 한다.
 MOCK_SOURCE = "mock"
 REAL_SOURCE = "real"
+NEUTRAL_SOURCE = "neutral"
 
 # 관점 스코어러 한 개의 계약. 실물이 나오면 이 시그니처에 맞춰 끼운다.
 # features 는 {종목: 피처 dict | None} 이고, None 은 워밍업 미달이라 bridge 가
@@ -87,10 +90,20 @@ def _mock_scorer(view_type: ViewType) -> ScorerFn:
     return scorer
 
 
+def _neutral_scorer(view_type: ViewType) -> ScorerFn:
+    # 어떤 입력에도 중립(raw 0.0 · prob 0.5)을 낸다. Spec 이 블록을 안 쓴 게
+    # 아니라 데이터를 구하지 못한 것이라 사유는 REASON_NO_DATA 다.
+    def scorer(tickers: list[str], *, as_of: date, features: dict) -> list[ViewScore]:
+        return neutral_scores(view_type, list(tickers), reason=REASON_NO_DATA)
+
+    scorer.scorer_source = NEUTRAL_SOURCE  # type: ignore[attr-defined]
+    return scorer
+
+
 # ★ 실물 스코어러가 나오면 여기 한 줄씩만 바뀐다.
 SCORERS: dict[str, ScorerFn] = {
     "market": _mock_scorer("market"),
-    "sentiment": _mock_scorer("sentiment"),
+    "sentiment": _neutral_scorer("sentiment"),
     "regime": _mock_scorer("regime"),
 }
 
