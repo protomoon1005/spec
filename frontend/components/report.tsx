@@ -26,6 +26,8 @@ import {
   constraintResolved,
   COST_MODEL,
   drawdownSeries,
+  drawdownTicks,
+  equityTicks,
   ETA,
   EVAL_WINDOW,
   signalAlpha,
@@ -242,7 +244,8 @@ export default function Report() {
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                   <XAxis dataKey="date" tickFormatter={ym} tick={axisTick} tickLine={false} axisLine={{ stroke: C.border }} interval={25} minTickGap={24} />
                   <YAxis
-                    domain={["auto", "auto"]}
+                    domain={[equityTicks[0], equityTicks[equityTicks.length - 1]]}
+                    ticks={equityTicks}
                     tickFormatter={(v: number) => `${(v / 10000).toFixed(0)}만`}
                     tick={axisTick}
                     tickLine={false}
@@ -273,7 +276,7 @@ export default function Report() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                   <XAxis dataKey="date" tickFormatter={ym} tick={axisTick} tickLine={false} axisLine={{ stroke: C.border }} interval={25} minTickGap={24} />
-                  <YAxis domain={[Math.min(-22, Math.floor(strategy.mdd * 115)), 0]} tickFormatter={(v: number) => `${v}%`} tick={axisTick} tickLine={false} axisLine={false} width={52} />
+                  <YAxis domain={[drawdownTicks[0], 0]} ticks={drawdownTicks} tickFormatter={(v: number) => `${v}%`} tick={axisTick} tickLine={false} axisLine={false} width={52} />
                   <Tooltip content={<DdTip />} />
                   <ReferenceLine y={0} stroke={C.border} />
                   <ReferenceLine
@@ -357,7 +360,7 @@ export default function Report() {
             >
               <div className="flex items-center gap-5 flex-wrap" style={{ fontFamily: MONO, fontSize: 10, color: C.muted, marginBottom: 14 }}>
                 <span className="flex items-center gap-2">
-                  <i style={{ width: 14, height: 8, background: "rgba(61,155,255,0.25)", border: `1px solid ${C.accent}55` }} /> Spec 허용밴드
+                  <i style={{ width: 14, height: 8, background: "rgba(91,157,240,0.25)", border: `1px solid ${C.accent}55` }} /> Spec 허용밴드
                 </span>
                 <span className="flex items-center gap-2">
                   <i style={{ width: 2, height: 12, background: C.warn }} /> 성향 상한

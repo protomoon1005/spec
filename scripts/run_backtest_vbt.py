@@ -19,12 +19,13 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 
-from backtest_py.policy import HARDCAP, caps_for, profile_for  # noqa: E402
-from backtest_py.runner import monthly_first, run, run_buy_and_hold, weekly_dates  # noqa: E402
+from app.backtest.policy import HARDCAP, caps_for, profile_for  # noqa: E402
+from app.backtest.runner import monthly_first, run, run_buy_and_hold, weekly_dates  # noqa: E402
 
-DATA = ROOT / "data"
+# 데이터는 화면이 번들해야 해서 frontend/data 에 있다.
+DATA = ROOT / "frontend" / "data"
 MARKET_TICKER = "069500"
 INITIAL = 10_000_000
 

@@ -9,10 +9,10 @@ export const C = {
   bright: "#e2ecf5",
   muted: "#7f9ab5",
   dim: "#4d6a84",
-  profit: "#00e676",
-  loss: "#ff5c7a",
-  accent: "#3d9bff",
-  warn: "#ffb020",
+  profit: "#2fd18c",
+  loss: "#f2647a",
+  accent: "#5b9df0",
+  warn: "#e0a23c",
 };
 
 // 모서리 반경. 값이 여기저기 흩어지면 화면이 따로 놀아서 한 곳에서 관리한다.
