@@ -30,7 +30,7 @@ OUT.mkdir(exist_ok=True)
 AS_OF = date(2026, 9, 11)
 YEARS = 3
 START = AS_OF - timedelta(days=365 * YEARS + 30)  # 여유를 두고 받아 뒤에서 자른다
-TARGET_COUNT = 200
+TARGET_COUNT = 60  # 데모 유니버스 규모 (etf_master 60행 목표와 같다)
 CANDIDATE_COUNT = 320  # 3년 미달로 탈락하는 종목이 있어 넉넉히 잡는다
 MIN_COVERAGE = 0.95  # 거래일 대비 데이터 보유 비율 하한
 
@@ -171,7 +171,20 @@ def main() -> int:
                 "first_date": first.isoformat(),
             }
         )
-        frames.append(pd.DataFrame({"ticker": ticker, "date": closes.index.date, "close": closes.values}))
+        bars = df.reindex(columns=["Open", "High", "Low", "Close", "Volume"])
+        frames.append(
+            pd.DataFrame(
+                {
+                    "ticker": ticker,
+                    "date": bars.index.date,
+                    "open": bars["Open"].astype(float).values,
+                    "high": bars["High"].astype(float).values,
+                    "low": bars["Low"].astype(float).values,
+                    "close": bars["Close"].astype(float).values,
+                    "volume": bars["Volume"].astype(float).values,
+                }
+            )
+        )
 
         if i % 25 == 0:
             print(f"      [{i:3}/{len(listing)}] 수집중... 통과 {len(kept)}종목")
@@ -196,7 +209,7 @@ def main() -> int:
         "start": START.isoformat(),
         "source": "FinanceDataReader",
         "source_note": "pykrx 는 KRX 로그인(KRX_ID/KRX_PW)을 요구해 사용하지 않았다",
-        "price_field": "Close (시장가격, NAV 아님)",
+        "price_field": "OHLCV (시장가격, NAV 아님)",
         "leverage_inverse_excluded": True,
         "risk_tag_method": "3y_daily_volatility",
         "risk_tag_bands": {tag: f">{t:.0%}" for t, tag in VOL_BANDS},
