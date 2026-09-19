@@ -50,13 +50,22 @@
   거는 안이 유력하다. 다만 이건 추정이고 팀 확정이 아니므로, 확정 전까지는
   004_triggers 코드를 바꾸지 않는다.
 
-- **ETF_MASTER는 4/60행만 채워져 있다.** `069500`/`232080`/`133690`/`148070`
-  네 종목만 문서에 있는 이름으로 채웠다. 나머지 56종목을 채우려던 `scripts/build_etf_master.py`
-  는 pykrx 기반이라 **동작하지 않는다**(KRX 계정을 요구, 2026-09-12 실측 400 LOGOUT).
-  FDR 기반 `scripts/build_universe.py` 가 같은 목적의 국내 ETF 유니버스 수집을 대신하지만
-  산출물은 `data/universe.csv` 이고 `04_etf_master.csv` 를 직접 채우지는 않는다.
-  risk_tag/group_id는 어느 스크립트도 절대 자동으로 채우지 않는다 — 사람이 검토해서 채우는 컬럼이다. group_id가 비어
-  있는 동안은 DB `etf_master` 테이블(FK NOT NULL)에 아예 적재하지 않는다; CSV
+- **ETF_MASTER는 71행이 채워졌다** (활성 68 = 거래대금 상위 60 + 채권·원자재
+  보강 8, 상장폐지 3). `scripts/load_etf_master.py`가 `db/seeds/04_etf_master.csv`를
+  `etf_master` 테이블에 적재한다 — `docker compose exec api python /repo/scripts/load_etf_master.py`로
+  실행한다. 호스트 python에는 `sqlalchemy`가 없으므로 api 컨테이너 안에서
+  실행하는 것이 표준 경로다. Git Bash에서는 `MSYS_NO_PATHCONV=1`을 앞에 붙여야
+  `/repo/...` 경로가 변환되지 않는다.
+  나머지 종목을 채우려던 `scripts/build_etf_master.py`는 pykrx 기반이라 **동작하지
+  않는다**(KRX 계정을 요구, 2026-09-12 실측 400 LOGOUT). FDR 기반
+  `scripts/build_universe.py`의 산출물 `data/universe.csv`(순자산·커버리지 기준)는
+  `04_etf_master.csv`를 직접 채우지 않고, 커버리지 미달 종목을 걸러내는 참고
+  자료로만 쓴다.
+  `risk_tag`는 상품 성격을 사람이 판단해 채운다 — 변동성 분위를 자동 산정해서
+  채우지 않는다(근거: 상세설계서 1.7.2 — 허용범위 프리셋은 G1을 레버리지·인버스
+  ETF로 전제하고 수치를 짰다. `docs/m2-algorithms.md` 4장 참고). `group_id`/`sector`/
+  `country`는 자동 산정 후 사람이 검토하는 방식도 허용한다. group_id가 비어
+  있는 행은 DB `etf_master` 테이블(FK NOT NULL)에 아예 적재하지 않는다; CSV
   단계에만 존재한다.
 
 - **`scripts/build_etf_master.py`의 pykrx 호출부는 검증되지 않았다.** 이 세션에
