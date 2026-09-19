@@ -14,37 +14,29 @@ dependencies = [
     "pyjwt>=2.9",
     "bcrypt>=4.1",
     "httpx>=0.27",
+    # 국내 지수·시세 적재(scripts/ingest_index·ingest_prices·build_universe)용. 인증 없이
+    # 받을 수 있는 경로라 M3 가 상시 쓴다. pandas·numpy 가 간접 의존으로 딸려 온다.
+    "finance-datareader",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
-# M3(판단 계층) 전용. 학습·추론·PLM 의존성이라 api 서비스에는 런타임에 필요 없지만,
+# M3(판단 계층) 전용. 학습·추론 의존성이라 api 서비스에는 런타임에 필요 없지만,
 # worker(daily_judge·train_model)에는 필요하다. Dockerfile을 쪼개지 않기로 했으므로
-# (2026-09-12 팀 합의) 단일 이미지에 같이 들어간다 — 대신 torch는 CPU 전용 휠을 쓴다.
+# (2026-09-12 팀 합의) 단일 이미지에 같이 들어간다.
+# 시장분석 관점은 LightGBM + scikit-learn(isotonic) + SHAP 이라 torch 가 필요 없다.
+# 뉴스 임베딩·KF-DeBERTa 용이던 torch·transformers·feedparser 와 pandas-ta(features.py 는
+# stdlib 구현), 동작하지 않던 pykrx(KRX 계정 요구, 2026-09-12 실측 400 LOGOUT)는
+# 데모 경량화(2026-09-19)로 뺐다. pre-demo-refactor 태그에서 복구할 수 있다.
 # 버전 핀은 실제 학습 코드를 짜면서 근거가 생길 때 박는다.
 #
 # 설치:
-#   pip install -e ".[dev,ml]" --extra-index-url https://download.pytorch.org/whl/cpu
-# --extra-index-url 을 빼면 linux x86_64에서 CUDA 휠(2.5GB+)이 잡힌다. pyproject로는
-# 패키지별 인덱스를 못 박으므로 이 플래그가 Dockerfile과 README 양쪽에 있어야 한다.
+#   pip install -e ".[dev,ml]"
 ml = [
     "lightgbm",
     "shap",
     "scikit-learn",
-    "pandas-ta",
-    "transformers",
-    "torch",
-    "feedparser",
     "fredapi",
-    # 국내 시장 데이터. pykrx 는 scripts/build_etf_master.py 가 이미 import 하는데
-    # base 에도 extra 에도 없어서 **어떤 환경에서도 안 돌던 상태**였다 — 그 결함을
-    # 여기서 같이 고친다.
-    # 다만 2026-09-12 실측: KRX 의 JSON 엔드포인트가 세션 없이는 400 LOGOUT 을
-    # 돌려주고, pykrx 1.2.8 은 import 시 KRX_ID/KRX_PW 를 요구한다. 즉 pykrx 는
-    # **KRX 계정이 있어야 돈다.** 인증 없이 지수·시세를 받는 경로는
-    # finance-datareader 쪽이라 둘 다 넣는다 (둘 다 확정 기술 스택 목록에 있다).
-    "pykrx",
-    "finance-datareader",
 ]
 
 [tool.pytest.ini_options]
