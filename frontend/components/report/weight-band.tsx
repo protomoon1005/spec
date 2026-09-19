@@ -38,7 +38,7 @@ export function WeightBand({
           width: `calc(${p(max)} - ${p(min)})`,
           top: 0,
           bottom: 0,
-          background: "rgba(61,155,255,0.12)",
+          background: "rgba(91,157,240,0.12)",
           borderLeft: `1px solid ${C.accent}55`,
           borderRight: `1px solid ${C.accent}55`,
         }}

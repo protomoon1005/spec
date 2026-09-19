@@ -23,37 +23,11 @@ SLIPPAGE = 0.0005
 TAX = 0.0
 
 
-# --- 지표 -------------------------------------------------------------------
-# 아래 셋은 M3 판단 계층이 붙기 전까지 쓰던 임시 지표다. 지우지 않고 이름만
-# _stub_ 로 바꿨다 — 같은 이름의 다른 값이 돌아다니지 않게 하려는 것이다.
-def _stub_momentum(closes: np.ndarray, window: int) -> float | None:
-    if len(closes) <= window:
-        return None
-    then = closes[-1 - window]
-    return None if not then else float(closes[-1] / then - 1)
-
-
-def _stub_rsi(closes: np.ndarray, window: int = 14) -> float | None:
-    if len(closes) <= window:
-        return None
-    diffs = np.diff(closes[-window - 1 :])
-    gain = float(diffs[diffs >= 0].sum())
-    loss = float(-diffs[diffs < 0].sum())
-    return 50.0 if gain + loss == 0 else 100.0 * gain / (gain + loss)
-
-
-def _stub_signal_from(closes: np.ndarray) -> float:
-    """종목 신호 s ∈ [-1, +1]. Spec 의 signal_rules 가 지정한 지표를 쓴다.
-
-    M3(LightGBM) 가 붙으면 이 함수가 그 보정 확률을 받는 자리가 된다.
-    """
-    mom, r = _stub_momentum(closes, 20), _stub_rsi(closes, 14)
-    if mom is None or r is None:
-        return 0.0
-    mom_score = max(-1.0, min(1.0, mom / 0.1))
-    rsi_score = max(-1.0, min(1.0, (r - 50) / 30))
-    return max(-1.0, min(1.0, 0.6 * mom_score + 0.4 * rsi_score))
-
+# 지표 계산은 M3 가 소유한다. 예전에 여기 있던 momentum/rsi/signal_from 은
+# app/views/bridge.py 가 붙으면서 죽은 코드가 됐고, 특히 rsi 는 Wilder 평활이
+# 아닌 단순비율이라 M3 의 rsi_14 와 같은 이름으로 다른 값을 냈다(069500 실측
+# 5.71 차이). 같은 이름의 다른 정의가 돌아다니는 편이 없는 편보다 위험해서
+# 지운다 — 신호는 BacktestJudge.judge() 한 곳에서만 나온다.
 
 # --- 비중 매핑 ---------------------------------------------------------------
 def map_signals_to_weights(holdings, bounds, signals, cash_min, caps):

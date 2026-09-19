@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 docker compose up -d --build                # 전 스택 기동
 docker compose exec api ruff check .        # lint
-docker compose exec api pytest -m "not requires_ollama and not requires_ml and not requires_backfill" -q  # 테스트
+docker compose exec api pytest -m "not requires_ollama and not requires_ml and not requires_backfill and not requires_backtest" -q  # 테스트
 docker compose exec api pytest tests/test_hedge.py::test_confirmed_constants -q                           # 단일 테스트
 docker compose exec api python /repo/scripts/check_asof_guard.py                                          # as_of 가드
 docker compose logs -f                      # 로그
@@ -39,7 +39,9 @@ docker compose logs -f                      # 로그
 - `tests/conftest.py`가 `CELERY_TASK_ALWAYS_EAGER=true`를 넣는다.
   DB 픽스처를 쓰는 테스트는 seed된 상태여야 한다.
   `test_hedge`·`test_views_base` 등 순수 함수 테스트는 DB 없이 돈다.
-- 마커: `requires_ollama` · `requires_ml` · `requires_backfill`. 로컬 테스트 시 제외.
+- 마커: `requires_ollama` · `requires_ml` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외.
+  `requires_backtest`(두 러너 대조)는 `pip install -e "backend[backtest]"` 뒤
+  `pytest -m requires_backtest` 로 따로 돌린다. api 이미지는 `.[dev]` 만 깔린다.
 - ML extra 설치 시 `--extra-index-url https://download.pytorch.org/whl/cpu` 필수(CUDA 휠 방지).
 - 프론트: `frontend/`에서 `npm run dev`. TS 백테스트는 `node --experimental-strip-types scripts/run-backtest.ts`.
 
