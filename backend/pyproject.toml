@@ -26,7 +26,8 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 # (2026-09-12 팀 합의) 단일 이미지에 같이 들어간다.
 # 시장분석 관점은 LightGBM + scikit-learn(isotonic) + SHAP 이라 torch 가 필요 없다.
 # 뉴스 임베딩·KF-DeBERTa 용이던 torch·transformers·feedparser 와 pandas-ta(features.py 는
-# stdlib 구현), 동작하지 않던 pykrx(KRX 계정 요구, 2026-09-12 실측 400 LOGOUT)는
+# stdlib 구현), 아무도 import 하지 않던 fredapi(ingest_macro.py 는 urllib 직접 호출),
+# 동작하지 않던 pykrx(KRX 계정 요구, 2026-09-12 실측 400 LOGOUT)는
 # 데모 경량화(2026-09-19)로 뺐다. pre-demo-refactor 태그에서 복구할 수 있다.
 # 버전 핀은 실제 학습 코드를 짜면서 근거가 생길 때 박는다.
 #
@@ -36,7 +37,6 @@ ml = [
     "lightgbm",
     "shap",
     "scikit-learn",
-    "fredapi",
 ]
 
 [tool.pytest.ini_options]
@@ -44,7 +44,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "requires_ollama: 호스트에 뜬 Ollama(qwen3:8b)가 필요한 실통합 테스트. CI는 -m 'not requires_ollama'로 제외한다.",
-    "requires_ml: ML 의존성(lightgbm·torch·transformers 등)이 필요한 테스트. CI는 -m 'not requires_ml'로 제외한다.",
+    "requires_ml: ML 의존성(lightgbm·shap·scikit-learn 등)이 필요한 테스트. CI는 -m 'not requires_ml'로 제외한다.",
     "requires_backfill: 외부 소스(FDR·ECOS 등)에서 백필해 둔 실데이터가 DB에 있어야 하는 테스트. CI는 시드만 넣은 새 DB라 -m 'not requires_backfill'로 제외한다.",
 ]
 
