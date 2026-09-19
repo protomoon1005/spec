@@ -41,6 +41,18 @@ async def _event_stream(job_id: str):
     yield f"event: timeout\ndata: {json.dumps({'job_id': job_id})}\n\n"
 
 
-@router.get("/{job_id}/stream")
+@router.get("/{job_id}/stream", summary="작업 진행 상황 실시간으로 보기")
 def stream_job(job_id: str, user: AuthUser = Depends(require_any_role)) -> StreamingResponse:
+    """작업 번호를 주면 그 작업이 어디까지 갔는지 실시간으로 보내 준다.
+
+    연결을 끊지 않고 계속 흘려보내는 방식이다. 상태가 바뀔 때마다 한 줄씩 오고,
+    끝나면 결과(또는 오류)를 한 번 보내고 연결을 닫는다. 너무 오래 걸리면 시간 초과로 끊는다.
+
+    **Swagger 화면에서는 잘 안 보인다** — 계속 흘려보내는 방식이라 그렇다.
+    터미널에서 보는 게 낫다:
+
+    ```
+    curl -N -H "Authorization: Bearer <토큰>" http://localhost:8000/jobs/<작업번호>/stream
+    ```
+    """
     return StreamingResponse(_event_stream(job_id), media_type="text/event-stream")

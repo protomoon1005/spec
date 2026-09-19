@@ -35,8 +35,16 @@ class AccessTokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, summary="로그인 — 토큰 발급")
 def login(payload: LoginRequest) -> TokenResponse:
+    """이메일과 비밀번호를 넣으면 토큰 두 개를 준다.
+
+    `access_token` 을 받아 우측 상단 **Authorize** 에 넣으면 로그인이 유지된다.
+
+    **주의 — 지금은 쓸 수 있는 계정이 없다.**
+    데이터베이스에 기본으로 들어 있는 계정이 하나 있지만 비밀번호가 제대로 안 들어 있어서
+    로그인하면 401 이 난다. 테스트 계정 만드는 방법은 `docs/m1-todo.md` 부록에 있다.
+    """
     user = get_user_by_email(payload.email)
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(
@@ -50,8 +58,12 @@ def login(payload: LoginRequest) -> TokenResponse:
     )
 
 
-@router.post("/refresh", response_model=AccessTokenResponse)
+@router.post("/refresh", response_model=AccessTokenResponse, summary="접근 토큰 재발급")
 def refresh(payload: RefreshRequest) -> AccessTokenResponse:
+    """`access_token` 이 만료됐을 때 다시 로그인하는 대신 쓴다.
+
+    `refresh_token` 을 주면 새 `access_token` 을 준다. `refresh_token` 자체는 새로 주지 않는다.
+    """
     claims = decode_token(payload.refresh_token)
     if claims.get("type") != "refresh":
         raise HTTPException(
