@@ -27,9 +27,17 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data"
 OUT.mkdir(exist_ok=True)
 
-AS_OF = date(2026, 9, 11)
+# 종료일은 백테스트 구간 끝(데모 계획 1.4)이다. 이보다 뒤의 데이터가 risk_tag 변동성에
+# 섞이면 판단 입력에 미래가 들어가므로 AS_OF 를 2025-12-31 로 고정한다.
+AS_OF = date(2025, 12, 31)
 YEARS = 3
-START = AS_OF - timedelta(days=365 * YEARS + 30)  # 여유를 두고 받아 뒤에서 자른다
+# 시작일은 수식이 아니라 상수다. 백테스트가 2023-01 부터 시작하고 FEATURE_WARMUP_ROWS = 120
+# (달력 약 175일) 이므로 2022-07-11 이전이어야 한다 — 여유를 두고 2022-06-01.
+# YEARS 는 아래 커버리지 필터(len(rets) < 250*YEARS*MIN_COVERAGE, first > START+45일)에
+# 물려 있어 START 와 분리했다.
+START = date(2022, 6, 1)
+# risk_tag 변동성은 수집 구간 전체(START~AS_OF)로 계산한다. YEARS 와 무관하다.
+RISK_TAG_METHOD = f"3.5y_daily_volatility ({START.isoformat()}~{AS_OF.isoformat()})"
 TARGET_COUNT = 60  # 데모 유니버스 규모 (etf_master 60행 목표와 같다)
 CANDIDATE_COUNT = 320  # 3년 미달로 탈락하는 종목이 있어 넉넉히 잡는다
 MIN_COVERAGE = 0.95  # 거래일 대비 데이터 보유 비율 하한
@@ -177,7 +185,7 @@ def main() -> int:
                 "ticker": ticker,
                 "name": name,
                 "risk_tag": risk_tag_from_vol(ann_vol),
-                "risk_tag_method": "3y_daily_volatility",
+                "risk_tag_method": RISK_TAG_METHOD,
                 "ann_vol": round(ann_vol, 4),
                 "asset_group": asset,
                 "sector_group": sector,
@@ -226,7 +234,7 @@ def main() -> int:
         "source_note": "pykrx 는 KRX 로그인(KRX_ID/KRX_PW)을 요구해 사용하지 않았다",
         "price_field": "OHLCV (시장가격, NAV 아님)",
         "leverage_inverse_excluded": True,
-        "risk_tag_method": "3y_daily_volatility",
+        "risk_tag_method": RISK_TAG_METHOD,
         "risk_tag_bands": {tag: f">{t:.0%}" for t, tag in VOL_BANDS},
         "risk_tag_caveat": "경계값은 팀 프로젝트 기준이며 금융투자협회 공시 수치가 아니다",
         "ticker_count": int(len(uni)),
