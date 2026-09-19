@@ -10,13 +10,15 @@
 작업하면서 `docs/db-erd.md`(정본)와 실제 요구사항이 어긋나거나, 정본에 없어서
 구현하지 못한 부분들이다. 컬럼을 임의로 추가하는 대신 여기에 기록만 해 둔다.
 
-- **ETF_MASTER에 국가 컬럼이 없다.** `docs/db-erd.md`의 A06(종목별 위험등급·자산군·섹터·국가
-  부여)과 1.7.3(국가 상한 0.50)은 종목의 국가를 요구하지만, ETF_MASTER 테이블에는
-  `sector`/`group_id`만 있고 `country`가 없다. DB 스키마에는 임의로 컬럼을 추가하지
-  않았다. `db/seeds/04_etf_master.csv`에는 `country` 컬럼을 넣어 뒀다 — CSV는
-  스키마가 아니라 입력 파일이라 여기서만 우회했다. `GROUP_CAPS`의 국가 그룹
-  (COUNTRY_KR/COUNTRY_US/COUNTRY_OTHER) 상한을 실제로 계산에 반영하려면, 이 컬럼을
-  ETF_MASTER 정식 컬럼으로 승격하는 마이그레이션이 나중에 필요하다.
+- ~~**ETF_MASTER에 국가 컬럼이 없다.**~~ **해결됨** (`db/migrate/001_etf_master_group_axes.sql`).
+  기존 `group_id` 한 컬럼이 자산군·섹터·국가 세 축 중 자산군만 담고 있던 문제를,
+  `asset_group_id`/`sector_group_id`/`country_group_id` 세 컬럼(모두
+  `asset_groups(group_id)` FK)으로 나눠 해소했다. 세 축은 부모-자식 관계가
+  아니다 — 국가(예: 한국)는 EQUITY와 BOND 모두에 걸치므로 `parent_group_id`
+  트리로 묶지 않았다. 기존 `group_id` 컬럼은 당분간 자산군용으로 남겨 뒀다.
+  `scripts/load_etf_master.py`가 CSV의 `sector`/`country` 한글값을
+  `SECTOR_GROUP_MAP`/`COUNTRY_GROUP_MAP`으로 변환해 세 컬럼에 각각 적재한다.
+  71행 전부 세 컬럼이 채워졌고 FK 위반 0건을 확인했다(2026-09-20).
 
 - **임베딩 벡터 차원(768)이 db-erd.md에 없다.** `NEWS_ARTICLES.embedding`과
   `BBL_BLOCKS.embedding`은 `vector` 타입으로만 적혀 있고 차원이 없는데, pgvector는

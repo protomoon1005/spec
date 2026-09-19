@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 """db/seeds/04_etf_master.csv 를 etf_master 테이블에 적재한다.
 
-CSV에는 country 컬럼이 있지만 etf_master 스키마에는 없다(README "알려진 설계
-구멍" ③ — country를 정식 컬럼으로 승격하려면 마이그레이션이 필요하고 이번
-범위 밖이다). 스키마를 임의로 바꾸지 않기 위해 이 스크립트는 country를 읽지도
-적재하지도 않는다 — CSV에만 남긴다.
+db/migrate/001_etf_master_group_axes.sql 이후 etf_master는 자산군/섹터/국가
+세 축을 asset_group_id/sector_group_id/country_group_id 컬럼으로 나눠 받는다
+(README "알려진 설계 구멍" ① 국가 컬럼 부재 — 해소됨). CSV의 group_id 컬럼값
+(EQUITY/BOND/COMMODITY)은 그대로 asset_group_id로 쓰고, sector/country 컬럼의
+한글값은 아래 SECTOR_GROUP_MAP/COUNTRY_GROUP_MAP으로 asset_groups.group_id에
+매핑한다. 매핑에 없는 값이나 asset_groups에 실재하지 않는 group_id가 나오면
+적재를 중단한다 — 모르는 분류를 임의로 새 그룹으로 만들지 않는다.
+
+기존 group_id 컬럼은 당분간 자산군용으로 남아 있어 계속 그대로 적재한다.
+
+ticker 기준 UPSERT다(INSERT ... ON CONFLICT (ticker) DO UPDATE) — TRUNCATE를
+쓰지 않는다. price_daily 등 etf_master를 참조하는 테이블에 데이터가 쌓인
+뒤에는 TRUNCATE ... CASCADE가 그 데이터를 통째로 지운다(사용자 지시,
+2026-09-20). CSV에 없는 기존 행은 지우지 않고 그대로 둔다 — 이 스크립트는
+갱신만 하지 삭제는 하지 않는다.
 
 group_id가 비어 있는 행(risk_tag/group_id/sector를 사람이 아직 검토하지 않은
 행)은 FK NOT NULL을 만족 못 하므로 건너뛴다 — 지금은 71행 전부 채워져 있어
@@ -30,12 +41,30 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CSV = REPO_ROOT / "db" / "seeds" / "04_etf_master.csv"
 
-# etf_master 테이블 컬럼만 (country 제외 — 스키마에 없다)
+# etf_master 테이블 컬럼 (asset_group_id/sector_group_id/country_group_id는
+# CSV에 직접 없다 — group_id/sector/country를 아래 매핑으로 변환해 채운다)
 DB_COLUMNS = [
     "ticker", "name", "sector", "group_id", "risk_tag",
     "mdd_3y", "volatility_1y", "expense_ratio",
     "listed_date", "delisted_date", "is_leveraged", "active",
+    "asset_group_id", "sector_group_id", "country_group_id",
 ]
+
+# CSV의 sector 한글값 -> asset_groups.group_id (db/seeds/03_asset_groups.sql 레벨2 섹터)
+SECTOR_GROUP_MAP = {
+    "반도체": "SECTOR_SEMICONDUCTOR",
+    "2차전지": "SECTOR_BATTERY",
+    "바이오와헬스케어": "SECTOR_BIOHEALTH",
+    "소비재": "SECTOR_CONSUMER",
+    "기타": "SECTOR_OTHER",
+}
+
+# CSV의 country 한글값 -> asset_groups.group_id (db/seeds/03_asset_groups.sql 레벨2 국가)
+COUNTRY_GROUP_MAP = {
+    "한국": "COUNTRY_KR",
+    "미국": "COUNTRY_US",
+    "기타": "COUNTRY_OTHER",
+}
 
 
 def _database_url() -> str:
@@ -81,6 +110,56 @@ def check_g1_leveraged_consistency(rows: list[dict]) -> None:
         raise SystemExit(1)
 
 
+def resolve_group_axes(rows: list[dict], known_group_ids: set[str]) -> list[dict]:
+    """각 행의 group_id(자산군)/sector/country를 세 축 group_id로 변환한다.
+
+    매핑에 없는 sector/country 값이거나 매핑된 값이 asset_groups에 실재하지
+    않으면 즉시 중단한다 — 모르는 분류를 임의로 새 그룹으로 만들지 않는다
+    (사용자 지시: "없는 값이 있으면 만들지 말고 멈춰서 보고해라").
+    """
+    unknown_sector = []
+    unknown_country = []
+    unknown_group_id = []
+    resolved = []
+    for row in rows:
+        sector = row["sector"].strip()
+        country = row["country"].strip()
+        asset_group_id = row["group_id"].strip()
+
+        sector_group_id = SECTOR_GROUP_MAP.get(sector)
+        if sector_group_id is None:
+            unknown_sector.append((row["ticker"], sector))
+
+        country_group_id = COUNTRY_GROUP_MAP.get(country)
+        if country_group_id is None:
+            unknown_country.append((row["ticker"], country))
+
+        for group_id in (asset_group_id, sector_group_id, country_group_id):
+            if group_id is not None and group_id not in known_group_ids:
+                unknown_group_id.append((row["ticker"], group_id))
+
+        resolved.append(
+            {
+                **row,
+                "asset_group_id": asset_group_id,
+                "sector_group_id": sector_group_id,
+                "country_group_id": country_group_id,
+            }
+        )
+
+    if unknown_sector or unknown_country or unknown_group_id:
+        print("load_etf_master: 매핑할 수 없는 분류값 발견 — 적재를 중단한다.", file=sys.stderr)
+        for ticker, sector in unknown_sector:
+            print(f"  - {ticker}: sector={sector!r}는 SECTOR_GROUP_MAP에 없음", file=sys.stderr)
+        for ticker, country in unknown_country:
+            print(f"  - {ticker}: country={country!r}는 COUNTRY_GROUP_MAP에 없음", file=sys.stderr)
+        for ticker, group_id in unknown_group_id:
+            print(f"  - {ticker}: group_id={group_id!r}는 asset_groups에 없음", file=sys.stderr)
+        raise SystemExit(1)
+
+    return resolved
+
+
 def main() -> int:
     import argparse
 
@@ -106,16 +185,40 @@ def main() -> int:
 
     engine = create_engine(_database_url(), pool_pre_ping=True)
     try:
+        with engine.connect() as conn:
+            known_group_ids = {
+                r[0] for r in conn.execute(text("SELECT group_id FROM asset_groups"))
+            }
+        loadable = resolve_group_axes(loadable, known_group_ids)
+        print("load_etf_master: 자산군/섹터/국가 매핑 확인 완료")
+
         with engine.begin() as conn:
             for row in loadable:
                 conn.execute(
                     text(
                         "INSERT INTO etf_master "
                         "(ticker, name, sector, group_id, risk_tag, mdd_3y, volatility_1y, "
-                        " expense_ratio, listed_date, delisted_date, is_leveraged, active) "
+                        " expense_ratio, listed_date, delisted_date, is_leveraged, active, "
+                        " asset_group_id, sector_group_id, country_group_id) "
                         "VALUES "
                         "(:ticker, :name, :sector, :group_id, :risk_tag, :mdd_3y, :volatility_1y, "
-                        " :expense_ratio, :listed_date, :delisted_date, :is_leveraged, :active)"
+                        " :expense_ratio, :listed_date, :delisted_date, :is_leveraged, :active, "
+                        " :asset_group_id, :sector_group_id, :country_group_id) "
+                        "ON CONFLICT (ticker) DO UPDATE SET "
+                        " name = EXCLUDED.name, "
+                        " sector = EXCLUDED.sector, "
+                        " group_id = EXCLUDED.group_id, "
+                        " risk_tag = EXCLUDED.risk_tag, "
+                        " mdd_3y = EXCLUDED.mdd_3y, "
+                        " volatility_1y = EXCLUDED.volatility_1y, "
+                        " expense_ratio = EXCLUDED.expense_ratio, "
+                        " listed_date = EXCLUDED.listed_date, "
+                        " delisted_date = EXCLUDED.delisted_date, "
+                        " is_leveraged = EXCLUDED.is_leveraged, "
+                        " active = EXCLUDED.active, "
+                        " asset_group_id = EXCLUDED.asset_group_id, "
+                        " sector_group_id = EXCLUDED.sector_group_id, "
+                        " country_group_id = EXCLUDED.country_group_id"
                     ),
                     {
                         "ticker": row["ticker"],
@@ -130,12 +233,15 @@ def main() -> int:
                         "delisted_date": _to_null(row["delisted_date"]),
                         "is_leveraged": _to_bool(row["is_leveraged"]),
                         "active": _to_bool(row["active"]),
+                        "asset_group_id": row["asset_group_id"],
+                        "sector_group_id": row["sector_group_id"],
+                        "country_group_id": row["country_group_id"],
                     },
                 )
     finally:
         engine.dispose()
 
-    print(f"load_etf_master: {len(loadable)}행 적재 완료 (etf_master)")
+    print(f"load_etf_master: {len(loadable)}행 upsert 완료 (etf_master)")
     return 0
 
 
