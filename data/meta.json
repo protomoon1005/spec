@@ -1,0 +1,20 @@
+{
+  "as_of": "2025-12-31",
+  "start": "2022-06-01",
+  "source": "FinanceDataReader",
+  "source_note": "pykrx 는 KRX 로그인(KRX_ID/KRX_PW)을 요구해 사용하지 않았다",
+  "price_field": "OHLCV (시장가격, NAV 아님)",
+  "leverage_inverse_excluded": true,
+  "risk_tag_method": "3.5y_daily_volatility (2022-06-01~2025-12-31)",
+  "risk_tag_bands": {
+    "G1": ">25%",
+    "G2": ">20%",
+    "G3": ">15%",
+    "G4": ">10%",
+    "G5": ">5%",
+    "G6": ">0%"
+  },
+  "risk_tag_caveat": "경계값은 팀 프로젝트 기준이며 금융투자협회 공시 수치가 아니다",
+  "ticker_count": 60,
+  "price_rows": 52543
+}

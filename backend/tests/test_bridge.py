@@ -13,11 +13,13 @@ from datetime import date, timedelta
 
 import pytest
 
+from app.contracts.integrated_signal import IntegratedSignal
 from app.contracts.view_score import ViewScore
 from app.contracts.view_weights import VIEW_TYPES, WEIGHT_FLOOR
 from app.views.bridge import (
     CLOSE_ONLY_UNAVAILABLE,
     MOCK_SOURCE,
+    NEUTRAL_SOURCE,
     SCORERS,
     BacktestJudge,
 )
@@ -266,18 +268,29 @@ def test_the_same_as_of_is_not_graded_twice():
 # ── 스코어러 교체 지점 ───────────────────────────────────────────────
 
 
-def test_scorers_default_to_the_contract_mock():
+def test_default_scorer_sources_are_declared():
     prices, as_of = _long_prices()
     judge = BacktestJudge(TICKERS)
 
-    assert judge.scorer_sources() == {view_type: MOCK_SOURCE for view_type in VIEW_TYPES}
+    assert judge.scorer_sources() == {
+        "market": MOCK_SOURCE,
+        "sentiment": NEUTRAL_SOURCE,
+        "regime": MOCK_SOURCE,
+    }
     assert judge.last_scores == []  # judge 전이다
 
     judge.judge(prices, as_of=as_of)
 
     # 목업을 쓰고 있다는 사실이 evidence 에 드러나야 한다 — 리포트를 보는
-    # 사람이 이 숫자를 실력으로 읽으면 안 된다.
-    assert {score.evidence["source"] for score in judge.last_scores} == {MOCK_SOURCE}
+    # 사람이 이 숫자를 실력으로 읽으면 안 된다. 목업은 source 로, 감성은
+    # skipped/reason 으로 드러난다.
+    by_view = {
+        view_type: [score.evidence for score in judge.last_scores if score.view_type == view_type]
+        for view_type in VIEW_TYPES
+    }
+    for view_type in ("market", "regime"):
+        assert {evidence["source"] for evidence in by_view[view_type]} == {MOCK_SOURCE}
+    assert by_view["sentiment"] == [{"skipped": True, "reason": "no_data"}] * len(TICKERS)
 
 
 def test_swapping_one_registry_entry_changes_only_that_view():
@@ -304,3 +317,58 @@ def test_a_missing_view_scorer_is_rejected():
 def test_an_empty_universe_is_rejected():
     with pytest.raises(ValueError, match="종목이 하나도 없다"):
         BacktestJudge([])
+
+
+# ── 감성 관점: 중립 고정 ─────────────────────────────────────────────
+
+
+def test_sentiment_is_neutral_for_any_input():
+    # 과거 뉴스 확보 불가 판정으로 감성은 항상 "모른다"를 낸다. 가격이 달라도,
+    # 종목이 달라도, 피처가 무엇이어도 결과가 같아야 한다.
+    assert BacktestJudge(TICKERS).scorer_sources()["sentiment"] == NEUTRAL_SOURCE
+
+    long_prices, long_as_of = _long_prices()
+    other_prices = _prices(
+        {ticker: _closes(400, seed=500.0, step=-0.9) for ticker in ("005930", "000660")}
+    )
+    cases = [
+        (["005930"], date(2024, 3, 1), {}),
+        (["069500", "133690", "229200"], date(2025, 12, 31), {"069500": {"rsi_14": 99.0}}),
+    ]
+    for tickers, day, features in cases:
+        scores = SCORERS["sentiment"](tickers, as_of=day, features=features)
+        assert [score.ticker for score in scores] == tickers
+        for score in scores:
+            assert score.view_type == "sentiment"
+            assert score.raw_score == 0.0
+            assert score.calibrated_prob == 0.5
+            assert score.evidence == {"skipped": True, "reason": "no_data"}
+
+    for prices, tickers, as_of in (
+        (long_prices, TICKERS, long_as_of),
+        (other_prices, ["005930", "000660"], _as_of(400)),
+    ):
+        judge = BacktestJudge(tickers)
+        judge.judge(prices, as_of=as_of)
+        sentiment = [score for score in judge.last_scores if score.view_type == "sentiment"]
+        assert len(sentiment) == len(tickers)
+        assert {(score.raw_score, score.calibrated_prob) for score in sentiment} == {(0.0, 0.5)}
+
+
+def test_weights_sum_to_one_and_integrate_survives_a_neutral_sentiment():
+    prices, _ = _long_prices()
+    judge = BacktestJudge(TICKERS)
+
+    signal = None
+    for offset in range(300, 400, 20):
+        day = _as_of(offset)
+        judge.record_outcome(prices, as_of=day)
+        signal = judge.judge(prices, as_of=day)
+        weights = judge.current_weights()
+        assert sorted(weights) == sorted(VIEW_TYPES)
+        assert math.fsum(weights.values()) == pytest.approx(1.0)
+
+    # 감성이 중립이어도 가중치를 소비하는 관점으로 남아 통합기가 끊기지 않는다.
+    assert isinstance(signal, IntegratedSignal)
+    assert sorted(signal.signals) == sorted(TICKERS)
+    assert all(-1.0 <= value <= 1.0 for value in signal.signals.values())
