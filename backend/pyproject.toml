@@ -28,6 +28,12 @@ backtest = [
     "pandas>=2.2",
     "vectorbt>=1.1",
     "finance-datareader>=0.9",
+    # vectorbt 가 plotly 에 상한을 두지 않아 최신이 잡히는데, 7.x 는 import 자체가 깨진다:
+    #   ValueError: Invalid property ... 'scattermapbox'
+    # 상한이 없으면 Dockerfile 이 이 extra 를 깔아도 import vectorbt 가 실패한다.
+    # 실측 — 7.1.0 실패(M3) · 6.8.0 정상(M4, parity 5건 통과) · 5.24.1 정상(M3).
+    # 6.x 가 도는 것이 확인됐으므로 5.x 까지 내리지 않고 7 만 막는다.
+    "plotly<7",
 ]
 # M3(판단 계층) 전용. 학습·추론 의존성이라 api 서비스에는 런타임에 필요 없지만,
 # worker(daily_judge·train_model)에는 필요하다. Dockerfile을 쪼개지 않기로 했으므로
