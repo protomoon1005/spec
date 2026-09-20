@@ -103,7 +103,7 @@ INDICATORS: tuple[MacroIndicator, ...] = (
         note=(
             "추세 지수. FinanceDataReader 로 받는다. pykrx 는 2026-09-12 실측상 KRX "
             "계정(KRX_ID/KRX_PW)이 있어야 하고 세션 없이는 400 LOGOUT 이 돌아온다. "
-            "이건 지수라 price_daily(ETF 일봉, 질의 8번)와 자물쇠를 공유하지 않는다. "
+            "이건 지수라 ETF 일봉 테이블과 자물쇠를 공유하지 않는다. "
             "**종가만 적재한다** — 이동평균 이격도는 판정 로직이 계산한다."
         ),
     ),
