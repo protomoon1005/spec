@@ -61,6 +61,54 @@ def make_user(engine, test_password):
 
 
 @pytest.fixture
+def blocked_etfs(engine):
+    """후보 선정이 막아야 하는 종목을 잠깐 넣어 준다 — 레버리지 하나, 상장폐지 하나.
+
+    시드로 넣어 두지 않는 이유: 수집 스크립트가 일부러 걸러내는 종목이라
+    종목 표에 상주할 이유가 없다. 막는 규칙이 동작하는지는 여기서만 확인하면 된다.
+
+    {"leveraged": 종목코드, "delisted": 종목코드} 를 돌려준다.
+    """
+    suffix = uuid.uuid4().hex[:4].upper()
+    rows = [
+        {
+            "ticker": f"LV-{suffix}",
+            "name": f"테스트 레버리지 {suffix}",
+            "risk_tag": "G1",
+            "is_leveraged": True,
+            "active": True,
+        },
+        {
+            "ticker": f"DL-{suffix}",
+            "name": f"테스트 상장폐지 {suffix}",
+            "risk_tag": "G3",
+            "is_leveraged": False,
+            "active": False,
+        },
+    ]
+    with engine.begin() as conn:
+        for row in rows:
+            conn.execute(
+                text(
+                    "INSERT INTO etf_master"
+                    " (ticker, name, sector, group_id, risk_tag, is_leveraged, active)"
+                    " VALUES (:ticker, :name, 'SECTOR_OTHER', 'EQUITY',"
+                    " :risk_tag, :is_leveraged, :active)"
+                ),
+                row,
+            )
+
+    yield {"leveraged": rows[0]["ticker"], "delisted": rows[1]["ticker"],
+           "leveraged_name": rows[0]["name"], "delisted_name": rows[1]["name"]}
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM etf_master WHERE ticker = ANY(:tickers)"),
+            {"tickers": [row["ticker"] for row in rows]},
+        )
+
+
+@pytest.fixture
 def client():
     from fastapi.testclient import TestClient
 

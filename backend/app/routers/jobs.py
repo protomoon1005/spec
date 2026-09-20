@@ -18,7 +18,11 @@ from app.workers.celery_app import celery_app
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 _POLL_INTERVAL_SECONDS = 0.3
-_MAX_POLLS = 200  # 데모 태스크(3초)보다 넉넉한 상한. 넘기면 timeout 이벤트로 스트림을 닫는다.
+# 상한은 실제로 가장 오래 걸리는 작업에 맞춘다. 전략서 컴파일이 2분을 넘는다
+# (2026-09-20 실측, 종목마다 선택지를 둔 스키마 + qwen3:8b). 예전 값 200(60초)은
+# 3초짜리 더미 태스크에 맞춘 것이라, 진행 상황이 완료보다 먼저 끊겼다.
+_STREAM_TIMEOUT_SECONDS = 600
+_MAX_POLLS = int(_STREAM_TIMEOUT_SECONDS / _POLL_INTERVAL_SECONDS)
 
 
 async def _event_stream(job_id: str):

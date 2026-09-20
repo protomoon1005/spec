@@ -27,46 +27,33 @@ docker compose up -d --build
 
 ### 기준표 넣기 (시드)
 
-- 표 구조만 생기고 안은 비어 있음. **계산의 기준이 되는 규칙표 3개를 넣어야 함**
+- 표 구조만 생기고 안은 비어 있음. **기준이 되는 표 다섯 개를 넣어야 함**
 
 ```sh
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/02_preset_v0_1.sql
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.sql
 docker compose exec -T postgres psql -U spec -d spec < db/seeds/04_etf_master.sql
+docker compose exec -T postgres psql -U spec -d spec < db/seeds/05_bbl.sql
 ```
 
 - `01_hardcap` — 모든 전략에 공통으로 걸리는 상한선 (한 종목 30%, 현금 최소 5% 등)
-  - 없으면 전략서를 저장할 수 없음
-- `02_preset` — 투자 성향 5단계 × ETF 위험등급 6단계 = 30칸. "이 성향은 이 등급을 몇 %까지"
-  - 없으면 종목별 허용범위를 정할 수 없음
+- `02_preset` — 투자 성향 5단계 × ETF 위험등급 6단계 = 30칸
 - `03_asset_groups` — 자산군·업종·국가 묶음과 각 묶음의 상한
-  - 없으면 종목을 한 줄도 못 넣음
-- `04_etf_master` — ETF 173종목 (종목코드·이름·업종·자산군·위험등급)
-  - 없으면 담을 종목이 없어서 전략을 못 만듦
-  - 현재는 백테스팅시에 frontend/universe.csv에서 읽는거로 경로 설정되있음 추후에 쓰일예정(일단은 만들기만 하는 상태)
+- `04_etf_master` — ETF 173종목
+- `05_bbl` — 전략서에 들어갈 수 있는 값들의 목록 (블록 32개 + 태그 91개)
 
-
-- **한 번만 넣을 것.** 두 번 돌리면 같은 값이 중복으로 들어감
+- **한 번만 넣을 것.** 두 번 돌리면 중복으로 들어감 (`05_bbl` 만 예외 — 비우고 다시 채움)
 - 데이터 볼륨을 지우지 않는 한 계속 남아 있으므로 다시 넣을 일 없음
-
-- **왜 파일로 두나**
-  - 데이터베이스 내용은 git 으로 공유되지 않음
-  - 팀원마다 자기 PC에 postgres 가 따로 뜨고 각자 비어 있음
-  - 그래서 데이터를 복사하는 대신 **넣는 방법을 파일로 공유**하는 것
-  - 각자 한 번씩 돌리면 전원이 같은 기준값을 갖게 됨
-
-- **시드에 들어가는 건 기준표뿐**
-  - 계정·전략서 — 쓰면서 쌓임
-  - 종목 목록·주가 — `frontend/data/` 에 파일로 이미 공유돼 있음
-  - 뉴스 — 매일 따로 수집
+- **왜 파일로 두나** — 데이터베이스 내용은 git 으로 공유되지 않음. 팀원마다 자기 PC에
+  postgres 가 따로 뜨고 각자 비어 있어서, 데이터 대신 **넣는 방법을 공유**하는 것
 
 ### 표 구조가 바뀌었을 때 (기존 사용자)
 
 - `db/init/02_schema.sql` 이 바뀐 커밋을 받았다면 **기존 DB에는 반영되지 않음**
-  - `db/init/` 은 볼륨이 빈 채로 처음 뜰 때만 실행됨. 그 뒤엔 파일이 바뀌어도 다시 안 돎
-  - 그래서 **볼륨을 지우고 다시 만드는 것 외에 방법이 없음**
-- 내 DB가 낡았는지 확인하는 법
+  - `db/init/` 은 볼륨이 빈 채로 처음 뜰 때만 실행됨
+  - **볼륨을 지우고 다시 만드는 것 외에 방법이 없음**
+- 내 DB가 낡았는지 확인
 
 ```sh
 docker compose exec -T postgres psql -U spec -d spec -c "\dt" | tail -3
@@ -75,16 +62,13 @@ docker compose exec -T postgres psql -U spec -d spec -c "\dt" | tail -3
   - `Did not find any relations` → 표가 아예 없음
   - 표가 나오는데 최근에 추가된 표가 안 보임 → 낡은 것
 
-#### 뉴스가 없는 사람 (처음 사용자)
+#### 뉴스가 없는 사람 (대부분)
 
 ```sh
 docker compose down
 docker volume rm spec_pgdata
 docker compose up -d
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/02_preset_v0_1.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/05_etf_master.sql
+# 위 "기준표 넣기" 다섯 줄을 다시 실행
 ```
 
 - 계정과 전략서는 같이 사라짐. 테스트용이라 다시 만들면 됨
@@ -105,15 +89,18 @@ docker compose exec -T postgres psql -U spec -d spec < news_backup.sql
 ```
 
 - 기사 표와 감성 표는 **한 파일에 같이** 뽑을 것. 감성이 기사 번호를 참조하므로 따로 뽑으면 어긋남
-- 기사 번호와 다음 번호까지 그대로 복원됨 (실측 확인)
-- **백업 파일을 저장소에 커밋하지 말 것** — 기사 원문이 들어 있고, "뉴스 원문은 저장하지 않는다" 규칙에 걸림
+- **백업 파일을 저장소에 커밋하지 말 것** — 기사 원문이 들어 있음
 
 ### 자주 겪는 문제
 
 - **컨테이너가 데이터베이스에 못 붙음**
   - 터미널에 `DATABASE_URL`·`REDIS_URL` 을 `localhost` 로 export 해 두면 그 값이 `.env` 보다 **우선**
-  - 컨테이너 안에도 `localhost` 가 들어가는데, 컨테이너 입장에서 `localhost` 는 자기 자신이라 못 붙음
+  - 컨테이너 입장에서 `localhost` 는 자기 자신이라 못 붙음
   - `docker compose config` 로 실제로 뭐가 들어갔는지 확인 가능
+- **코드를 고쳤는데 반영이 안 됨**
+  - `api` 는 `--reload` 가 붙어 있지만 **`worker` 에는 없음.** 태스크를 고쳤으면
+    `docker compose restart worker`
+  - 새 폴더를 만들었을 때도 `api` 가 못 잡는 경우가 있음 → `docker compose restart api`
 
 ---
 
@@ -122,12 +109,14 @@ docker compose exec -T postgres psql -U spec -d spec < news_backup.sql
 - **되는 것**
   - 회원가입 · 로그인 · 토큰 갱신
   - 서버 상태 확인
-  - 전략 만들기 요청 접수 + 진행 상황 보기 (변환 내용물은 만드는 중)
+  - 투자 성향 설문 → 성향 확정 → 조회
+  - **자연어 → 전략서 만들기.** 정보가 모자라면 되묻고, 만든 전략서를 저장
+  - 진행 상황 실시간 보기
 - **안 되는 것**
+  - 하드캡 적용 — Validator 담당인데 본체가 아직 없음. **하드캡을 넘는 값이 그대로 저장됨**
   - 백테스트 — 스크립트로만 됨. API로는 아직
-  - 나머지 API 전부 — 501. 주소와 데이터 형식만 정해 둔 상태
+  - 나머지 API — 501. 주소와 데이터 형식만 정해 둔 상태
 - 501이 떠도 로그인 검사는 그보다 먼저 걸림. 토큰 없이 부르면 401
-- 담당별 현황과 데이터 준비 상태는 **`docs/data-status.md`** 참고
 
 ---
 
@@ -136,128 +125,77 @@ docker compose exec -T postgres psql -U spec -d spec < news_backup.sql
 - `http://localhost:8000/docs` 에서 눌러서 바로 호출
 - 대부분의 주소는 토큰이 필요함. **우측 상단 `Authorize` 에 토큰을 넣으면 로그인이 유지됨**
 
-### 먼저 계정을 만들어야 함
+### 1. 계정 만들기
 
-Swagger 에서 세 번 클릭이면 끝.
-
-1. `http://localhost:8000/docs` 를 연다
-2. **auth** 묶음의 `POST /auth/signup` 을 펼치고 `Try it out` 을 누른다
-3. 이메일과 비밀번호를 적고 `Execute`
+`POST /auth/signup` 에 이메일과 비밀번호를 넣는다.
 
 ```json
 { "email": "m1@test.local", "password": "test1234" }
 ```
 
-- 응답에 나온 `access_token` 을 복사해 **우측 상단 `Authorize`** 에 붙여넣으면 끝
-  - 가입하면 토큰까지 바로 나오므로 **따로 로그인할 필요 없음**
-- 비밀번호는 최소 8자. 이메일 인증은 하지 않음(메일 발송 경로가 없음)
+- 응답의 `access_token` 을 복사해 **`Authorize`** 에 붙여넣으면 끝. 따로 로그인할 필요 없음
+- 비밀번호는 **최소 8자, UTF-8 72바이트까지**(한글 24자). 이메일 인증은 안 함
 - 같은 이메일로 또 가입하면 409
-- 계정은 각자 만듦. 볼륨을 지우면 같이 사라지므로 그때 다시 만들면 됨
-- 시드에 들어 있는 계정(`system@spec.internal`)으로는 **로그인할 수 없음**
-  - 다른 표의 작성자 칸을 채우려고 만든 행이라 비밀번호 자리가 해시가 아님
+- 시드 계정(`system@spec.internal`)으로는 **로그인할 수 없음** — 비밀번호가 해시가 아님
+- 이미 만든 계정은 `POST /auth/login` 으로 토큰을 다시 받는다
+- 만료가 짧으면 `.env` 의 `JWT_ACCESS_TTL_MINUTES` 를 올릴 것 (예: `43200` = 30일)
+  - **값 뒤에 주석을 달지 말 것.** 주석은 줄 위에
 
-### 토큰 받기
+### 2. 투자 성향 정하기
 
-- `POST /auth/login` 에 이메일·비밀번호를 넣으면 `access_token` 이 나옴
-- 그 값을 `Authorize` 에 붙여넣으면 끝
-- 기본 만료가 30분이라 개발 중에 불편하면 `.env` 의 `JWT_ACCESS_TTL_MINUTES` 를 올릴 것
-  - 예: `43200`(30일). `.env` 는 커밋되지 않으므로 다른 팀원에게 영향 없음
-  - 값 뒤에 주석을 달지 말 것. 주석은 줄 위에 달아야 함
+전략서를 만들려면 성향이 먼저 확정돼야 한다. **성향에 따라 담을 수 있는 종목과 비중이 달라진다.**
 
----
+1. `GET /profile/survey/questions` — 문항 7개와 선택지 코드를 받는다
+2. `POST /profile/survey` — 답을 **배열로** 보낸다. 7문항 전부 필요
 
-## 알려진 문제
+```json
+[
+  {"question_code": "AGE",            "answer_code": "A1"},
+  {"question_code": "HORIZON",        "answer_code": "A5"},
+  {"question_code": "EXPERIENCE",     "answer_code": "A4"},
+  {"question_code": "KNOWLEDGE",      "answer_code": "A4"},
+  {"question_code": "INCOME_SOURCE",  "answer_code": "A5"},
+  {"question_code": "ASSET_RATIO",    "answer_code": "A1"},
+  {"question_code": "LOSS_TOLERANCE", "answer_code": "A5"}
+]
+```
 
-- 작업하면서 발견한, 아직 안 풀린 것들
-- **표 구조를 마음대로 바꾸는 대신 여기 적어만 둠**
+3. `POST /profile` — **본문 없이** 실행. 답을 합산해 성향 1~5를 확정
+4. `GET /profile/me` — 확인
 
-### 종목 데이터 — M1 이 제일 먼저 막히는 곳
+- 같은 문항에 다시 답하면 마지막 답이 이김
+- 다시 확정해도 덮어쓰지 않고 새로 쌓임. 조회는 최신 것을 봄
+- 성향을 바꿔가며 보려면
+  - `A5,A1,A1,A1,A2,A5,A1` → 1 안정투자형
+  - `A3,A3,A3,A3,A3,A3,A3` → 3 위험중립형
+  - `A1,A5,A5,A5,A5,A1,A5` → 5 공격투자형
 
-- **종목 표에 빠진 칸이 있음** (2026-09-20 기준 173종목 적재 완료)
-  - `db/seeds/05_etf_master.sql` 로 173종목이 들어감. 종목코드·이름·업종·자산군·위험등급까지
-  - 비어 있는 칸 — 1년 변동성, 상장일, 3년 최대낙폭, 보수율, 상장폐지일
-    - 원본(`frontend/data/universe.csv`)에 없거나, 있어도 기간·의미가 달라서 일부러 안 넣음
-    - 예: 원본 변동성은 3년치인데 표의 칸은 1년치. 넣으면 나중에 1년으로 오해함
-  - **레버리지·인버스 종목과 상장폐지 종목이 통째로 빠져 있음**
-    - 원본 수집 단계에서 걸러짐
-    - 데모의 "생성 불가" / "상장폐지 차단" 장면을 보이려면 몇 종목 따로 넣어야 함
-  - 옛 `db/seeds/04_etf_master.csv`(4종목)는 대체됨
+### 3. 전략서 만들기
 
-- **종목의 국가를 담을 칸이 표에 없음**
-  - 국가별 상한(한국·미국·기타 각 50%)을 걸려면 종목이 어느 나라인지 알아야 함
-  - 표에는 업종과 자산군만 있음
-  - CSV 에는 국가 칸을 넣어 뒀지만(CSV 는 표 구조가 아니라 입력 파일이라) 실제로 쓰려면 나중에 표에 칸 추가 필요
+`POST /specs/compile` 에 요청 문장을 넣는다.
 
-- **위험등급을 사람이 다시 봐야 함 — M1 최대 걸림돌**
-  - 지금 들어간 위험등급은 **3년 변동성으로 자동 계산된 값.** 협회 공시 등급이 아님
-  - 173종목 중 **87개가 G1(초고위험)** 으로 쏠려 있음. 주식형만 보면 122개 중 85개
-  - 성향별로 담을 수 있는 종목이 이렇게 됨
-    - 안정투자형 57종목 (주식 **14** · 채권 43)
-    - 위험중립형 86종목 (주식 37 · 채권 48)
-    - 공격투자형 173종목 (주식 122 · 채권 48)
-  - **KODEX 200·TIGER 200·KODEX 코스피가 전부 G1 이라 위험중립형도 국내 대표지수를 못 담음.**
-    실무 기준으로 KODEX 200 은 보통 2등급
-  - **자동 추정은 원래 금지 규칙. 사람이 검토해서 재배정해야 함**
+```json
+{ "input_prompt": "안전하게 채권 위주로 굴리고 매달 정리해줘" }
+```
 
-- **자산군을 배정하지 않으면 새로 상장한 ETF 를 자동으로 못 넣음**
-  - 자산군이 필수값인데 그 배정은 사람이 하는 일이라서
-  - 나중에 매일 신규 상장을 반영하려면 둘 중 하나가 필요
-    - 미배정 종목을 임시로 받아 두는 표를 두거나
-    - "미분류" 그룹을 하나 만들어 잠정 배정하거나
-  - 둘 다 표 구조 변경이라 지금은 안 건드림
+작업 번호가 바로 나온다. 진행 상황은 터미널에서 본다.
 
-- **종목 수집 스크립트 두 개 중 하나는 죽음**
-  - `scripts/build_etf_master.py` — 한국거래소 라이브러리가 계정 로그인을 요구해서 한 번도 못 돌림
-  - `scripts/build_universe.py` — 다른 라이브러리로 사실상 대체
-  - 다만 **상장폐지 종목 찾기는 죽은 쪽에만 있음.** 데모의 "상장폐지 종목 차단" 장면에 필요
+```sh
+curl -N -H "Authorization: Bearer <토큰>" http://localhost:8000/jobs/<작업번호>/stream
+```
 
-- **수집 스크립트의 저장 위치가 읽는 쪽과 다름**
-  - 스크립트는 저장소 루트의 `data/` 에 쓰는데, 백테스트는 `frontend/data/` 를 읽음
-  - 지금은 받아 둔 파일이 있어서 아무 일도 안 나지만, **다시 받는 날 옛 데이터로 돌리게 됨**
-  - 스크립트의 출력 경로 한 줄 문제
-
-### 전략서와 승인
-
-- **승인한 전략서의 상태를 바꿀 수 없음**
-  - 승인 뒤에는 고치지 못하게 데이터베이스가 막아 놨음
-  - 그 잠금이 "상태" 칸까지 얼려서 `승인 → 운용중 → 종료` 로 넘어가는 것 자체가 안 됨
-  - 얼려야 할 건 종목과 비중이지 상태는 아닐 가능성이 크지만, **팀 확정 전이라 코드를 안 바꿈**
-
-- **가입으로는 일반 사용자만 만들어짐**
-  - `POST /auth/signup` 은 권한을 항상 `retail` 로 고정함. 요청으로 고를 수 없음
-  - `pro`·`admin` 으로 올리는 경로가 없어서 데이터베이스에 직접 넣어야 함
-  - 이메일 인증도 없음. 메일 발송 경로가 없고 모의투자라 프로토타입 기준으로 생략함
-
-- **501 로 비어 있는 API 들의 응답 형식은 바뀔 수 있음**
-  - 지금은 표의 확정 칸만으로 모양을 보여주는 최소한
-  - 페이징·부분 수정·오류 형식 같은 건 각자 만들 때 정함
-  - **전략서(Spec) 형식만은 예외.** 전원 합의가 필요한 고정 계약
-
-### 뉴스와 AI 모델
-
-- **뉴스 표에 원문을 담는 칸이 있지만 채우면 안 됨**
-  - 상위 규칙이 "뉴스 원문은 저장하지 않는다, 메타정보·점수·태그만 저장한다"고 못 박음
-  - 칸은 원래 설계를 따라 만들었을 뿐
-
-- **문장을 숫자로 바꾼 값의 크기를 768로 정해 둠**
-  - 원래 설계 문서에 크기가 안 적혀 있었는데, 크기가 없으면 검색 색인을 만들 수 없어서 정함
-  - **나중에 바꾸려면 칸 타입 변경 + 색인 재생성이라 되돌리는 비용이 큼.** 쓸 모델을 빨리 정할수록 좋음
-
-- **GPU 쪽 AI 서버는 한 번도 안 돌려 봄**
-  - 코드만 있고 실행한 적 없음. GPU 있는 팀원이 처음 검증해야 함
-  - GPU 없는 쪽(Ollama)은 실제로 응답을 받아 확인함
-
-### 화면
-
-- **확정 스택이 아직 다 안 붙음**
-  - 붙은 것 — Tailwind, 차트 라이브러리(Recharts), 리포트 화면
-  - 아직인 것 — shadcn/ui, TanStack Query
-  - 실제로 필요해질 때 붙일 예정
-  - `next@15.5.25` 로 고정해 심각한 보안 문제는 피함
+- 결과는 셋 중 하나
+  - `completed` — 전략서를 만들어 저장함. `spec_id` 가 함께 옴
+  - `need_answer` — 되묻는 중. `session_id` · `question` · `choices` 가 옴.
+    **같은 주소를 다시 부르되 `{"session_id": "...", "answer": "채권으로"}`** 를 보냄
+  - `failed` — 만들 수 없음. `reason` 에 이유가 담김
+- 진행 상황 스트림은 **Swagger 화면에서 잘 안 보임** — 계속 흘려보내는 방식이라 위 curl 이 나음
+- ⚠ **한 번에 몇 분씩 걸림.** 종목 후보마다 형식을 강제하느라 느리다.
+  `.env` 의 `LLM_REQUEST_TIMEOUT_SECONDS` 가 300초로 맞춰져 있음
 
 ---
 
-## 개발하면서 알아둘 것
+## 그 밖에
 
 ### 판단 모델 쪽 라이브러리 설치
 
@@ -267,54 +205,37 @@ Swagger 에서 세 번 클릭이면 끝.
 pip install -e "backend[dev,ml]" --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
-- **뒤의 `--extra-index-url` 을 빼지 말 것**
-  - 빼면 GPU용 무거운 버전(2.5GB+)이 깔림
-  - api·worker·beat 가 이미지 하나를 같이 써서 세 개가 한꺼번에 부풀음
-- 설치 후 확인
+- **뒤의 `--extra-index-url` 을 빼지 말 것.** 빼면 GPU용 무거운 버전(2.5GB+)이 깔리고,
+  api·worker·beat 가 이미지 하나를 같이 써서 세 개가 한꺼번에 부풀음
+- 확인: `python -c "import torch; print(torch.__version__, torch.version.cuda)"` →
+  뒤가 `None` 이어야 CPU 빌드
+- 이 라이브러리가 필요한 테스트에는 `requires_ml` 표시를 달 것
+
+### 테스트
 
 ```sh
-python -c "import torch; print(torch.__version__, torch.version.cuda)"
-# 2.x.x+cpu None   <- 뒤가 None 이어야 맞음
+docker compose exec api pytest -m "not requires_ollama and not requires_ml and not requires_backfill and not requires_backtest" -q
+docker compose exec api ruff check .
+docker compose exec api python /repo/scripts/check_asof_guard.py
 ```
-
-- 이 라이브러리가 필요한 테스트에는 `requires_ml` 표시를 달 것
-- 평소에는 `pytest -m "not requires_ollama and not requires_ml" -q` 로 빼고 실행
-
-### 지표 버전 (`feature_set_version`)
-
-- 주가로 계산하는 지표 묶음에 붙이는 이름. 지금은 `v0.1-ta9`(지표 9개)
-- **규칙 하나 — 지표 목록이나 계산식을 바꾸면 반드시 버전을 올릴 것**
-  - 같은 이름에 다른 계산식이 섞이면 과거 판단을 다시 만들어 낼 수 없음
-- 지표 목록과 계산식의 **정본은 `backend/app/views/market/features.py`**
-  - 여기 옮겨 적지 않음. 사본이 둘이면 한쪽이 반드시 낡음
-- **계산할 때 항상 직전 120행을 입력으로 줄 것**
-  - 일부 지표는 과거를 무한히 기억해서, 입력을 어디서부터 줬는지에 따라 같은 날짜라도 값이 달라짐
-  - 권고가 아니라 지표 버전 정의의 일부
-
-### 지표를 다 계산해 두고, 전략서는 그중 고르기만
-
-- 저장할 때는 **그 버전의 지표를 전부 계산해서 넣음**
-- 전략서에 적힌 지표 목록은 "저장된 것 중 무엇을 볼지" 고르는 용도
-- 이렇게 하면 전략마다 저장 내용이 갈라지지 않고 배치를 한 번만 돌리면 됨
-  - "무엇이 계산돼 있는가" — 지표 버전이 책임
-  - "그중 무엇을 봤는가" — 전략서가 책임
-- **값이 없으면 비워 둘 것. 0으로 채우지 않음**
-  - 이력이 모자란 것과 값이 진짜 0인 것을 모델이 구분 못 하게 되기 때문
 
 ### 뉴스는 매일 쌓아야 함
 
-- 과거 뉴스를 한꺼번에 받아올 방법이 없다고 결론남 (`docs/news-archive-feasibility.md`)
-- **오늘부터 쌓는 수밖에 없음**
+- 과거 뉴스를 한꺼번에 받아올 방법이 없음 (`docs/news-archive-feasibility.md`)
 
 ```sh
 DATABASE_URL=postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec \
   python scripts/collect_news.py
 ```
 
-- 여러 번 돌려도 이미 받은 기사는 건너뜀
-- 뉴스 구독은 최근 1~2일치만 주므로 **하루 두 번 이상 돌리는 것이 전제**
+- 여러 번 돌려도 이미 받은 기사는 건너뜀. 최근 1~2일치만 주므로 **하루 두 번 이상**이 전제
+- ⚠ **안 돌린 날은 영영 빔.** 지금은 팀원 한 명의 개발 PC에서 6시간마다 도는 중이라,
+  그 PC가 꺼지면 그날이 빈다. 항상 켜진 서버로 옮길지 이야기해 볼 값어치가 있음
 
-- ⚠ **안 돌린 날은 영영 빔.** 나중에 채울 방법 없음
-  - 지금은 팀원 한 명의 개발 PC에서 6시간마다 도는 중
-  - **그 PC가 꺼져 있으면 그날이 빔**
-  - 항상 켜져 있는 서버로 옮길 수 있는지 한 번 이야기해 볼 값어치가 있음
+### 문서
+
+- `docs/known-issues.md` — **알려진 설계 구멍.** 표 구조를 바꾸는 대신 여기 적어 둠
+- `docs/data-status.md` — 데이터가 어디까지 준비됐는지, 무엇이 아직 가짜인지
+- `docs/m1_milestone.md` — M1(전략 컴파일) 단계별 진행과 결정 기록
+- `docs/infra-spec.md` — 기준 문서. 확정 수치와 하지 말 것
+- `docs/db-erd.md` — 표 구조 정본

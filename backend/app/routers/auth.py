@@ -32,6 +32,23 @@ SIGNUP_ROLE: Role = "retail"
 
 MIN_PASSWORD_LENGTH = 8
 
+# bcrypt 는 72바이트까지만 해싱한다. 넘기면 ValueError 가 나서 가입이 500 으로 죽는다.
+# **글자 수가 아니라 바이트로 세야 한다** — 한글은 한 글자가 3바이트라 25자면 넘는다.
+MAX_PASSWORD_BYTES = 72
+
+
+def _normalize_email(value: str) -> str:
+    """앞뒤 공백을 떼고 소문자로 맞춘다.
+
+    이메일 UNIQUE 제약이 대소문자를 구분해서, 정규화하지 않으면 Foo@x.com 과
+    foo@x.com 이 서로 다른 계정이 된다. 가입할 때 공백이 섞였다가 로그인할 때
+    빠지면 같은 값인데 401 이 나기도 한다. 그래서 양쪽에서 같은 규칙을 쓴다.
+    """
+    value = value.strip().lower()
+    if "@" not in value or value.startswith("@") or value.endswith("@"):
+        raise ValueError("이메일 형식이 아니다")
+    return value
+
 
 class SignupRequest(BaseModel):
     # 이메일 형식은 느슨하게만 본다. 메일을 보내는 경로가 없어서 형식이 정확한지는
@@ -42,16 +59,26 @@ class SignupRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def _looks_like_email(cls, value: str) -> str:
-        value = value.strip()
-        if "@" not in value or value.startswith("@") or value.endswith("@"):
-            raise ValueError("이메일 형식이 아니다")
+    def _check_email(cls, value: str) -> str:
+        return _normalize_email(value)
+
+    @field_validator("password")
+    @classmethod
+    def _check_password_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+            raise ValueError(f"비밀번호가 너무 길다 (UTF-8 {MAX_PASSWORD_BYTES}바이트까지)")
         return value
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, value: str) -> str:
+        # 가입 때와 같은 규칙으로 맞춰야 같은 계정을 찾는다.
+        return value.strip().lower()
 
 
 class RefreshRequest(BaseModel):
@@ -82,7 +109,7 @@ def signup(payload: SignupRequest) -> TokenResponse:
     요청으로 권한을 고를 수 없다 — 관리자 계정은 데이터베이스에 직접 넣는다.
 
     이메일 인증은 하지 않는다(모의투자 졸업작품이라 메일 발송 경로가 없다).
-    비밀번호는 최소 8자.
+    비밀번호는 최소 8자, UTF-8 기준 72바이트까지(한글 24자).
 
     같은 이메일이 이미 있으면 409.
     """
@@ -104,9 +131,8 @@ def login(payload: LoginRequest) -> TokenResponse:
 
     `access_token` 을 받아 우측 상단 **Authorize** 에 넣으면 로그인이 유지된다.
 
-    **주의 — 지금은 쓸 수 있는 계정이 없다.**
-    데이터베이스에 기본으로 들어 있는 계정이 하나 있지만 비밀번호가 제대로 안 들어 있어서
-    로그인하면 401 이 난다. 테스트 계정 만드는 방법은 `docs/m1-todo.md` 부록에 있다.
+    계정이 없으면 `POST /auth/signup` 으로 먼저 만든다.
+    시드에 들어 있는 계정(`system@spec.internal`)은 비밀번호가 해시가 아니라 로그인용이 아니다.
     """
     user = get_user_by_email(payload.email)
     if user is None or not verify_password(payload.password, user.password_hash):
