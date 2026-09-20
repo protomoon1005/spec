@@ -3,8 +3,9 @@
 이 프로젝트가 주장하는 "같은 입력에 같은 출력"은 말로 하면 증명이 아니다.
 서로 다른 언어·다른 엔진으로 짠 두 구현이 같은 목표 비중을 내놓아야 한다.
 
-frontend/data/backtest-result.json 은 TS 러너(frontend/lib/backtest.ts)가
-낸 결과다. 여기서는 파이썬 러너를 같은 입력으로 돌려 목표 비중을 대조한다.
+입력(시세)은 저장소 루트 data/ 에서 읽는다 — 정본이다. TS 러너도 같은 곳을
+읽으므로 두 러너가 같은 입력을 본다. frontend/data/backtest-result.json 은
+그 TS 러너가 낸 결과이고, 여기서는 파이썬 러너를 돌려 목표 비중을 대조한다.
 
 CI 는 .[dev] 만 설치하므로 requires_backtest 로 막아 둔다. 로컬에서는
   pip install -e "backend[backtest]"
@@ -24,14 +25,15 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "frontend" / "data"
+SRC = ROOT / "data"                      # 입력 — 정본 시세·유니버스
+OUT = ROOT / "frontend" / "data"         # TS 러너 산출물
 
 pytestmark = pytest.mark.requires_backtest
 
 
 @pytest.fixture(scope="module")
 def ts_result() -> dict:
-    path = DATA / "backtest-result.json"
+    path = OUT / "backtest-result.json"
     if not path.exists():
         pytest.skip(f"{path} 가 없다 — frontend 쪽 러너를 먼저 돌려야 한다")
     return json.loads(path.read_text(encoding="utf-8"))
@@ -46,7 +48,7 @@ def py_control(ts_result: dict):
 
     from app.backtest.runner import run
 
-    prices = pd.read_csv(DATA / "prices.csv", dtype={"ticker": str}, parse_dates=["date"])
+    prices = pd.read_csv(SRC / "prices.csv", dtype={"ticker": str}, parse_dates=["date"])
     wide = prices.pivot(index="date", columns="ticker", values="close").ffill()
     wide.index = wide.index.strftime("%Y-%m-%d")
 
