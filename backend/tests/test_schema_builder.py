@@ -43,8 +43,12 @@ def _allowed_tickers(schema) -> set[str]:
 
 
 def test_universe_offers_only_the_candidates(engine, built):
-    assert _allowed_tickers(built) == {"091160", "091230", "381180"}
-    assert built["properties"]["universe"]["maxItems"] == 3
+    """후보로 뽑힌 종목만 고를 수 있어야 한다. 어떤 종목이 뽑히는지는 원장에 달려
+    있으므로 종목코드를 박지 않는다 — 원장이 바뀌어도 깨지지 않게."""
+    expected = set(C.select(risk_level=5, sectors=["SECTOR_SEMICONDUCTOR"], target=3).tickers)
+
+    assert _allowed_tickers(built) == expected
+    assert built["properties"]["universe"]["maxItems"] == len(expected)
 
 
 def test_options_are_grouped_by_bound_not_by_ticker(engine):

@@ -140,7 +140,7 @@ def test_fill_avoids_the_unclassified_bucket(engine):
 
     result = C.select(risk_level=5, requested_tickers=[semiconductor.ticker], target=6)
 
-    assert {c.sector for c in result.candidates} == {"SECTOR_SEMICONDUCTOR"}
+    assert {c.sector_group_id for c in result.candidates} == {"SECTOR_SEMICONDUCTOR"}
 
 
 def test_leveraged_products_never_appear_in_the_fill(engine, blocked_etfs):

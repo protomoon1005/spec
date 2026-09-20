@@ -20,8 +20,12 @@ from sqlalchemy import text
 
 from app.core.db import get_engine
 
+# 분류는 세 축을 따로 읽는다 (db/migrate/001_etf_master_group_axes.sql).
+# 옛 컬럼 두 개는 일부러 안 읽는다 — `sector` 는 한글 라벨(`반도체`)이고
+# `group_id` 는 자산군만 담던 자리라, 둘을 섞어 쓰면 어느 쪽을 보는지 헷갈린다.
 _COLUMNS = """
-    ticker, name, sector, group_id, risk_tag, is_leveraged, active, delisted_date
+    ticker, name, asset_group_id, sector_group_id, country_group_id,
+    risk_tag, is_leveraged, active, delisted_date
 """
 
 
@@ -29,8 +33,9 @@ _COLUMNS = """
 class EtfRecord:
     ticker: str
     name: str
-    sector: str | None
-    group_id: str
+    asset_group_id: str | None  # EQUITY · BOND · COMMODITY
+    sector_group_id: str | None  # SECTOR_*
+    country_group_id: str | None  # COUNTRY_*
     risk_tag: str | None
     is_leveraged: bool
     active: bool
@@ -84,6 +89,7 @@ def search(
     *,
     group_ids: list[str] | None = None,
     sectors: list[str] | None = None,
+    countries: list[str] | None = None,
     risk_tags: list[str] | None = None,
     name_pattern: str | None = None,
     include_leveraged: bool = False,
@@ -95,16 +101,20 @@ def search(
     섞이면 안 된다. 지목한 종목을 확인하는 경로는 get_by_tickers 를 쓴다.
 
     name_pattern 은 BBL 의 ETF 특성 블록이 들고 있는 정규식을 그대로 받는다.
+    국가로 거르는 길이 생겼다 — 예전에는 표에 칸이 없어 못 했다.
     """
     clauses = ["active = true"]
     params: dict = {"limit": limit}
 
     if group_ids:
-        clauses.append("group_id = ANY(:group_ids)")
+        clauses.append("asset_group_id = ANY(:group_ids)")
         params["group_ids"] = list(group_ids)
     if sectors:
-        clauses.append("sector = ANY(:sectors)")
+        clauses.append("sector_group_id = ANY(:sectors)")
         params["sectors"] = list(sectors)
+    if countries:
+        clauses.append("country_group_id = ANY(:countries)")
+        params["countries"] = list(countries)
     if risk_tags:
         clauses.append("risk_tag = ANY(:risk_tags)")
         params["risk_tags"] = list(risk_tags)

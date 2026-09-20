@@ -126,7 +126,9 @@ def _narrow_market_temperature(defs: dict[str, Any]) -> None:
 def _narrow_sectors(defs: dict[str, Any], candidate_set: CandidateSet) -> None:
     # 감성 관점은 후보 종목이 속한 업종을 본다. 담지도 않을 업종의 뉴스를 보라고
     # 할 이유가 없다.
-    sectors = sorted({c.sector for c in candidate_set.candidates if c.sector})
+    sectors = sorted(
+        {c.sector_group_id for c in candidate_set.candidates if c.sector_group_id}
+    )
     if sectors:
         defs["SentimentRule"]["properties"]["target_sectors"]["items"] = {"enum": sectors}
 

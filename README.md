@@ -25,34 +25,51 @@ docker compose up -d --build
 - http://localhost:8000/health — 서버와 붙어 있는 것들 상태
 - http://localhost:3000 — 프론트 화면
 
-### 기준표 넣기 (시드)
+### 데이터 넣기
 
-- 표 구조만 생기고 안은 비어 있음. **기준이 되는 표 다섯 개를 넣어야 함**
+표 구조만 생기고 안은 비어 있다. **두 줄이면 채워진다.**
 
 ```sh
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/02_preset_v0_1.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/03_asset_groups.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/04_etf_master.sql
-docker compose exec -T postgres psql -U spec -d spec < db/seeds/05_bbl.sql
+docker compose exec api python /repo/scripts/apply_migrations.py   # 스키마 변경분 적용
+docker compose exec api python /repo/scripts/seed_all.py           # 기준표 + 종목 원장
 ```
 
-- `01_hardcap` — 모든 전략에 공통으로 걸리는 상한선 (한 종목 30%, 현금 최소 5% 등)
-- `02_preset` — 투자 성향 5단계 × ETF 위험등급 6단계 = 30칸
-- `03_asset_groups` — 자산군·업종·국가 묶음과 각 묶음의 상한
-- `04_etf_master` — ETF 173종목
-- `05_bbl` — 전략서에 들어갈 수 있는 값들의 목록 (블록 32개 + 태그 91개)
+- `apply_migrations` — `db/migrate/` 의 변경분을 **아직 안 넣은 것만** 적용. 여러 번 돌려도 안전
+- `seed_all` — `db/seeds/` 를 정해진 순서로 넣는다
+  - `01_hardcap` 모든 전략에 공통으로 걸리는 상한선 (한 종목 30%, 현금 최소 5% 등)
+  - `02_preset` 투자 성향 5단계 × ETF 위험등급 6단계 = 30칸
+  - `03_asset_groups` 자산군·업종·국가 묶음과 각 묶음의 상한
+  - `04_etf_master` ETF 71종목 — 레버리지·상장폐지 종목 포함
+  - `05_bbl` 전략서에 들어갈 수 있는 값들의 목록 (블록 32개 + 태그 91개)
 
-- **한 번만 넣을 것.** 두 번 돌리면 중복으로 들어감 (`05_bbl` 만 예외 — 비우고 다시 채움)
-- 데이터 볼륨을 지우지 않는 한 계속 남아 있으므로 다시 넣을 일 없음
+- **순서가 중요하다.** 종목이 자산군을 참조해서, 뒤섞으면 외래키 때문에 실패한다.
+  그래서 `seed_all` 이 목록을 들고 있다
+- **`01`~`03` 은 한 번만.** 두 번 넣으면 중복으로 쌓인다. `04`·`05` 는 여러 번 돌려도 된다
+- 형식이 둘인 이유
+  - `.sql` 은 **규칙표** — 팀이 회의에서 정한 값. 손으로 쓰고 잘 안 바뀜
+  - `.csv` 는 **데이터** — 종목 원장. 스프레드시트로 분류 작업을 하고, 한글 분류값
+    (`반도체`)을 묶음 이름(`SECTOR_SEMICONDUCTOR`)으로 옮기는 매핑이 필요해 전용 적재기를 씀
+  - 형식을 통일하면 둘 중 하나가 나빠져서, **형식 대신 넣는 방법을 통일**했다
+
 - **왜 파일로 두나** — 데이터베이스 내용은 git 으로 공유되지 않음. 팀원마다 자기 PC에
   postgres 가 따로 뜨고 각자 비어 있어서, 데이터 대신 **넣는 방법을 공유**하는 것
 
+### 개발용 테스트 계정 (선택)
+
+```sh
+docker compose exec api python /repo/scripts/dev_seed.py
+```
+
+- `retail@test.local` · `pro@test.local` · `admin@test.local` — 비밀번호 전부 `test1234`
+- `retail` 계정에는 위험중립형 성향까지 붙는다 — **설문을 건너뛰고 바로 전략서를 만들 수 있다**
+
 ### 표 구조가 바뀌었을 때 (기존 사용자)
 
-- `db/init/02_schema.sql` 이 바뀐 커밋을 받았다면 **기존 DB에는 반영되지 않음**
+- **`db/migrate/` 에 새 파일이 들어왔다면** `apply_migrations.py` 만 돌리면 된다.
+  볼륨을 지울 필요 없고 데이터도 그대로 남는다
+- **`db/init/02_schema.sql` 이 바뀌었다면** 기존 DB에는 반영되지 않는다
   - `db/init/` 은 볼륨이 빈 채로 처음 뜰 때만 실행됨
-  - **볼륨을 지우고 다시 만드는 것 외에 방법이 없음**
+  - 이 경우에만 볼륨을 지워야 한다
 - 내 DB가 낡았는지 확인
 
 ```sh
@@ -68,7 +85,8 @@ docker compose exec -T postgres psql -U spec -d spec -c "\dt" | tail -3
 docker compose down
 docker volume rm spec_pgdata
 docker compose up -d
-# 위 "기준표 넣기" 다섯 줄을 다시 실행
+docker compose exec api python /repo/scripts/apply_migrations.py
+docker compose exec api python /repo/scripts/seed_all.py
 ```
 
 - 계정과 전략서는 같이 사라짐. 테스트용이라 다시 만들면 됨
@@ -219,18 +237,13 @@ docker compose exec api ruff check .
 docker compose exec api python /repo/scripts/check_asof_guard.py
 ```
 
-### 뉴스는 매일 쌓아야 함
+### 뉴스 수집은 지금 없다
 
-- 과거 뉴스를 한꺼번에 받아올 방법이 없음 (`docs/news-archive-feasibility.md`)
-
-```sh
-DATABASE_URL=postgresql+psycopg://spec:spec_dev_password@localhost:5432/spec \
-  python scripts/collect_news.py
-```
-
-- 여러 번 돌려도 이미 받은 기사는 건너뜀. 최근 1~2일치만 주므로 **하루 두 번 이상**이 전제
-- ⚠ **안 돌린 날은 영영 빔.** 지금은 팀원 한 명의 개발 PC에서 6시간마다 도는 중이라,
-  그 PC가 꺼지면 그날이 빈다. 항상 켜진 서버로 옮길지 이야기해 볼 값어치가 있음
+- 수집 파이프라인이 2026-09-19 에 제거됐다 (`jun`, 커밋 `ee08952`, 11개 파일 1,178줄)
+- **표(`news_articles`·`news_sentiment`)는 스키마에 그대로 남아 있다.** 넣는 코드만 없다
+- 감성 관점을 살리려면 다시 만들어야 하고, **지나간 날은 받을 수 없다**
+  (`docs/news-archive-feasibility.md` — 과거 아카이브 확보 불가 판정)
+- 다시 시작할 계획이 있는지 M3 담당에게 확인할 것
 
 ### 문서
 

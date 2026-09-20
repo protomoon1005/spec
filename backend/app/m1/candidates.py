@@ -45,8 +45,9 @@ class Candidate:
     ticker: str
     name: str
     risk_tag: str
-    group_id: str
-    sector: str | None
+    asset_group_id: str | None
+    sector_group_id: str | None
+    country_group_id: str | None
     weight_min: float
     weight_max: float
     preset_id: int
@@ -158,8 +159,9 @@ def _as_candidate(record, bounds, *, requested: bool) -> Candidate:
         ticker=record.ticker,
         name=record.name,
         risk_tag=record.risk_tag,
-        group_id=record.group_id,
-        sector=record.sector,
+        asset_group_id=record.asset_group_id,
+        sector_group_id=record.sector_group_id,
+        country_group_id=record.country_group_id,
         weight_min=bound.allowed_min,
         weight_max=bound.allowed_max,
         preset_id=bound.preset_id,
@@ -170,4 +172,10 @@ def _as_candidate(record, bounds, *, requested: bool) -> Candidate:
 def _sectors_of(candidates: list[Candidate]) -> list[str]:
     # 미분류 버킷으로는 보충하지 않는다. 173종목 중 138개가 거기 있어서
     # 사실상 "아무거나" 가 된다.
-    return sorted({c.sector for c in candidates if c.sector and c.sector != "SECTOR_OTHER"})
+    return sorted(
+        {
+            c.sector_group_id
+            for c in candidates
+            if c.sector_group_id and c.sector_group_id != "SECTOR_OTHER"
+        }
+    )
