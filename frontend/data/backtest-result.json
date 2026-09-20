@@ -1,6 +1,6 @@
 {
-  "as_of": "2026-09-11",
-  "period_start": "2023-08-18",
+  "as_of": "2025-12-30",
+  "period_start": "2023-01-06",
   "initial": 10000000,
   "profile": {
     "label": "성장투자형",
@@ -14,12 +14,12 @@
   },
   "hardcap_max_per_asset": 0.3,
   "data_source": "FinanceDataReader",
-  "price_field": "Close (시장가격, NAV 아님)",
+  "price_field": "OHLCV (시장가격, NAV 아님)",
   "universe": [
     {
       "ticker": "069500",
       "name": "KODEX 200",
-      "grade": "G1",
+      "grade": "G3",
       "asset_group": "EQUITY",
       "sector_group": "SECTOR_OTHER",
       "country_group": "COUNTRY_KR",
@@ -67,8 +67,8 @@
       "weight_max_raw": 0.4
     },
     {
-      "ticker": "459580",
-      "name": "KODEX CD금리액티브(합성)",
+      "ticker": "357870",
+      "name": "TIGER CD금리투자KIS(합성)",
       "grade": "G6",
       "asset_group": "BOND",
       "sector_group": "SECTOR_OTHER",
@@ -77,9 +77,9 @@
       "weight_max_raw": 0.3
     },
     {
-      "ticker": "132030",
-      "name": "KODEX 골드선물(H)",
-      "grade": "G2",
+      "ticker": "411060",
+      "name": "ACE KRX금현물",
+      "grade": "G3",
       "asset_group": "COMMODITY",
       "sector_group": "SECTOR_OTHER",
       "country_group": "COUNTRY_OTHER",
@@ -103,4224 +103,4057 @@
   },
   "series": [
     {
-      "date": "2023-08-18",
-      "strategy": 9994095,
-      "control": 9994095,
+      "date": "2023-01-06",
+      "strategy": 9995392,
+      "control": 9994315,
       "market": 9993503
     },
     {
+      "date": "2023-01-13",
+      "strategy": 10128341,
+      "control": 10182417,
+      "market": 10400498
+    },
+    {
+      "date": "2023-01-20",
+      "strategy": 10133981,
+      "control": 10159036,
+      "market": 10464815
+    },
+    {
+      "date": "2023-01-27",
+      "strategy": 10263451,
+      "control": 10363111,
+      "market": 10861617
+    },
+    {
+      "date": "2023-02-03",
+      "strategy": 10294695,
+      "control": 10475696,
+      "market": 10798002
+    },
+    {
+      "date": "2023-02-10",
+      "strategy": 10315399,
+      "control": 10490412,
+      "market": 10720681
+    },
+    {
+      "date": "2023-02-17",
+      "strategy": 10385849,
+      "control": 10553969,
+      "market": 10632463
+    },
+    {
+      "date": "2023-02-24",
+      "strategy": 10320741,
+      "control": 10494896,
+      "market": 10506639
+    },
+    {
+      "date": "2023-03-03",
+      "strategy": 10265137,
+      "control": 10446028,
+      "market": 10492229
+    },
+    {
+      "date": "2023-03-10",
+      "strategy": 10255022,
+      "control": 10429594,
+      "market": 10287326
+    },
+    {
+      "date": "2023-03-17",
+      "strategy": 10387974,
+      "control": 10557433,
+      "market": 10335477
+    },
+    {
+      "date": "2023-03-24",
+      "strategy": 10443299,
+      "control": 10618069,
+      "market": 10411744
+    },
+    {
+      "date": "2023-03-31",
+      "strategy": 10602332,
+      "control": 10777147,
+      "market": 10699241
+    },
+    {
+      "date": "2023-04-07",
+      "strategy": 10743327,
+      "control": 10907672,
+      "market": 10743526
+    },
+    {
+      "date": "2023-04-14",
+      "strategy": 10754495,
+      "control": 10924937,
+      "market": 11084093
+    },
+    {
+      "date": "2023-04-21",
+      "strategy": 10776105,
+      "control": 10948971,
+      "market": 10990956
+    },
+    {
+      "date": "2023-04-28",
+      "strategy": 10785942,
+      "control": 10957433,
+      "market": 10825417
+    },
+    {
+      "date": "2023-05-04",
+      "strategy": 10743430,
+      "control": 10915813,
+      "market": 10803626
+    },
+    {
+      "date": "2023-05-12",
+      "strategy": 10813524,
+      "control": 10978995,
+      "market": 10756881
+    },
+    {
+      "date": "2023-05-19",
+      "strategy": 10915847,
+      "control": 11100021,
+      "market": 11110453
+    },
+    {
+      "date": "2023-05-26",
+      "strategy": 10896278,
+      "control": 11084510,
+      "market": 11201482
+    },
+    {
+      "date": "2023-06-02",
+      "strategy": 10983197,
+      "control": 11176302,
+      "market": 11378971
+    },
+    {
+      "date": "2023-06-09",
+      "strategy": 11005511,
+      "control": 11186327,
+      "market": 11523422
+    },
+    {
+      "date": "2023-06-16",
+      "strategy": 11099674,
+      "control": 11254390,
+      "market": 11462268
+    },
+    {
+      "date": "2023-06-23",
+      "strategy": 11084991,
+      "control": 11249493,
+      "market": 11246821
+    },
+    {
+      "date": "2023-06-30",
+      "strategy": 11156145,
+      "control": 11318123,
+      "market": 11268260
+    },
+    {
+      "date": "2023-07-07",
+      "strategy": 11067415,
+      "control": 11240299,
+      "market": 11045432
+    },
+    {
+      "date": "2023-07-14",
+      "strategy": 11159071,
+      "control": 11364087,
+      "market": 11565246
+    },
+    {
+      "date": "2023-07-21",
+      "strategy": 11210076,
+      "control": 11399449,
+      "market": 11408845
+    },
+    {
+      "date": "2023-07-28",
+      "strategy": 11217663,
+      "control": 11412016,
+      "market": 11465431
+    },
+    {
+      "date": "2023-08-04",
+      "strategy": 11277707,
+      "control": 11452361,
+      "market": 11377565
+    },
+    {
+      "date": "2023-08-11",
+      "strategy": 11236036,
+      "control": 11416991,
+      "market": 11303406
+    },
+    {
+      "date": "2023-08-18",
+      "strategy": 11141518,
+      "control": 11318480,
+      "market": 10943508
+    },
+    {
       "date": "2023-08-25",
-      "strategy": 9966968,
-      "control": 9966968,
-      "market": 10045177
+      "strategy": 11106369,
+      "control": 11289017,
+      "market": 11000094
     },
     {
       "date": "2023-09-01",
-      "strategy": 10160721,
-      "control": 10160721,
-      "market": 10297124
+      "strategy": 11322827,
+      "control": 11494119,
+      "market": 11275992
     },
     {
       "date": "2023-09-08",
-      "strategy": 10118331,
-      "control": 10118331,
-      "market": 10242242
+      "strategy": 11290544,
+      "control": 11462570,
+      "market": 11215892
     },
     {
       "date": "2023-09-15",
-      "strategy": 10170214,
-      "control": 10170214,
-      "market": 10505423
+      "strategy": 11352691,
+      "control": 11530117,
+      "market": 11504092
     },
     {
       "date": "2023-09-22",
-      "strategy": 9981505,
-      "control": 9981505,
-      "market": 10081444
+      "strategy": 11149801,
+      "control": 11318998,
+      "market": 11039809
     },
     {
       "date": "2023-09-27",
-      "strategy": 9945729,
-      "control": 9945729,
-      "market": 9983233
+      "strategy": 11116075,
+      "control": 11282971,
+      "market": 10932261
     },
     {
       "date": "2023-10-06",
-      "strategy": 9868685,
-      "control": 9870108,
-      "market": 9739630
+      "strategy": 11040498,
+      "control": 11198860,
+      "market": 10665501
     },
     {
       "date": "2023-10-13",
-      "strategy": 9977708,
-      "control": 10029024,
-      "market": 9951458
+      "strategy": 11165410,
+      "control": 11362123,
+      "market": 10897466
     },
     {
       "date": "2023-10-20",
-      "strategy": 9891705,
-      "control": 9951219,
-      "market": 9699190
+      "strategy": 11091941,
+      "control": 11261597,
+      "market": 10621216
     },
     {
       "date": "2023-10-27",
-      "strategy": 9801482,
-      "control": 9839972,
-      "market": 9429910
+      "strategy": 10988688,
+      "control": 11123540,
+      "market": 10326339
     },
     {
       "date": "2023-11-03",
-      "strategy": 9891576,
-      "control": 9957912,
-      "market": 9724866
+      "strategy": 11077358,
+      "control": 11243906,
+      "market": 10649333
     },
     {
       "date": "2023-11-10",
-      "strategy": 9942370,
-      "control": 10030512,
-      "market": 9893045
+      "strategy": 11149916,
+      "control": 11329911,
+      "market": 10833500
     },
     {
       "date": "2023-11-17",
-      "strategy": 10063687,
-      "control": 10174210,
-      "market": 10144672
+      "strategy": 11280612,
+      "control": 11487279,
+      "market": 11109047
     },
     {
       "date": "2023-11-24",
-      "strategy": 10116050,
-      "control": 10243758,
-      "market": 10213035
+      "strategy": 11349675,
+      "control": 11572040,
+      "market": 11183909
     },
     {
       "date": "2023-12-01",
-      "strategy": 10181502,
-      "control": 10294466,
-      "market": 10226836
+      "strategy": 11395987,
+      "control": 11613655,
+      "market": 11199022
     },
     {
       "date": "2023-12-08",
-      "strategy": 10198125,
-      "control": 10317142,
-      "market": 10307716
+      "strategy": 11428179,
+      "control": 11650856,
+      "market": 11287591
     },
     {
       "date": "2023-12-15",
-      "strategy": 10340323,
-      "control": 10455903,
-      "market": 10469155
+      "strategy": 11575814,
+      "control": 11795736,
+      "market": 11464377
     },
     {
       "date": "2023-12-22",
-      "strategy": 10411555,
-      "control": 10526048,
-      "market": 10678416
+      "strategy": 11669892,
+      "control": 11887875,
+      "market": 11693531
     },
     {
       "date": "2023-12-28",
-      "strategy": 10492331,
-      "control": 10607448,
-      "market": 11018947
+      "strategy": 11769253,
+      "control": 11987081,
+      "market": 12066433
     },
     {
       "date": "2024-01-05",
-      "strategy": 10381851,
-      "control": 10497662,
-      "market": 10653703
+      "strategy": 11650484,
+      "control": 11870162,
+      "market": 11666468
     },
     {
       "date": "2024-01-12",
-      "strategy": 10420328,
-      "control": 10546856,
-      "market": 10379609
+      "strategy": 11661476,
+      "control": 11895635,
+      "market": 11366318
     },
     {
       "date": "2024-01-19",
-      "strategy": 10501531,
-      "control": 10627817,
-      "market": 10226836
+      "strategy": 11739407,
+      "control": 11978575,
+      "market": 11199022
     },
     {
       "date": "2024-01-26",
-      "strategy": 10566042,
-      "control": 10698336,
-      "market": 10282682
+      "strategy": 11807349,
+      "control": 12054605,
+      "market": 11260176
     },
     {
       "date": "2024-02-02",
-      "strategy": 10614684,
-      "control": 10756897,
-      "market": 10851731
+      "strategy": 11904589,
+      "control": 12156527,
+      "market": 11883321
     },
     {
       "date": "2024-02-08",
-      "strategy": 10683876,
-      "control": 10813167,
-      "market": 10842423
+      "strategy": 11976760,
+      "control": 12217828,
+      "market": 11873128
     },
     {
       "date": "2024-02-16",
-      "strategy": 10736313,
-      "control": 10858362,
-      "market": 10918810
+      "strategy": 12038839,
+      "control": 12272686,
+      "market": 11956776
     },
     {
       "date": "2024-02-23",
-      "strategy": 10791427,
-      "control": 10917352,
-      "market": 11025687
+      "strategy": 12102913,
+      "control": 12337221,
+      "market": 12073814
     },
     {
       "date": "2024-02-29",
-      "strategy": 10774592,
-      "control": 10905840,
-      "market": 10947696
+      "strategy": 12079260,
+      "control": 12319488,
+      "market": 11988408
     },
     {
       "date": "2024-03-08",
-      "strategy": 10911997,
-      "control": 11065524,
-      "market": 11145081
+      "strategy": 12233808,
+      "control": 12486446,
+      "market": 12204558
     },
     {
       "date": "2024-03-15",
-      "strategy": 10884860,
-      "control": 11041506,
-      "market": 11086668
+      "strategy": 12206036,
+      "control": 12460965,
+      "market": 12140592
     },
     {
       "date": "2024-03-22",
-      "strategy": 11051123,
-      "control": 11210272,
-      "market": 11488501
+      "strategy": 12426045,
+      "control": 12679153,
+      "market": 12580624
     },
     {
       "date": "2024-03-29",
-      "strategy": 11198568,
-      "control": 11334994,
-      "market": 11593773
+      "strategy": 12622808,
+      "control": 12845207,
+      "market": 12695903
     },
     {
       "date": "2024-04-05",
-      "strategy": 11155647,
-      "control": 11275322,
-      "market": 11501981
+      "strategy": 12545508,
+      "control": 12757161,
+      "market": 12595385
     },
     {
       "date": "2024-04-12",
-      "strategy": 11311944,
-      "control": 11425009,
-      "market": 11363008
+      "strategy": 12724628,
+      "control": 12918689,
+      "market": 12443201
     },
     {
       "date": "2024-04-19",
-      "strategy": 11063105,
-      "control": 11170792,
-      "market": 10912712
+      "strategy": 12468656,
+      "control": 12645857,
+      "market": 11950099
     },
     {
       "date": "2024-04-26",
-      "strategy": 11113026,
-      "control": 11233443,
-      "market": 11183275
+      "strategy": 12516118,
+      "control": 12715372,
+      "market": 12246382
     },
     {
       "date": "2024-05-03",
-      "strategy": 11066486,
-      "control": 11193489,
-      "market": 11282128
+      "strategy": 12456589,
+      "control": 12669146,
+      "market": 12354633
     },
     {
       "date": "2024-05-10",
-      "strategy": 11212948,
-      "control": 11370870,
-      "market": 11512572
+      "strategy": 12618998,
+      "control": 12861947,
+      "market": 12606983
     },
     {
       "date": "2024-05-17",
-      "strategy": 11263435,
-      "control": 11435762,
-      "market": 11487859
+      "strategy": 12662799,
+      "control": 12918525,
+      "market": 12579921
     },
     {
       "date": "2024-05-24",
-      "strategy": 11257995,
-      "control": 11433499,
-      "market": 11343430
+      "strategy": 12655083,
+      "control": 12914604,
+      "market": 12421762
     },
     {
       "date": "2024-05-31",
-      "strategy": 11249384,
-      "control": 11425970,
-      "market": 11135774
+      "strategy": 12635427,
+      "control": 12899503,
+      "market": 12194366
     },
     {
       "date": "2024-06-07",
-      "strategy": 11365524,
-      "control": 11568548,
-      "market": 11515782
+      "strategy": 12775148,
+      "control": 13060627,
+      "market": 12610498
     },
     {
       "date": "2024-06-14",
-      "strategy": 11521125,
-      "control": 11704708,
-      "market": 11643842
+      "strategy": 12945072,
+      "control": 13207408,
+      "market": 12750732
     },
     {
       "date": "2024-06-21",
-      "strategy": 11631999,
-      "control": 11816089,
-      "market": 11821971
+      "strategy": 13083883,
+      "control": 13346289,
+      "market": 12945794
     },
     {
       "date": "2024-06-28",
-      "strategy": 11606522,
-      "control": 11792627,
-      "market": 11919540
+      "strategy": 13060816,
+      "control": 13326265,
+      "market": 13052639
     },
     {
       "date": "2024-07-05",
-      "strategy": 11721444,
-      "control": 11908199,
-      "market": 12288636
+      "strategy": 13211515,
+      "control": 13479327,
+      "market": 13456821
     },
     {
       "date": "2024-07-12",
-      "strategy": 11746558,
-      "control": 11936801,
-      "market": 12193313
+      "strategy": 13224442,
+      "control": 13498426,
+      "market": 13352437
     },
     {
       "date": "2024-07-19",
-      "strategy": 11668406,
-      "control": 11864990,
-      "market": 11944254
+      "strategy": 13134520,
+      "control": 13420814,
+      "market": 13079701
     },
     {
       "date": "2024-07-26",
-      "strategy": 11437922,
-      "control": 11647282,
-      "market": 11636460
+      "strategy": 12879244,
+      "control": 13180620,
+      "market": 12742648
     },
     {
       "date": "2024-08-02",
-      "strategy": 11330719,
-      "control": 11560674,
-      "market": 11368464
+      "strategy": 12750248,
+      "control": 13074121,
+      "market": 12449176
     },
     {
       "date": "2024-08-09",
-      "strategy": 11233358,
-      "control": 11412001,
-      "market": 10920094
+      "strategy": 12634115,
+      "control": 12889157,
+      "market": 11958182
     },
     {
       "date": "2024-08-16",
-      "strategy": 11373213,
-      "control": 11726860,
-      "market": 11452875
+      "strategy": 12774584,
+      "control": 13230953,
+      "market": 12541611
     },
     {
       "date": "2024-08-23",
-      "strategy": 11378026,
-      "control": 11665996,
-      "market": 11459294
+      "strategy": 12761121,
+      "control": 13163088,
+      "market": 12548640
     },
     {
       "date": "2024-08-30",
-      "strategy": 11374743,
-      "control": 11610994,
-      "market": 11268969
+      "strategy": 12733767,
+      "control": 13083601,
+      "market": 12340223
     },
     {
       "date": "2024-09-06",
-      "strategy": 11285642,
-      "control": 11372688,
-      "market": 10661406
+      "strategy": 12621481,
+      "control": 12798121,
+      "market": 11674903
     },
     {
       "date": "2024-09-13",
-      "strategy": 11417005,
-      "control": 11516693,
-      "market": 10706981
+      "strategy": 12756097,
+      "control": 12941016,
+      "market": 11724811
     },
     {
       "date": "2024-09-20",
-      "strategy": 11501238,
-      "control": 11594324,
-      "market": 10714684
+      "strategy": 12846464,
+      "control": 13024375,
+      "market": 11733246
     },
     {
       "date": "2024-09-27",
-      "strategy": 11566743,
-      "control": 11706865,
-      "market": 11032106
+      "strategy": 12922124,
+      "control": 13152471,
+      "market": 12080843
     },
     {
       "date": "2024-10-04",
-      "strategy": 11546580,
-      "control": 11664431,
-      "market": 10661406
+      "strategy": 12884140,
+      "control": 13086612,
+      "market": 11674903
     },
     {
       "date": "2024-10-11",
-      "strategy": 11666680,
-      "control": 11787729,
-      "market": 10781763
+      "strategy": 13033621,
+      "control": 13231059,
+      "market": 11806702
     },
     {
       "date": "2024-10-18",
-      "strategy": 11783229,
-      "control": 11886430,
-      "market": 10810328
+      "strategy": 13202400,
+      "control": 13367746,
+      "market": 11837982
     },
     {
       "date": "2024-10-25",
-      "strategy": 11843599,
-      "control": 11938719,
-      "market": 10738755
+      "strategy": 13335141,
+      "control": 13467616,
+      "market": 11759606
     },
     {
       "date": "2024-11-01",
-      "strategy": 11738849,
-      "control": 11828318,
-      "market": 10543295
+      "strategy": 13161047,
+      "control": 13302782,
+      "market": 11545565
     },
     {
       "date": "2024-11-08",
-      "strategy": 11962070,
-      "control": 12043121,
-      "market": 10616472
+      "strategy": 13381132,
+      "control": 13521568,
+      "market": 11625698
     },
     {
       "date": "2024-11-15",
-      "strategy": 11796306,
-      "control": 11849509,
-      "market": 9995429
+      "strategy": 13151560,
+      "control": 13276429,
+      "market": 10945617
     },
     {
       "date": "2024-11-22",
-      "strategy": 11915281,
-      "control": 11969633,
-      "market": 10387633
+      "strategy": 13327697,
+      "control": 13440770,
+      "market": 11375105
     },
     {
       "date": "2024-11-29",
-      "strategy": 11913550,
-      "control": 11955903,
-      "market": 10168102
+      "strategy": 13302524,
+      "control": 13404548,
+      "market": 11134704
     },
     {
       "date": "2024-12-06",
-      "strategy": 12064208,
-      "control": 12095952,
-      "market": 10072779
+      "strategy": 13474355,
+      "control": 13553598,
+      "market": 11030320
     },
     {
       "date": "2024-12-13",
-      "strategy": 12183346,
-      "control": 12236875,
-      "market": 10317344
+      "strategy": 13623636,
+      "control": 13720801,
+      "market": 11298134
     },
     {
       "date": "2024-12-20",
-      "strategy": 11996281,
-      "control": 12033199,
-      "market": 9926424
+      "strategy": 13406081,
+      "control": 13490576,
+      "market": 10870052
     },
     {
       "date": "2024-12-27",
-      "strategy": 12225352,
-      "control": 12246864,
-      "market": 10014044
+      "strategy": 13682147,
+      "control": 13739713,
+      "market": 10966002
     },
     {
       "date": "2024-12-30",
-      "strategy": 12187361,
-      "control": 12211922,
-      "market": 9987726
+      "strategy": 13656057,
+      "control": 13718291,
+      "market": 10937182
     },
     {
       "date": "2025-01-03",
-      "strategy": 12131403,
-      "control": 12215948,
-      "market": 10164892
+      "strategy": 13606706,
+      "control": 13728487,
+      "market": 11131189
     },
     {
       "date": "2025-01-10",
-      "strategy": 12251477,
-      "control": 12315423,
-      "market": 10478142
+      "strategy": 13742448,
+      "control": 13847457,
+      "market": 11474218
     },
     {
       "date": "2025-01-17",
-      "strategy": 12299404,
-      "control": 12360943,
-      "market": 10495152
+      "strategy": 13774524,
+      "control": 13875294,
+      "market": 11492845
     },
     {
       "date": "2025-01-24",
-      "strategy": 12395351,
-      "control": 12449054,
-      "market": 10556133
+      "strategy": 13873784,
+      "control": 13962140,
+      "market": 11559623
     },
     {
       "date": "2025-01-31",
-      "strategy": 12365255,
-      "control": 12446537,
-      "market": 10453428
+      "strategy": 13862942,
+      "control": 13963679,
+      "market": 11447155
     },
     {
       "date": "2025-02-07",
-      "strategy": 12396312,
-      "control": 12472172,
-      "market": 10451824
+      "strategy": 14018295,
+      "control": 14072789,
+      "market": 11445398
     },
     {
       "date": "2025-02-14",
-      "strategy": 12521741,
-      "control": 12589599,
-      "market": 10740681
+      "strategy": 14339533,
+      "control": 14320619,
+      "market": 11761714
     },
     {
       "date": "2025-02-21",
-      "strategy": 12533185,
-      "control": 12607615,
-      "market": 11036278
+      "strategy": 14178850,
+      "control": 14242876,
+      "market": 12085412
     },
     {
       "date": "2025-02-28",
-      "strategy": 12280686,
-      "control": 12352120,
-      "market": 10557738
+      "strategy": 13837683,
+      "control": 13918033,
+      "market": 11561380
     },
     {
       "date": "2025-03-07",
-      "strategy": 12170507,
-      "control": 12228331,
-      "market": 10665899
+      "strategy": 13717948,
+      "control": 13793978,
+      "market": 11679823
     },
     {
       "date": "2025-03-14",
-      "strategy": 12181628,
-      "control": 12175568,
-      "market": 10745495
+      "strategy": 13706182,
+      "control": 13724540,
+      "market": 11766986
     },
     {
       "date": "2025-03-21",
-      "strategy": 12319070,
-      "control": 12373463,
-      "market": 11203174
+      "strategy": 13887671,
+      "control": 13967510,
+      "market": 12268173
     },
     {
       "date": "2025-03-28",
-      "strategy": 12285646,
-      "control": 12342648,
-      "market": 10890887
+      "strategy": 13804462,
+      "control": 13907870,
+      "market": 11926199
     },
     {
       "date": "2025-04-04",
-      "strategy": 12088983,
-      "control": 11933725,
-      "market": 10456638
+      "strategy": 13545797,
+      "control": 13441124,
+      "market": 11450669
     },
     {
       "date": "2025-04-11",
-      "strategy": 12138946,
-      "control": 11975072,
-      "market": 10257968
+      "strategy": 13564625,
+      "control": 13462850,
+      "market": 11233114
     },
     {
       "date": "2025-04-18",
-      "strategy": 12193104,
-      "control": 11940721,
-      "market": 10434492
+      "strategy": 13594913,
+      "control": 13428348,
+      "market": 11426419
     },
     {
       "date": "2025-04-25",
-      "strategy": 12305265,
-      "control": 12193297,
-      "market": 10681305
+      "strategy": 13768841,
+      "control": 13720848,
+      "market": 11696694
     },
     {
       "date": "2025-05-02",
-      "strategy": 12289335,
-      "control": 12186177,
-      "market": 10749668
+      "strategy": 13742937,
+      "control": 13708133,
+      "market": 11771555
     },
     {
       "date": "2025-05-09",
-      "strategy": 12332464,
-      "control": 12228273,
-      "market": 10844349
+      "strategy": 13783824,
+      "control": 13748982,
+      "market": 11875237
     },
     {
       "date": "2025-05-16",
-      "strategy": 12525833,
-      "control": 12446491,
-      "market": 11129355
+      "strategy": 14006965,
+      "control": 13984511,
+      "market": 12187336
     },
     {
       "date": "2025-05-23",
-      "strategy": 12412972,
-      "control": 12312298,
-      "market": 10963101
+      "strategy": 13863998,
+      "control": 13828977,
+      "market": 12005278
     },
     {
       "date": "2025-05-30",
-      "strategy": 12521231,
-      "control": 12431704,
-      "market": 11438111
+      "strategy": 14031769,
+      "control": 13995672,
+      "market": 12525444
     },
     {
       "date": "2025-06-05",
-      "strategy": 12620618,
-      "control": 12536897,
-      "market": 11960301
+      "strategy": 14167346,
+      "control": 14128928,
+      "market": 13097274
     },
     {
       "date": "2025-06-13",
-      "strategy": 12710544,
-      "control": 12619628,
-      "market": 12300190
+      "strategy": 14299129,
+      "control": 14249161,
+      "market": 13469474
     },
     {
       "date": "2025-06-20",
-      "strategy": 12796397,
-      "control": 12690878,
-      "market": 12862178
+      "strategy": 14464071,
+      "control": 14373947,
+      "market": 14084886
     },
     {
       "date": "2025-06-27",
-      "strategy": 12972546,
-      "control": 12853875,
-      "market": 13113805
+      "strategy": 14656251,
+      "control": 14546580,
+      "market": 14360433
     },
     {
       "date": "2025-07-04",
-      "strategy": 13052728,
-      "control": 12938687,
-      "market": 13131457
+      "strategy": 14737151,
+      "control": 14638589,
+      "market": 14379763
     },
     {
       "date": "2025-07-11",
-      "strategy": 13171301,
-      "control": 13044945,
-      "market": 13617380
+      "strategy": 14912495,
+      "control": 14791909,
+      "market": 14911879
     },
     {
       "date": "2025-07-18",
-      "strategy": 13290951,
-      "control": 13144700,
-      "market": 13716233
+      "strategy": 15050308,
+      "control": 14917261,
+      "market": 15020129
     },
     {
       "date": "2025-07-25",
-      "strategy": 13248727,
-      "control": 13115457,
-      "market": 13707568
+      "strategy": 15005743,
+      "control": 14880249,
+      "market": 15010640
     },
     {
       "date": "2025-08-01",
-      "strategy": 13260476,
-      "control": 13107593,
-      "market": 13390787
+      "strategy": 14989251,
+      "control": 14867292,
+      "market": 14663746
     },
     {
       "date": "2025-08-08",
-      "strategy": 13345032,
-      "control": 13228190,
-      "market": 13805458
+      "strategy": 15107725,
+      "control": 15002603,
+      "market": 15117836
     },
     {
       "date": "2025-08-14",
-      "strategy": 13410327,
-      "control": 13283800,
-      "market": 13892757
+      "strategy": 15176302,
+      "control": 15068186,
+      "market": 15213434
     },
     {
       "date": "2025-08-22",
-      "strategy": 13281907,
-      "control": 13141403,
-      "market": 13651080
+      "strategy": 15033432,
+      "control": 14920108,
+      "market": 14948782
     },
     {
       "date": "2025-08-29",
-      "strategy": 13440314,
-      "control": 13308170,
-      "market": 13727146
+      "strategy": 15200912,
+      "control": 15082842,
+      "market": 15032079
     },
     {
       "date": "2025-09-05",
-      "strategy": 13492491,
-      "control": 13378135,
-      "market": 13814766
+      "strategy": 15278800,
+      "control": 15166108,
+      "market": 15128028
     },
     {
       "date": "2025-09-12",
-      "strategy": 13724844,
-      "control": 13615517,
-      "market": 14739430
+      "strategy": 15623171,
+      "control": 15496158,
+      "market": 16140594
     },
     {
       "date": "2025-09-19",
-      "strategy": 13881169,
-      "control": 13779161,
-      "market": 15089269
+      "strategy": 15825446,
+      "control": 15695530,
+      "market": 16523689
     },
     {
       "date": "2025-09-26",
-      "strategy": 13952701,
-      "control": 13834349,
-      "market": 14949333
+      "strategy": 15962102,
+      "control": 15790160,
+      "market": 16370451
     },
     {
       "date": "2025-10-02",
-      "strategy": 14181656,
-      "control": 14062072,
-      "market": 15752036
+      "strategy": 16289423,
+      "control": 16097979,
+      "market": 17249460
     },
     {
       "date": "2025-10-10",
-      "strategy": 14424270,
-      "control": 14266025,
-      "market": 16151943
+      "strategy": 16637005,
+      "control": 16378696,
+      "market": 17687383
     },
     {
       "date": "2025-10-17",
-      "strategy": 14536906,
-      "control": 14352377,
-      "market": 16757260
+      "strategy": 16863082,
+      "control": 16540204,
+      "market": 18350243
     },
     {
       "date": "2025-10-24",
-      "strategy": 14748060,
-      "control": 14550750,
-      "market": 17558358
+      "strategy": 17038269,
+      "control": 16704900,
+      "market": 19227495
     },
     {
       "date": "2025-10-31",
-      "strategy": 14901326,
-      "control": 14681915,
-      "market": 18521858
+      "strategy": 17289756,
+      "control": 16899082,
+      "market": 20282587
     },
     {
       "date": "2025-11-07",
-      "strategy": 14779450,
-      "control": 14564194,
-      "market": 17821539
+      "strategy": 17144928,
+      "control": 16772192,
+      "market": 19515694
     },
     {
       "date": "2025-11-14",
-      "strategy": 14770380,
-      "control": 14580002,
-      "market": 18001272
+      "strategy": 17138406,
+      "control": 16776119,
+      "market": 19712514
     },
     {
       "date": "2025-11-21",
-      "strategy": 14510720,
-      "control": 14348946,
-      "market": 17273352
+      "strategy": 16815801,
+      "control": 16496353,
+      "market": 18915395
     },
     {
       "date": "2025-11-28",
-      "strategy": 14882324,
-      "control": 14674271,
-      "market": 17727179
+      "strategy": 17216977,
+      "control": 16845997,
+      "market": 19412364
     },
     {
       "date": "2025-12-05",
-      "strategy": 15032091,
-      "control": 14807668,
-      "market": 18552027
+      "strategy": 17451355,
+      "control": 17042596,
+      "market": 20315625
     },
     {
       "date": "2025-12-12",
-      "strategy": 15098557,
-      "control": 14869061,
-      "market": 18793063
+      "strategy": 17539194,
+      "control": 17123024,
+      "market": 20579573
     },
     {
       "date": "2025-12-19",
-      "strategy": 14964384,
-      "control": 14727119,
-      "market": 18195449
+      "strategy": 17358796,
+      "control": 16946688,
+      "market": 19925149
     },
     {
       "date": "2025-12-26",
-      "strategy": 15121859,
-      "control": 14883789,
-      "market": 18829330
+      "strategy": 17551019,
+      "control": 17133473,
+      "market": 20619289
     },
     {
       "date": "2025-12-30",
-      "strategy": 15092343,
-      "control": 14879140,
-      "market": 19398379
-    },
-    {
-      "date": "2026-01-02",
-      "strategy": 15169391,
-      "control": 14973076,
-      "market": 19960367
-    },
-    {
-      "date": "2026-01-09",
-      "strategy": 15430389,
-      "control": 15217053,
-      "market": 21400161
-    },
-    {
-      "date": "2026-01-16",
-      "strategy": 15652153,
-      "control": 15430254,
-      "market": 22538901
-    },
-    {
-      "date": "2026-01-23",
-      "strategy": 15775302,
-      "control": 15511328,
-      "market": 23262328
-    },
-    {
-      "date": "2026-01-30",
-      "strategy": 16177501,
-      "control": 15765734,
-      "market": 24651733
-    },
-    {
-      "date": "2026-02-06",
-      "strategy": 15901368,
-      "control": 15521434,
-      "market": 23978695
-    },
-    {
-      "date": "2026-02-13",
-      "strategy": 16106820,
-      "control": 15666430,
-      "market": 26104364
-    },
-    {
-      "date": "2026-02-20",
-      "strategy": 16334272,
-      "control": 15868979,
-      "market": 27520087
-    },
-    {
-      "date": "2026-02-27",
-      "strategy": 16745934,
-      "control": 16168966,
-      "market": 30013889
-    },
-    {
-      "date": "2026-03-06",
-      "strategy": 16539060,
-      "control": 16040188,
-      "market": 26646132
-    },
-    {
-      "date": "2026-03-13",
-      "strategy": 16365868,
-      "control": 15882297,
-      "market": 26001980
-    },
-    {
-      "date": "2026-03-20",
-      "strategy": 16361874,
-      "control": 15890645,
-      "market": 27634988
-    },
-    {
-      "date": "2026-03-27",
-      "strategy": 15992303,
-      "control": 15566961,
-      "market": 25901843
-    },
-    {
-      "date": "2026-04-03",
-      "strategy": 16092939,
-      "control": 15664568,
-      "market": 25694187
-    },
-    {
-      "date": "2026-04-10",
-      "strategy": 16413774,
-      "control": 16055519,
-      "market": 28271116
-    },
-    {
-      "date": "2026-04-17",
-      "strategy": 16740168,
-      "control": 16435672,
-      "market": 29991422
-    },
-    {
-      "date": "2026-04-24",
-      "strategy": 16910332,
-      "control": 16636514,
-      "market": 31251161
-    },
-    {
-      "date": "2026-04-30",
-      "strategy": 16956319,
-      "control": 16683803,
-      "market": 32000265
-    },
-    {
-      "date": "2026-05-08",
-      "strategy": 17510853,
-      "control": 17376897,
-      "market": 37094747
-    },
-    {
-      "date": "2026-05-15",
-      "strategy": 17781268,
-      "control": 17530743,
-      "market": 37539908
-    },
-    {
-      "date": "2026-05-22",
-      "strategy": 18070513,
-      "control": 17751688,
-      "market": 39509915
-    },
-    {
-      "date": "2026-05-29",
-      "strategy": 18382047,
-      "control": 18021328,
-      "market": 43182256
-    },
-    {
-      "date": "2026-06-05",
-      "strategy": 18413040,
-      "control": 18003206,
-      "market": 41969697
-    },
-    {
-      "date": "2026-06-12",
-      "strategy": 18171419,
-      "control": 17770991,
-      "market": 41406104
-    },
-    {
-      "date": "2026-06-19",
-      "strategy": 18653703,
-      "control": 18177191,
-      "market": 47056155
-    },
-    {
-      "date": "2026-06-26",
-      "strategy": 18263774,
-      "control": 17825115,
-      "market": 44003895
-    },
-    {
-      "date": "2026-07-03",
-      "strategy": 18266961,
-      "control": 17832054,
-      "market": 41963278
-    },
-    {
-      "date": "2026-07-10",
-      "strategy": 17955889,
-      "control": 17507297,
-      "market": 38630505
-    },
-    {
-      "date": "2026-07-16",
-      "strategy": 17653095,
-      "control": 17182561,
-      "market": 34913552
-    },
-    {
-      "date": "2026-07-24",
-      "strategy": 17315417,
-      "control": 16830988,
-      "market": 34069447
-    },
-    {
-      "date": "2026-07-31",
-      "strategy": 17294939,
-      "control": 16820385,
-      "market": 34926069
-    },
-    {
-      "date": "2026-08-07",
-      "strategy": 17250124,
-      "control": 16811143,
-      "market": 31482247
-    },
-    {
-      "date": "2026-08-14",
-      "strategy": 17519066,
-      "control": 17236074,
-      "market": 35324051
-    },
-    {
-      "date": "2026-08-21",
-      "strategy": 17445911,
-      "control": 17061813,
-      "market": 35298375
-    },
-    {
-      "date": "2026-08-28",
-      "strategy": 17437786,
-      "control": 17026055,
-      "market": 34399707
-    },
-    {
-      "date": "2026-09-04",
-      "strategy": 17295974,
-      "control": 16884704,
-      "market": 33931116
-    },
-    {
-      "date": "2026-09-11",
-      "strategy": 17292006,
-      "control": 16813117,
-      "market": 35144317
+      "strategy": 17576694,
+      "control": 17168512,
+      "market": 21242433
     }
   ],
   "decisions": [
     {
-      "date": "2023-08-18",
+      "date": "2023-01-06",
       "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
+        "133690": -0.9094507752560526,
+        "273130": 0.1092899868686259,
+        "357870": 0.4196908497747397,
+        "360750": -0.629229947354603,
+        "411060": -0.01554500087955625,
+        "069500": -0.06801897864795206,
+        "091160": 0.044636078835070446
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.013047658911374178,
+        "273130": 0.24314992312005057,
+        "357870": 0.24548382853424172,
+        "360750": 0.11106384151225193,
+        "411060": 0.08511281954169997,
+        "069500": 0.19193134002162732,
+        "091160": 0.060210588358754376
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.013047658911374178,
+        "273130": 0.1446204985267058,
+        "357870": 0.1460086567468828,
+        "360750": 0.11106384151225193,
+        "411060": 0.08511281954169997,
+        "069500": 0.15937383777432415,
+        "091160": 0.04999700695208729
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.2907756800346739,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
+          "sumBefore": 0.4886337516542923,
           "cap": 0.35,
-          "factor": 0.894736842105263
+          "factor": 0.7162828986230663
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.6021419283803817,
+          "cap": 0.5,
+          "factor": 0.8303690150673959
         }
       ],
-      "turnover": 0.9088235294117646,
-      "cost": 5907.35294117647
+      "turnover": 0.7092243199653261,
+      "cost": 4609.95807977462
+    },
+    {
+      "date": "2023-02-03",
+      "signals": {
+        "133690": 0.9538309975529919,
+        "273130": 0.5949913403539503,
+        "357870": 0.4185884403136805,
+        "360750": 0.5275116828184578,
+        "411060": 0.042531542531542524,
+        "069500": 0.8177002583979328,
+        "091160": 0.8633123689727462
+      },
+      "mapped": {
+        "133690": 0.16501678098197609,
+        "273130": 0.175334353154441,
+        "357870": 0.1437734777994523,
+        "360750": 0.1627939026467548,
+        "411060": 0.052830116658868276,
+        "069500": 0.18730266757055986,
+        "091160": 0.06294870118794774
+      },
+      "target": {
+        "133690": 0.16501678098197609,
+        "273130": 0.15397516474925427,
+        "357870": 0.1262590275805469,
+        "360750": 0.1627939026467548,
+        "411060": 0.052830116658868276,
+        "069500": 0.1644855020039824,
+        "091160": 0.055280305666216396
+      },
+      "cash": 0.11935919971240105,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5693591997124009,
+          "cap": 0.5,
+          "factor": 0.8781802423717117
+        }
+      ],
+      "turnover": 0.2608905721515619,
+      "cost": 1746.0587885947248
+    },
+    {
+      "date": "2023-03-03",
+      "signals": {
+        "133690": 0.17564269401608346,
+        "273130": -0.4182023803479965,
+        "357870": 0.4162162162162161,
+        "360750": 0.19040561036776765,
+        "411060": 0.2602894617819997,
+        "069500": -0.26574225539835417,
+        "091160": -0.09646742986666357
+      },
+      "mapped": {
+        "133690": 0.13990854275799477,
+        "273130": 0.15059473496837741,
+        "357870": 0.2022458844506795,
+        "360750": 0.189267821314466,
+        "411060": 0.0899892099608105,
+        "069500": 0.13498348517531386,
+        "091160": 0.04301032137235785
+      },
+      "target": {
+        "133690": 0.13990854275799477,
+        "273130": 0.14146220822991454,
+        "357870": 0.18998107354691351,
+        "360750": 0.189267821314466,
+        "411060": 0.0899892099608105,
+        "069500": 0.127826769463371,
+        "091160": 0.04072994875980095
+      },
+      "cash": 0.08083442596672874,
+      "capApplications": [
+        {
+          "stage": "자산군",
+          "groupId": "BOND",
+          "sumBefore": 0.3528406194190569,
+          "cap": 0.35,
+          "factor": 0.9919492845700874
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5279938065476717,
+          "cap": 0.5,
+          "factor": 0.9469808050766516
+        }
+      ],
+      "turnover": 0.20776646023756795,
+      "cost": 1386.4754685296791
+    },
+    {
+      "date": "2023-04-07",
+      "signals": {
+        "133690": 0.7522388525257864,
+        "273130": 0.22449798698775697,
+        "357870": 0.41673881673881674,
+        "360750": 0.550250235114432,
+        "411060": 0.8114942528735631,
+        "069500": 0.5487279606533322,
+        "091160": 0.9176105429196562
+      },
+      "mapped": {
+        "133690": 0.15153852833382006,
+        "273130": 0.15390465780107862,
+        "357870": 0.1470282536054006,
+        "360750": 0.16866310782112873,
+        "411060": 0.0939978608863518,
+        "069500": 0.16853145725806606,
+        "091160": 0.06633613429415405
+      },
+      "target": {
+        "133690": 0.15153852833382006,
+        "273130": 0.14362123304402902,
+        "357870": 0.1372042885304401,
+        "360750": 0.16866310782112873,
+        "411060": 0.0939978608863518,
+        "069500": 0.15727071580507349,
+        "091160": 0.06190376262045744
+      },
+      "cash": 0.08580050295869934,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5358005029586993,
+          "cap": 0.5,
+          "factor": 0.9331831479048484
+        }
+      ],
+      "turnover": 0.12801412853113753,
+      "cost": 894.0178220009221
+    },
+    {
+      "date": "2023-05-04",
+      "signals": {
+        "133690": 0.23259189751716353,
+        "273130": 0.004971662926179607,
+        "357870": 0.41785200115174137,
+        "360750": 0.11752027672532332,
+        "411060": 0.2812294966991093,
+        "069500": -0.20438605531885967,
+        "091160": -0.29692263904954147
+      },
+      "mapped": {
+        "133690": 0.14106119423435082,
+        "273130": 0.18356356081723207,
+        "357870": 0.19471544176096006,
+        "360750": 0.17366917869645968,
+        "411060": 0.08797644861533059,
+        "069500": 0.13682933598678487,
+        "091160": 0.032184839888881836
+      },
+      "target": {
+        "133690": 0.14106119423435082,
+        "273130": 0.1636187487667262,
+        "357870": 0.17355893950112264,
+        "360750": 0.17366917869645968,
+        "411060": 0.08797644861533059,
+        "069500": 0.13181656912928258,
+        "091160": 0.031005742602868647
+      },
+      "cash": 0.09729317845385876,
+      "capApplications": [
+        {
+          "stage": "자산군",
+          "groupId": "BOND",
+          "sumBefore": 0.37827900257819214,
+          "cap": 0.35,
+          "factor": 0.9252430021612242
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5190141758756667,
+          "cap": 0.5,
+          "factor": 0.9633648236224253
+        }
+      ],
+      "turnover": 0.13217505184565587,
+      "cost": 923.0880227688095
+    },
+    {
+      "date": "2023-06-02",
+      "signals": {
+        "133690": 0.7777645303944001,
+        "273130": -0.21108747435678388,
+        "357870": 0.4171100478468893,
+        "360750": 0.021771490462400372,
+        "411060": -0.479672196174038,
+        "069500": 0.6955665024630538,
+        "091160": 0.9733289717588055
+      },
+      "mapped": {
+        "133690": 0.17724857186048137,
+        "273130": 0.1426880489209633,
+        "357870": 0.16954825761605763,
+        "360750": 0.14175497479438426,
+        "411060": 0.03112696599036938,
+        "069500": 0.20893440241933303,
+        "091160": 0.07869877839841105
+      },
+      "target": {
+        "133690": 0.17724857186048137,
+        "273130": 0.1189325777763531,
+        "357870": 0.14132095496614766,
+        "360750": 0.14175497479438426,
+        "411060": 0.03112696599036938,
+        "069500": 0.1741498832860026,
+        "091160": 0.06559658397149672
+      },
+      "cash": 0.1498694873547649,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.599869487354765,
+          "cap": 0.5,
+          "factor": 0.8335146403342536
+        }
+      ],
+      "turnover": 0.2478810873311516,
+      "cost": 1769.9276795806436
+    },
+    {
+      "date": "2023-07-07",
+      "signals": {
+        "133690": 0.4103016453016707,
+        "273130": -0.10098209710801415,
+        "357870": 0.41659228744707655,
+        "360750": 0.40205160972037013,
+        "411060": -0.2388466783557375,
+        "069500": -0.5004420196457292,
+        "091160": -0.20609233490446321
+      },
+      "mapped": {
+        "133690": 0.16529776700879184,
+        "273130": 0.17806313700534232,
+        "357870": 0.19924209206474292,
+        "360750": 0.21121375566264688,
+        "411060": 0.05352767395752774,
+        "069500": 0.10543483796028116,
+        "091160": 0.03722073634066701
+      },
+      "target": {
+        "133690": 0.16529776700879184,
+        "273130": 0.16517687312595752,
+        "357870": 0.18482312687404245,
+        "360750": 0.21121375566264688,
+        "411060": 0.05352767395752774,
+        "069500": 0.10543483796028116,
+        "091160": 0.03722073634066701
+      },
+      "cash": 0.0773052290700853,
+      "capApplications": [
+        {
+          "stage": "자산군",
+          "groupId": "BOND",
+          "sumBefore": 0.37730522907008524,
+          "cap": 0.35,
+          "factor": 0.927630928579012
+        }
+      ],
+      "turnover": 0.2892534180254214,
+      "cost": 2081.2282770701277
+    },
+    {
+      "date": "2023-08-04",
+      "signals": {
+        "133690": 0.34900096104483247,
+        "273130": -0.10656319273582937,
+        "357870": 0.41711709998288315,
+        "360750": 0.5214788800843193,
+        "411060": 0.2604696315039824,
+        "069500": 0.09519560971560509,
+        "091160": 0.5203188004249307
+      },
+      "mapped": {
+        "133690": 0.13713210566490516,
+        "273130": 0.1539811957568749,
+        "357870": 0.17286770655275016,
+        "360750": 0.19532709940586138,
+        "411060": 0.07687949513138874,
+        "069500": 0.15199345905759398,
+        "091160": 0.06181893843062571
+      },
+      "target": {
+        "133690": 0.13713210566490516,
+        "273130": 0.1424007930791875,
+        "357870": 0.1598669135532597,
+        "360750": 0.19532709940586138,
+        "411060": 0.07687949513138874,
+        "069500": 0.14056254730496234,
+        "091160": 0.05716974606259041
+      },
+      "cash": 0.09066129979784476,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5406612997978448,
+          "cap": 0.5,
+          "factor": 0.9247933968770314
+        }
+      ],
+      "turnover": 0.16526680963137624,
+      "cost": 1211.620104304287
     },
     {
       "date": "2023-09-01",
       "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
+        "133690": 0.23398324250332925,
+        "273130": 0.12496956946323479,
+        "357870": 0.4170716439993166,
+        "360750": 0.1252664419881148,
+        "411060": 0.20033439732482078,
+        "069500": -0.07125752368610533,
+        "091160": 0.2669631301519335
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.1345065910005617,
+        "273130": 0.18530067697748973,
+        "357870": 0.18535630255519814,
+        "360750": 0.16625703041410933,
+        "411060": 0.07850328057162727,
+        "069500": 0.14483553313419031,
+        "091160": 0.055240585346823384
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.1345065910005617,
+        "273130": 0.15904502246071645,
+        "357870": 0.15909276632976393,
+        "360750": 0.16625703041410933,
+        "411060": 0.07850328057162727,
+        "069500": 0.13165044642743332,
+        "091160": 0.0502117647820863
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.1207330980137018,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
+          "sumBefore": 0.37065697953268784,
           "cap": 0.35,
-          "factor": 0.894736842105263
+          "factor": 0.9442692821844836
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5500761184810137,
+          "cap": 0.5,
+          "factor": 0.908965110829944
         }
       ],
-      "turnover": 0.010010408967139221,
-      "cost": 66.1138636478607
+      "turnover": 0.06525323974375984,
+      "cost": 480.27360974187746
     },
     {
       "date": "2023-10-06",
       "signals": {
-        "132030": -0.8185934101345366,
         "133690": -0.399661375106091,
         "273130": -0.27421107808010736,
+        "357870": 0.4221280780723987,
         "360750": -0.5267863804930611,
-        "459580": 0.4212583096159054,
+        "411060": -0.35010456885456875,
         "069500": -0.6352556100277373,
         "091160": -0.7036865818420726
       },
       "mapped": {
-        "132030": 0.019879142855553148,
-        "133690": 0.10964520174288343,
-        "273130": 0.25215698829037286,
-        "360750": 0.1594827977166911,
-        "459580": 0.3,
-        "069500": 0.086378875173884,
-        "091160": 0.02164734579174599
+        "133690": 0.09775919767137248,
+        "273130": 0.22482210320796342,
+        "357870": 0.2778953626504185,
+        "360750": 0.14219418724523847,
+        "411060": 0.06349741957412341,
+        "069500": 0.12453104779087505,
+        "091160": 0.019300681860008558
       },
       "target": {
-        "132030": 0.019879142855553148,
-        "133690": 0.10964520174288343,
-        "273130": 0.15983669096517575,
-        "360750": 0.1594827977166911,
-        "459580": 0.19016330903482423,
-        "069500": 0.086378875173884,
-        "091160": 0.02164734579174599
+        "133690": 0.09775919767137248,
+        "273130": 0.15652477080427107,
+        "357870": 0.1934752291957289,
+        "360750": 0.14219418724523847,
+        "411060": 0.06349741957412341,
+        "069500": 0.12453104779087505,
+        "091160": 0.019300681860008558
       },
-      "cash": 0.25296663671924235,
+      "cash": 0.20271746585838213,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.5521569882903729,
+          "sumBefore": 0.502717465858382,
           "cap": 0.35,
-          "factor": 0.6338776967827474
+          "factor": 0.6962161129659195
         }
       ],
-      "turnover": 0.23897633736678492,
-      "cost": 1533.1866561209404
+      "turnover": 0.1383228214997408,
+      "cost": 992.7386174714757
     },
     {
       "date": "2023-11-03",
       "signals": {
-        "132030": 0.926043016325473,
         "133690": -0.2913999282391806,
         "273130": 0.18951365890210453,
+        "357870": 0.41752930975986724,
         "360750": -0.24386298453451927,
-        "459580": 0.41693252958304206,
+        "411060": 0.33497171872182935,
         "069500": -0.06667944831203328,
         "091160": 0.18572669205544282
       },
       "mapped": {
-        "132030": 0.14573323097528518,
-        "133690": 0.08935987501466115,
-        "273130": 0.22089150108743053,
-        "360750": 0.14579769791032518,
-        "459580": 0.21442320224402098,
-        "069500": 0.07398282002016222,
-        "091160": 0.0598116727481148
+        "133690": 0.08493212007930111,
+        "273130": 0.20994639363334686,
+        "357870": 0.20388443244712212,
+        "360750": 0.13857346582203442,
+        "411060": 0.09600505235784763,
+        "069500": 0.15981051331079457,
+        "091160": 0.05684802234955333
       },
       "target": {
-        "132030": 0.14573323097528518,
-        "133690": 0.08935987501466115,
-        "273130": 0.1776003079816369,
-        "360750": 0.14579769791032518,
-        "459580": 0.1723996920183631,
-        "069500": 0.07398282002016222,
-        "091160": 0.0598116727481148
+        "133690": 0.08493212007930111,
+        "273130": 0.1566758987559119,
+        "357870": 0.15215206197720596,
+        "360750": 0.13857346582203442,
+        "411060": 0.09600505235784763,
+        "069500": 0.14101129979852992,
+        "091160": 0.05016073946835218
       },
-      "cash": 0.13531470333145146,
+      "cash": 0.18048936174081687,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.4353147033314515,
+          "sumBefore": 0.41383082608046895,
           "cap": 0.35,
-          "factor": 0.8040160309804828
+          "factor": 0.8457562316344768
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.566658535660348,
+          "cap": 0.5,
+          "factor": 0.8823656020946224
         }
       ],
-      "turnover": 0.23976252309363008,
-      "cost": 1541.7992361600382
+      "turnover": 0.1336806449640595,
+      "cost": 962.6220370236804
     },
     {
       "date": "2023-12-01",
       "signals": {
-        "132030": 0.5467598475222358,
         "133690": 0.5056871186362419,
         "273130": 0.4649646186959712,
+        "357870": 0.4173654832829029,
         "360750": 0.5213218530706512,
-        "459580": 0.4169640934812545,
+        "411060": 0.3448813982521841,
         "069500": 0.549865792549404,
         "091160": 0.8267792056103399
       },
       "mapped": {
-        "132030": 0.09311848534989935,
-        "133690": 0.15107635500415062,
-        "273130": 0.19786202070670733,
-        "360750": 0.19277995989939756,
-        "459580": 0.17060896737335413,
-        "069500": 0.07123668364487733,
-        "091160": 0.07331752802161354
+        "133690": 0.13510520239989793,
+        "273130": 0.17694488561163693,
+        "357870": 0.15261612970456326,
+        "360750": 0.17240007875578375,
+        "411060": 0.07240566965039538,
+        "069500": 0.17496132449723653,
+        "091160": 0.06556670938048605
       },
       "target": {
-        "132030": 0.09311848534989935,
-        "133690": 0.15107635500415062,
-        "273130": 0.18794344599065296,
-        "360750": 0.19277995989939756,
-        "459580": 0.16205655400934701,
-        "069500": 0.07123668364487733,
-        "091160": 0.07331752802161354
+        "133690": 0.13510520239989793,
+        "273130": 0.15519056703670076,
+        "357870": 0.13385288659758926,
+        "360750": 0.17240007875578375,
+        "411060": 0.07240566965039538,
+        "069500": 0.15345087293346804,
+        "091160": 0.057505673432241916
       },
-      "cash": 0.06847098808006169,
+      "cash": 0.12008904919392283,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.36847098808006146,
-          "cap": 0.35,
-          "factor": 0.9498712553292036
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5700890491939228,
+          "cap": 0.5,
+          "factor": 0.8770559629359217
         }
       ],
-      "turnover": 0.18720331265780676,
-      "cost": 1239.0578458729296
+      "turnover": 0.13093815217129323,
+      "cost": 969.9927139762021
     },
     {
       "date": "2024-01-05",
       "signals": {
-        "132030": 0.20303506017791736,
         "133690": 0.10368460530421117,
         "273130": 0.26065655795908355,
+        "357870": 0.4207970322072955,
         "360750": 0.2986587746925228,
-        "459580": 0.42039394681900133,
+        "411060": 0.38461538461538447,
         "069500": 0.46660420234133493,
         "091160": 0.6458543262656542
       },
       "mapped": {
-        "132030": 0.08174326997930138,
-        "133690": 0.12498775201951626,
-        "273130": 0.20480806194780762,
-        "360750": 0.19236613492359478,
-        "459580": 0.19302454220182053,
-        "069500": 0.07851573978829303,
-        "091160": 0.07455449913966637
+        "133690": 0.1084108994279155,
+        "273130": 0.17764481596871268,
+        "357870": 0.16747163103573448,
+        "360750": 0.16685303455399625,
+        "411060": 0.081603421024347,
+        "069500": 0.18334969925214628,
+        "091160": 0.06466649873714776
       },
       "target": {
-        "132030": 0.08174326997930138,
-        "133690": 0.12498775201951626,
-        "273130": 0.17908371636304068,
-        "360750": 0.19236613492359478,
-        "459580": 0.1687802327604938,
-        "069500": 0.07803655803174697,
-        "091160": 0.07409949284471858
+        "133690": 0.1084108994279155,
+        "273130": 0.14975133932359028,
+        "357870": 0.14117553000096772,
+        "360750": 0.16685303455399625,
+        "411060": 0.081603421024347,
+        "069500": 0.15456045186492898,
+        "091160": 0.05451267881051306
       },
-      "cash": 0.10090284307758757,
+      "cash": 0.14313264499374123,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3978326041496282,
-          "cap": 0.35,
-          "factor": 0.8797670084082954
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5030702389279593,
+          "sumBefore": 0.5931326449937412,
           "cap": 0.5,
-          "factor": 0.993896997495813
+          "factor": 0.8429817583304255
         }
       ],
-      "turnover": 0.06326685760809167,
-      "cost": 426.9551621428826
+      "turnover": 0.06464790932711324,
+      "cost": 489.58719357972296
     },
     {
       "date": "2024-02-02",
       "signals": {
-        "132030": -0.03042684456904496,
         "133690": 0.7261976002479779,
         "273130": 0.07607473095244002,
+        "357870": 0.41624407184734313,
         "360750": 0.6232343815125266,
-        "459580": 0.4164076193513041,
+        "411060": 0.061498045545902436,
         "069500": 0.3108696589883584,
         "091160": -0.17626561199922672
       },
       "mapped": {
-        "132030": 0.06364525146503056,
-        "133690": 0.1888533452937897,
-        "273130": 0.18170511091613112,
-        "360750": 0.2213504301055465,
-        "459580": 0.18595320756489025,
-        "069500": 0.07244463911221251,
-        "091160": 0.03604801554239926
+        "133690": 0.1675569492977615,
+        "273130": 0.1612147987612031,
+        "357870": 0.16496480085873658,
+        "360750": 0.19638944036991013,
+        "411060": 0.06182190526912686,
+        "069500": 0.16606911089727466,
+        "091160": 0.031982994545987194
       },
       "target": {
-        "132030": 0.06364525146503056,
-        "133690": 0.1888533452937897,
-        "273130": 0.17297796792248774,
-        "360750": 0.2213504301055465,
-        "459580": 0.17702203207751227,
-        "069500": 0.07244463911221251,
-        "091160": 0.03604801554239926
+        "133690": 0.1675569492977615,
+        "273130": 0.153762923154149,
+        "357870": 0.15733958788208774,
+        "360750": 0.19638944036991013,
+        "411060": 0.06182190526912686,
+        "069500": 0.15839285309656476,
+        "091160": 0.03050463586719857
       },
-      "cash": 0.06765831848102155,
+      "cash": 0.07423170506320154,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3676583184810214,
-          "cap": 0.35,
-          "factor": 0.9519708446854225
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5242317050632015,
+          "cap": 0.5,
+          "factor": 0.9537767272960339
         }
       ],
-      "turnover": 0.149259142824765,
-      "cost": 1029.9200554776025
+      "turnover": 0.1454256878262132,
+      "cost": 1125.407883553235
     },
     {
       "date": "2024-03-08",
       "signals": {
-        "132030": 0.7573904821935084,
         "133690": 0.24231493024298292,
         "273130": 0.20913315724080095,
+        "357870": 0.4201068642600482,
         "360750": 0.39170556923661815,
-        "459580": 0.4196498839419297,
+        "411060": 0.7313180169286572,
         "069500": 0.38595146862075647,
         "091160": 0.9422546634225466
       },
       "mapped": {
-        "132030": 0.11113551714261012,
-        "133690": 0.13093780582200837,
-        "273130": 0.18627099543667586,
-        "360750": 0.18884261164681465,
-        "459580": 0.17955431716735581,
-        "069500": 0.0713746643669966,
-        "091160": 0.08188408841753854
+        "133690": 0.11676932582340903,
+        "273130": 0.16611503775435976,
+        "357870": 0.16017669957913913,
+        "360750": 0.16840838526579316,
+        "411060": 0.09763941462885237,
+        "069500": 0.16786753814782213,
+        "091160": 0.07302359880062433
       },
       "target": {
-        "132030": 0.11113551714261012,
-        "133690": 0.13093780582200837,
-        "273130": 0.17705907653243827,
-        "360750": 0.18884261164681465,
-        "459580": 0.17067456750598817,
-        "069500": 0.0709124918067296,
-        "091160": 0.08135386415484396
+        "133690": 0.11676932582340903,
+        "273130": 0.1464386931328469,
+        "357870": 0.1412037517722332,
+        "360750": 0.16840838526579316,
+        "411060": 0.09763941462885237,
+        "069500": 0.1479836096605903,
+        "091160": 0.06437394543432957
       },
-      "cash": 0.06908406538856682,
+      "cash": 0.1171828742819454,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.36582531260403167,
-          "cap": 0.35,
-          "factor": 0.9567407938740397
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5032587527845351,
+          "sumBefore": 0.5671828742819454,
           "cap": 0.5,
-          "factor": 0.993524697252647
+          "factor": 0.8815498892363437
         }
       ],
-      "turnover": 0.1966993961744881,
-      "cost": 1395.3274349911276
+      "turnover": 0.17587684438242523,
+      "cost": 1398.7282337387687
     },
     {
       "date": "2024-04-05",
       "signals": {
-        "132030": 0.6578891068561488,
         "133690": 0.15384895881214936,
         "273130": 0.15294859109749576,
+        "357870": 0.4161430983615678,
         "360750": 0.2913828866102284,
-        "459580": 0.4164147162825401,
+        "411060": 0.8597174128784908,
         "069500": 0.35962437582375806,
         "091160": 0.9015392176871359
       },
       "mapped": {
-        "132030": 0.1086882521485274,
-        "133690": 0.12607379876219532,
-        "273130": 0.18819129165661788,
-        "360750": 0.18480674099306876,
-        "459580": 0.18571524379230908,
-        "069500": 0.07341699348764202,
-        "091160": 0.08310767915963943
+        "133690": 0.11068896940386738,
+        "273130": 0.16522624311134806,
+        "357870": 0.1630210805900406,
+        "360750": 0.1622547103383088,
+        "411060": 0.10704184576767978,
+        "069500": 0.16880113052090087,
+        "091160": 0.07296602026785452
       },
       "target": {
-        "132030": 0.1086882521485274,
-        "133690": 0.12607379876219532,
-        "273130": 0.1738897211390126,
-        "360750": 0.18480674099306876,
-        "459580": 0.1716018401809653,
-        "069500": 0.07247129059275455,
-        "091160": 0.08203714808726748
+        "133690": 0.11068896940386738,
+        "273130": 0.1449316206041404,
+        "357870": 0.1429973166346843,
+        "360750": 0.1622547103383088,
+        "411060": 0.10704184576767978,
+        "069500": 0.1480674071232024,
+        "091160": 0.06400365563797288
       },
-      "cash": 0.08043120809620852,
+      "cash": 0.12001447449014413,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.37390653544892694,
-          "cap": 0.35,
-          "factor": 0.93606280398329
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5065246726472815,
+          "sumBefore": 0.5700144744901441,
           "cap": 0.5,
-          "factor": 0.9871187466285083
+          "factor": 0.8771707077214673
         }
       ],
-      "turnover": 0.02385532736638488,
-      "cost": 172.98172808184302
+      "turnover": 0.025424255534334753,
+      "cost": 207.32754919554066
     },
     {
       "date": "2024-05-03",
       "signals": {
-        "132030": -0.2136074240664031,
         "133690": -0.2896685755664148,
         "273130": -0.06739607121933328,
+        "357870": 0.41877152060424294,
         "360750": -0.2951927588612669,
-        "459580": 0.4191980597833266,
+        "411060": -0.3373021612990527,
         "069500": -0.12384540910345408,
         "091160": -0.44987217022134135
       },
       "mapped": {
-        "132030": 0.07079719986701605,
-        "133690": 0.10658263520130436,
-        "273130": 0.23198412734628646,
-        "360750": 0.16577229036987204,
-        "459580": 0.2555345809822236,
-        "069500": 0.0863112977969469,
-        "091160": 0.033017868436350566
+        "133690": 0.09698999125779789,
+        "273130": 0.21110510582486375,
+        "357870": 0.23246608438861338,
+        "360750": 0.1508524626304441,
+        "411060": 0.05429160701999271,
+        "069500": 0.17424855265744663,
+        "091160": 0.03004619622084154
       },
       "target": {
-        "132030": 0.07079719986701605,
-        "133690": 0.10658263520130436,
-        "273130": 0.16654631542157786,
-        "360750": 0.16577229036987204,
-        "459580": 0.1834536845784221,
-        "069500": 0.0863112977969469,
-        "091160": 0.033017868436350566
+        "133690": 0.09698999125779789,
+        "273130": 0.1502563001007939,
+        "357870": 0.16546020335543213,
+        "360750": 0.1508524626304441,
+        "411060": 0.05429160701999271,
+        "069500": 0.1571804107923347,
+        "091160": 0.027103085751439326
       },
-      "cash": 0.18751870832851014,
+      "cash": 0.1978659390917653,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.4875187083285101,
+          "sumBefore": 0.44357119021347713,
           "cap": 0.35,
-          "factor": 0.7179211669640289
+          "factor": 0.7890503434895214
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5542947488782881,
+          "cap": 0.5,
+          "factor": 0.9020471527320745
         }
       ],
-      "turnover": 0.15577473654600965,
-      "cost": 1120.6348567312973
+      "turnover": 0.15085861809615828,
+      "cost": 1221.5892901228326
     },
     {
       "date": "2024-06-07",
       "signals": {
-        "132030": 0.09523599203792654,
         "133690": 0.7123963872365457,
         "273130": 0.24943828162168924,
+        "357870": 0.4182650086712668,
         "360750": 0.5082274617503753,
-        "459580": 0.4187920667683743,
+        "411060": 0.1222379263447031,
         "069500": -0.02223586644352594,
         "091160": 0.19653853409049848
       },
       "mapped": {
-        "132030": 0.07050847780362857,
-        "133690": 0.1837327960035069,
-        "273130": 0.1930840723562378,
-        "360750": 0.20474463130810147,
-        "459580": 0.18267637235252224,
-        "069500": 0.06390026680448894,
-        "091160": 0.051353383371514
+        "133690": 0.16854618573386237,
+        "273130": 0.1771245233811379,
+        "357870": 0.16751482964089523,
+        "360750": 0.1878212676620225,
+        "411060": 0.06627516504278294,
+        "069500": 0.1356093082668865,
+        "091160": 0.04710872027241254
       },
       "target": {
-        "132030": 0.07050847780362857,
-        "133690": 0.1837327960035069,
-        "273130": 0.17984709746940472,
-        "360750": 0.20474463130810147,
-        "459580": 0.17015290253059526,
-        "069500": 0.06390026680448894,
-        "091160": 0.051353383371514
+        "133690": 0.16854618573386237,
+        "273130": 0.16793594777864898,
+        "357870": 0.15882476997376882,
+        "360750": 0.1878212676620225,
+        "411060": 0.06627516504278294,
+        "069500": 0.12857439092384734,
+        "091160": 0.044664891323734836
       },
-      "cash": 0.07576044470876009,
+      "cash": 0.0773573815613322,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.37576044470876,
-          "cap": 0.35,
-          "factor": 0.931444501220116
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5273573815613322,
+          "cap": 0.5,
+          "factor": 0.9481236396457826
         }
       ],
-      "turnover": 0.16912625009187615,
-      "cost": 1249.5728046431045
+      "turnover": 0.17731905473178508,
+      "cost": 1472.5998925722545
     },
     {
       "date": "2024-07-05",
       "signals": {
-        "132030": 0.11498987129128657,
         "133690": 0.6350297408666449,
         "273130": 0.2516879946863736,
+        "357870": 0.41600235436937905,
         "360750": 0.5304267250581518,
-        "459580": 0.41637159037028415,
+        "411060": 0.23698582384382974,
         "069500": 0.7685130645545954,
         "091160": 0.3904454210851358
       },
       "mapped": {
-        "132030": 0.07026215783188926,
-        "133690": 0.17172161629827198,
-        "273130": 0.18918970936492377,
-        "360750": 0.20274615750821565,
-        "459580": 0.17850803275181035,
-        "069500": 0.07915882363625464,
-        "091160": 0.05841350260863427
+        "133690": 0.1474692983408303,
+        "273130": 0.16247036508723844,
+        "357870": 0.15325730298004223,
+        "360750": 0.17411223021045427,
+        "411060": 0.06694095903226081,
+        "069500": 0.19558610591589984,
+        "091160": 0.050163738433274006
       },
       "target": {
-        "132030": 0.07026215783188926,
-        "133690": 0.17172161629827198,
-        "273130": 0.18008377722564692,
-        "360750": 0.20274615750821565,
-        "459580": 0.16991622277435306,
-        "069500": 0.07915882363625464,
-        "091160": 0.05841350260863427
+        "133690": 0.1474692983408303,
+        "273130": 0.14468109718945632,
+        "357870": 0.1364767952330471,
+        "360750": 0.17411223021045427,
+        "411060": 0.06694095903226081,
+        "069500": 0.17417091654672656,
+        "091160": 0.04467119103077005
       },
-      "cash": 0.06769774211673418,
+      "cash": 0.11147751241645454,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3676977421167341,
-          "cap": 0.35,
-          "factor": 0.9518687767434928
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5614775124164545,
+          "cap": 0.5,
+          "factor": 0.8905076141840995
         }
       ],
-      "turnover": 0.05415211232084148,
-      "cost": 412.5961266086575
+      "turnover": 0.12461614465604293,
+      "cost": 1070.2259253967768
     },
     {
       "date": "2024-08-02",
       "signals": {
-        "132030": 0.349477906348369,
         "133690": -0.9229608874843208,
         "273130": 0.4923252382805786,
+        "357870": 0.4159597886703842,
         "360750": -0.539360369330218,
-        "459580": 0.4159344777131434,
+        "411060": 0.4285430052783732,
         "069500": -0.7936418926116209,
         "091160": -1
       },
       "mapped": {
-        "132030": 0.13490035549339197,
-        "133690": 0.012835338783454036,
+        "133690": 0.012192007625678103,
         "273130": 0.3,
-        "360750": 0.14338951825107252,
-        "459580": 0.2830873532649654,
-        "069500": 0.07351941854259207,
+        "357870": 0.26890329305300953,
+        "360750": 0.1362025677275452,
+        "411060": 0.13564647861501516,
+        "069500": 0.09596064165025624,
         "091160": 0
       },
       "target": {
-        "132030": 0.13490035549339197,
-        "133690": 0.012835338783454036,
-        "273130": 0.18007593444114042,
-        "360750": 0.14338951825107252,
-        "459580": 0.16992406555885958,
-        "069500": 0.07351941854259207,
+        "133690": 0.012192007625678103,
+        "273130": 0.1845656393312813,
+        "357870": 0.16543436066871867,
+        "360750": 0.1362025677275452,
+        "411060": 0.13564647861501516,
+        "069500": 0.09596064165025624,
         "091160": 0
       },
-      "cash": 0.28535536892948943,
+      "cash": 0.2699983043815053,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.5830873532649654,
+          "sumBefore": 0.5689032930530096,
           "cap": 0.35,
-          "factor": 0.6002531148038014
+          "factor": 0.6152187977709377
         }
       ],
-      "turnover": 0.33404685670233114,
-      "cost": 2460.7786936110465
+      "turnover": 0.39257588623444817,
+      "cost": 3254.3664602629487
     },
     {
       "date": "2024-09-06",
       "signals": {
-        "132030": 0.33286494328288624,
         "133690": -0.12892781142388315,
         "273130": -0.03321561265473471,
+        "357870": 0.41645729332382475,
         "360750": 0.0038462449789424813,
-        "459580": 0.41726680133295935,
+        "411060": -0.04981071926678604,
         "069500": -0.46220580349162843,
         "091160": -0.8563048079830661
       },
       "mapped": {
-        "132030": 0.10988611206475765,
-        "133690": 0.11969046653070337,
-        "273130": 0.21619823842288863,
-        "360750": 0.19289677044283574,
-        "459580": 0.23368900103763995,
-        "069500": 0.06974158406676209,
-        "091160": 0.007897827434412653
+        "133690": 0.11633103862767491,
+        "273130": 0.21013006594603445,
+        "357870": 0.22700017325561567,
+        "360750": 0.18748261498156094,
+        "411060": 0.07613824023099491,
+        "069500": 0.12524171283341545,
+        "091160": 0.007676154124703704
       },
       "target": {
-        "132030": 0.10988611206475765,
-        "133690": 0.11969046653070337,
-        "273130": 0.16819633190474156,
-        "360750": 0.19289677044283574,
-        "459580": 0.1818036680952584,
-        "069500": 0.06974158406676209,
-        "091160": 0.007897827434412653
+        "133690": 0.11633103862767491,
+        "273130": 0.16824624902507643,
+        "357870": 0.18175375097492355,
+        "360750": 0.18748261498156094,
+        "411060": 0.07613824023099491,
+        "069500": 0.12524171283341545,
+        "091160": 0.007676154124703704
       },
-      "cash": 0.14988723946052862,
+      "cash": 0.13713023920165013,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.44988723946052855,
+          "sumBefore": 0.4371302392016501,
           "cap": 0.35,
-          "factor": 0.7779727213861278
+          "factor": 0.8006767059611802
         }
       ],
-      "turnover": 0.2174945127677176,
-      "cost": 1595.6929541560326
+      "turnover": 0.2887469965866824,
+      "cost": 2369.314227307493
     },
     {
       "date": "2024-10-04",
       "signals": {
-        "132030": 0.7196003373775387,
         "133690": 0.42171604127502405,
         "273130": 0.21521140817940948,
+        "357870": 0.4197055120696259,
         "360750": 0.4057988517214424,
-        "459580": 0.42022819582124227,
+        "411060": 0.6714648616783169,
         "069500": -0.29254486498601845,
         "091160": -0.27637420001703245
       },
       "mapped": {
-        "132030": 0.11441708443007309,
-        "133690": 0.15766125108100218,
-        "273130": 0.19652475846541453,
-        "360750": 0.20025412803791043,
-        "459580": 0.18899550768763648,
-        "069500": 0.06004866674348988,
-        "091160": 0.032098603554473366
+        "133690": 0.14837011707700692,
+        "273130": 0.18494335939947124,
+        "357870": 0.17779235818573264,
+        "360750": 0.18845295352168429,
+        "411060": 0.10466032457293271,
+        "069500": 0.11557388625382427,
+        "091160": 0.030207000989347792
       },
       "target": {
-        "132030": 0.11441708443007309,
-        "133690": 0.15766125108100218,
-        "273130": 0.17841776814811613,
-        "360750": 0.20025412803791043,
-        "459580": 0.17158223185188384,
-        "069500": 0.06004866674348988,
-        "091160": 0.032098603554473366
+        "133690": 0.14837011707700692,
+        "273130": 0.1784499641246669,
+        "357870": 0.17155003587533313,
+        "360750": 0.18845295352168429,
+        "411060": 0.10466032457293271,
+        "069500": 0.11557388625382427,
+        "091160": 0.030207000989347792
       },
-      "cash": 0.0855202661530512,
+      "cash": 0.06273571758520402,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.385520266153051,
+          "sumBefore": 0.36273571758520384,
           "cap": 0.35,
-          "factor": 0.9078640754544677
+          "factor": 0.9648898165584912
         }
       ],
-      "turnover": 0.09041301199781766,
-      "cost": 678.6145551013421
+      "turnover": 0.10644886801150452,
+      "cost": 891.5380554577907
     },
     {
       "date": "2024-11-01",
       "signals": {
-        "132030": 0.43728269895266864,
         "133690": 0.37076715987053477,
         "273130": 0.030884903923551532,
+        "357870": 0.41571423374922756,
         "360750": 0.31628593808184746,
-        "459580": 0.4158102067533941,
+        "411060": 0.8308045977011494,
         "069500": -0.29132180654093454,
         "091160": -0.24105501090375178
       },
       "mapped": {
-        "132030": 0.10091267627035425,
-        "133690": 0.1604042855160483,
-        "273130": 0.1901198987054537,
-        "360750": 0.20083616510426228,
-        "459580": 0.1988101535744897,
-        "069500": 0.06339276326925392,
-        "091160": 0.03552405756013781
+        "133690": 0.1459675691354531,
+        "273130": 0.1730087158770902,
+        "357870": 0.18090456614996764,
+        "360750": 0.1827604962077069,
+        "411060": 0.11697308099226184,
+        "069500": 0.1180587524930127,
+        "091160": 0.03232681914450746
       },
       "target": {
-        "132030": 0.10091267627035425,
-        "133690": 0.1604042855160483,
-        "273130": 0.171089799198683,
-        "360750": 0.20083616510426228,
-        "459580": 0.178910200801317,
-        "069500": 0.06339276326925392,
-        "091160": 0.03552405756013781
+        "133690": 0.1459675691354531,
+        "273130": 0.17096389011894794,
+        "357870": 0.178766417706095,
+        "360750": 0.1827604962077069,
+        "411060": 0.11697308099226184,
+        "069500": 0.11796778243091968,
+        "091160": 0.032301909744037384
       },
-      "cash": 0.08893005227994344,
+      "cash": 0.054298853664578095,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.3889300522799434,
+          "sumBefore": 0.35391328202705785,
           "cap": 0.35,
-          "factor": 0.8999047462346201
+          "factor": 0.9889428223641556
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5003855716375202,
+          "cap": 0.5,
+          "factor": 0.9992294509286941
         }
       ],
-      "turnover": 0.04332262489710671,
-      "cost": 330.57185588855646
+      "turnover": 0.042575853550714964,
+      "cost": 364.2328950251606
     },
     {
       "date": "2024-12-06",
       "signals": {
-        "132030": -0.005991832603311459,
         "133690": 0.6366405698368239,
         "273130": 0.5156574019143411,
+        "357870": 0.4152281503235985,
         "360750": 0.6446135599920929,
-        "459580": 0.4151645916581025,
+        "411060": 0.24991093761132843,
         "069500": -0.4047704228620483,
         "091160": -0.7226590079578771
       },
       "mapped": {
-        "132030": 0.0657415496177711,
-        "133690": 0.18040644392654107,
-        "273130": 0.22184018379165377,
-        "360750": 0.22537719543328633,
-        "459580": 0.1871918486614919,
-        "069500": 0.057214289785217635,
-        "091160": 0.012228488784038151
+        "133690": 0.16812073652561035,
+        "273130": 0.20673283214437713,
+        "357870": 0.17445188885271437,
+        "360750": 0.21002897273308613,
+        "411060": 0.0770368099002643,
+        "069500": 0.10223303308263107,
+        "091160": 0.011395726761316673
       },
       "target": {
-        "132030": 0.0657415496177711,
-        "133690": 0.18040644392654107,
-        "273130": 0.18982392127436348,
-        "360750": 0.22537719543328633,
-        "459580": 0.1601760787256365,
-        "069500": 0.057214289785217635,
-        "091160": 0.012228488784038151
+        "133690": 0.16812073652561035,
+        "273130": 0.1898200197040009,
+        "357870": 0.16017998029599909,
+        "360750": 0.21002897273308613,
+        "411060": 0.0770368099002643,
+        "069500": 0.10223303308263107,
+        "091160": 0.011395726761316673
       },
-      "cash": 0.10903203245314574,
+      "cash": 0.08118472099709151,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.4090320324531457,
+          "sumBefore": 0.3811847209970915,
           "cap": 0.35,
-          "factor": 0.8556787054082182
+          "factor": 0.9181900026960171
         }
       ],
-      "turnover": 0.1013429922626224,
-      "cost": 794.7572552281713
+      "turnover": 0.11750320217638702,
+      "cost": 1029.210529726113
     },
     {
       "date": "2025-01-03",
       "signals": {
-        "132030": -0.12880272910656218,
         "133690": 0.27466006161533957,
         "273130": -0.07718000450460458,
+        "357870": 0.41736739272016854,
         "360750": 0.10095579450418207,
-        "459580": 0.4176788018613383,
+        "411060": 0.6409733073874566,
         "069500": -0.08071486998020033,
         "091160": 0.862485481997677
       },
       "mapped": {
-        "132030": 0.06312497262574727,
-        "133690": 0.15393161454329135,
-        "273130": 0.1857642176425549,
-        "360750": 0.1812597379989622,
-        "459580": 0.20544356266824307,
-        "069500": 0.07050825344079524,
-        "091160": 0.08996764108040602
+        "133690": 0.13360367413355012,
+        "273130": 0.161232519214627,
+        "357870": 0.17827387580452864,
+        "360750": 0.157322893292562,
+        "411060": 0.10319930919191639,
+        "069500": 0.13828105697218812,
+        "091160": 0.0780866713906277
       },
       "target": {
-        "132030": 0.06312497262574727,
-        "133690": 0.15393161454329135,
-        "273130": 0.16278612651494923,
-        "360750": 0.1812597379989622,
-        "459580": 0.18003123641683133,
-        "069500": 0.0690612957414259,
-        "091160": 0.08812134132679347
+        "133690": 0.13360367413355012,
+        "273130": 0.14502610612064354,
+        "357870": 0.1603545373904974,
+        "360750": 0.157322893292562,
+        "411060": 0.10319930919191639,
+        "069500": 0.12438162810213028,
+        "091160": 0.07023772838672873
       },
-      "cash": 0.10168367483199936,
+      "cash": 0.10587412338197155,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.39120778031079795,
-          "cap": 0.35,
-          "factor": 0.8946652331963845
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5104758945212013,
+          "sumBefore": 0.5558741233819715,
           "cap": 0.5,
-          "factor": 0.9794781798050872
+          "factor": 0.8994842158832111
         }
       ],
-      "turnover": 0.20664851767233744,
-      "cost": 1629.7275832418193
+      "turnover": 0.23312198376999813,
+      "cost": 2062.1269374508074
     },
     {
       "date": "2025-02-07",
       "signals": {
-        "132030": 0.8952847981893625,
         "133690": 0.17698789587512762,
         "273130": 0.19692275635588607,
+        "357870": 0.41731726675806347,
         "360750": 0.2082211542822519,
-        "459580": 0.4169063009255295,
+        "411060": 1,
         "069500": 0.07337929445200808,
         "091160": 0.30544890402840896
       },
       "mapped": {
-        "132030": 0.126840974871942,
-        "133690": 0.1312821976833417,
-        "273130": 0.19603725652964227,
-        "360750": 0.17938230990730122,
-        "459580": 0.18965147262647428,
-        "069500": 0.06856145071740738,
-        "091160": 0.058244337663891185
+        "133690": 0.11845833405833142,
+        "273130": 0.17688801095393175,
+        "357870": 0.17117563520304596,
+        "360750": 0.1618599472443973,
+        "411060": 0.12077439484991874,
+        "069500": 0.14828874389320126,
+        "091160": 0.052554933797173575
       },
       "target": {
-        "132030": 0.126840974871942,
-        "133690": 0.1312821976833417,
-        "273130": 0.17789744578613823,
-        "360750": 0.17938230990730122,
-        "459580": 0.17210255421386178,
-        "069500": 0.06856145071740738,
-        "091160": 0.058244337663891185
+        "133690": 0.11845833405833142,
+        "273130": 0.1611273918829357,
+        "357870": 0.15592398549472514,
+        "360750": 0.1618599472443973,
+        "411060": 0.12077439484991874,
+        "069500": 0.13507630291196424,
+        "091160": 0.047872319710374964
       },
-      "cash": 0.08568872915611647,
+      "cash": 0.09890732384735257,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3856887291561165,
-          "cap": 0.35,
-          "factor": 0.907467534158431
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5489073238473525,
+          "cap": 0.5,
+          "factor": 0.9109005806215963
         }
       ],
-      "turnover": 0.14319994791425458,
-      "cost": 1153.9556979698589
+      "turnover": 0.08439702568286943,
+      "cost": 769.0587415382802
     },
     {
       "date": "2025-03-07",
       "signals": {
-        "132030": -0.04458559420702064,
         "133690": -0.842110737140133,
         "273130": 0.3177057315213601,
+        "357870": 0.4129517367919272,
         "360750": -0.7251987170548041,
-        "459580": 0.41404345032644596,
+        "411060": -0.6945402298850575,
         "069500": 0.04542053871348196,
         "091160": -0.5054628472751961
       },
       "mapped": {
-        "132030": 0.09533768617466071,
-        "133690": 0.026258757284819127,
-        "273130": 0.3,
-        "360750": 0.11222703040971925,
-        "459580": 0.2822055641764487,
-        "069500": 0.1,
-        "091160": 0.032898832577999124
+        "133690": 0.024157998184612416,
+        "273130": 0.28369823173728104,
+        "357870": 0.25942804373715783,
+        "360750": 0.10324861787994226,
+        "411060": 0.02804229915922145,
+        "069500": 0.22115795664479937,
+        "091160": 0.030266852656985716
       },
       "target": {
-        "132030": 0.09533768617466071,
-        "133690": 0.026258757284819127,
-        "273130": 0.18034867143278913,
-        "360750": 0.11222703040971925,
-        "459580": 0.1696513285672108,
-        "069500": 0.1,
-        "091160": 0.032898832577999124
+        "133690": 0.024157998184612416,
+        "273130": 0.15198912848139642,
+        "357870": 0.1389865633979651,
+        "360750": 0.10324861787994226,
+        "411060": 0.02804229915922145,
+        "069500": 0.18386168414098955,
+        "091160": 0.02516262397964889
       },
-      "cash": 0.28327769355280186,
+      "cash": 0.344551084776224,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.5822055641764488,
+          "sumBefore": 0.5431262754744388,
           "cap": 0.35,
-          "factor": 0.6011622381092971
+          "factor": 0.644417358917617
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.6014248093017851,
+          "cap": 0.5,
+          "factor": 0.8313591196553187
         }
       ],
-      "turnover": 0.2535107934456307,
-      "cost": 2005.8112646164152
+      "turnover": 0.3295650901218515,
+      "cost": 2939.2518007569684
     },
     {
       "date": "2025-04-04",
       "signals": {
-        "132030": 0.6276180394201596,
         "133690": -0.7136904583689699,
         "273130": 0.2753381824234521,
+        "357870": 0.41292383909820274,
         "360750": -0.6009481509993849,
-        "459580": 0.41301571447273366,
+        "411060": 0.23910775676317514,
         "069500": -0.3412845577782042,
         "091160": -0.6161461058712718
       },
       "mapped": {
-        "132030": 0.14812814016084488,
-        "133690": 0.04342798175508186,
-        "273130": 0.27610213619850227,
-        "360750": 0.12120172077423436,
-        "459580": 0.25719472841116864,
-        "069500": 0.0806558140249202,
-        "091160": 0.023289478675247673
+        "133690": 0.0414823518262327,
+        "273130": 0.2637324022643636,
+        "357870": 0.2456560970895317,
+        "360750": 0.11577172642873902,
+        "411060": 0.10771789921602776,
+        "069500": 0.1533934433617572,
+        "091160": 0.022246079813347915
       },
       "target": {
-        "132030": 0.14812814016084488,
-        "133690": 0.04342798175508186,
-        "273130": 0.18120441743119028,
-        "360750": 0.12120172077423436,
-        "459580": 0.16879558256880967,
-        "069500": 0.0806558140249202,
-        "091160": 0.023289478675247673
+        "133690": 0.0414823518262327,
+        "273130": 0.17237107541032543,
+        "357870": 0.1605567054820232,
+        "360750": 0.11577172642873902,
+        "411060": 0.10771789921602776,
+        "069500": 0.1459112534339028,
+        "091160": 0.021160965673748554
       },
-      "cash": 0.23329686460967114,
+      "cash": 0.23502802252900046,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.533296864609671,
+          "sumBefore": 0.5093884993538953,
           "cap": 0.35,
-          "factor": 0.6562948766934359
+          "factor": 0.6870983550746385
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5256395231751052,
+          "cap": 0.5,
+          "factor": 0.9512222311209959
         }
       ],
-      "turnover": 0.11201390690219468,
-      "cost": 880.2513336072168
+      "turnover": 0.19298656127180927,
+      "cost": 1699.4150908376434
     },
     {
       "date": "2025-05-02",
       "signals": {
-        "132030": 0.289931679040285,
         "133690": 0.14933342505055708,
         "273130": 0.3229711314938388,
+        "357870": 0.41386450757711446,
         "360750": 0.00942145741991876,
-        "459580": 0.41371433879990793,
+        "411060": 0.02121277655165684,
         "069500": 0.45217309977988857,
         "091160": -0.07562498414284853
       },
       "mapped": {
-        "132030": 0.09251205236414148,
-        "133690": 0.13738091162735472,
-        "273130": 0.2221335496021884,
-        "360750": 0.1684694801936923,
-        "459580": 0.20277913483960608,
-        "069500": 0.08252830331151818,
-        "091160": 0.044196568061498714
+        "133690": 0.1220178263429234,
+        "273130": 0.19729271380741145,
+        "357870": 0.18012180298372005,
+        "360750": 0.14962981053812888,
+        "411060": 0.06504961598396398,
+        "069500": 0.1966340930492257,
+        "091160": 0.03925413729462658
       },
       "target": {
-        "132030": 0.09251205236414148,
-        "133690": 0.13738091162735472,
-        "273130": 0.18297110255228416,
-        "360750": 0.1684694801936923,
-        "459580": 0.16702889744771582,
-        "069500": 0.08252830331151818,
-        "091160": 0.044196568061498714
+        "133690": 0.1220178263429234,
+        "273130": 0.1561405557665348,
+        "357870": 0.1425512269601708,
+        "360750": 0.14962981053812888,
+        "411060": 0.06504961598396398,
+        "069500": 0.1678085365649204,
+        "091160": 0.03349968070837393
       },
-      "cash": 0.1249126844417946,
+      "cash": 0.16330274713498372,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.4249126844417945,
+          "sumBefore": 0.37741451679113147,
           "cap": 0.35,
-          "factor": 0.823698639309375
+          "factor": 0.9273623149840227
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5858882303438523,
+          "cap": 0.5,
+          "factor": 0.8534050935048733
         }
       ],
-      "turnover": 0.2246009766817444,
-      "cost": 1794.3897551131213
+      "turnover": 0.2194239741539342,
+      "cost": 1960.3740237706054
     },
     {
       "date": "2025-06-05",
       "signals": {
-        "132030": 0.28734920021259186,
         "133690": 0.33036011313023583,
         "273130": -0.2571015946644085,
+        "357870": 0.41393852751965643,
         "360750": 0.12250032006215279,
-        "459580": 0.41408171954149886,
+        "411060": -0.007458705118850023,
         "069500": 0.9548155403199478,
         "091160": 0.7526709336482219
       },
       "mapped": {
-        "132030": 0.08939360603529198,
-        "133690": 0.15396714403337683,
-        "273130": 0.1613692937190926,
-        "360750": 0.17620418994546605,
-        "459580": 0.19638783962816883,
-        "069500": 0.09154087647579208,
-        "091160": 0.0811370501628115
+        "133690": 0.13171451156048775,
+        "273130": 0.13804684003532333,
+        "357870": 0.16798719747296736,
+        "360750": 0.1507376717239577,
+        "411060": 0.05896091918358047,
+        "069500": 0.23314242185034936,
+        "091160": 0.06941043817333398
       },
       "target": {
-        "132030": 0.08939360603529198,
-        "133690": 0.15396714403337683,
-        "273130": 0.15102070219294095,
-        "360750": 0.17620418994546605,
-        "459580": 0.1837935133708256,
-        "069500": 0.08756910499789138,
-        "091160": 0.07761667943834204
+        "133690": 0.13171451156048775,
+        "273130": 0.11341588242792446,
+        "357870": 0.13801414239627272,
+        "360750": 0.1507376717239577,
+        "411060": 0.05896091918358047,
+        "069500": 0.1915440693809059,
+        "091160": 0.05702590579489702
       },
-      "cash": 0.08043505998586509,
+      "cash": 0.15858689753197397,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.35775713334726145,
-          "cap": 0.35,
-          "factor": 0.9783173202594624
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5226779266386036,
+          "sumBefore": 0.6085868975319739,
           "cap": 0.5,
-          "factor": 0.9566120444679046
+          "factor": 0.8215753609347645
         }
       ],
-      "turnover": 0.10111981302862125,
-      "cost": 829.5809500299442
+      "turnover": 0.07998896094773718,
+      "cost": 736.6386573542628
     },
     {
       "date": "2025-07-04",
       "signals": {
-        "132030": -0.24944812206577283,
         "133690": 0.719535914322644,
         "273130": 0.11704153222504032,
+        "357870": 0.4112319486539492,
         "360750": 0.7109011408755085,
-        "459580": 0.41204343496024987,
+        "411060": -0.12049899531647877,
         "069500": 0.8322770480559296,
         "091160": 0.8012030699025098
       },
       "mapped": {
-        "132030": 0.04672612222505631,
-        "133690": 0.17841814728862496,
-        "273130": 0.17573049787050418,
-        "360750": 0.21902599854264257,
-        "459580": 0.1758154661091206,
-        "069500": 0.07952701250560391,
-        "091160": 0.07475675545844748
+        "133690": 0.15269751109100446,
+        "273130": 0.15039731134636555,
+        "357870": 0.15038355710048815,
+        "360750": 0.18745136271132964,
+        "411060": 0.0468606488408637,
+        "069500": 0.19822973539810426,
+        "091160": 0.06397987351184407
       },
       "target": {
-        "132030": 0.04672612222505631,
-        "133690": 0.17841814728862496,
-        "273130": 0.17347147957574693,
-        "360750": 0.21902599854264257,
-        "459580": 0.1735553555463289,
-        "069500": 0.07885144987580991,
-        "091160": 0.07412171500211427
+        "133690": 0.15269751109100446,
+        "273130": 0.1335700312840722,
+        "357870": 0.13355781593902588,
+        "360750": 0.18745136271132964,
+        "411060": 0.0468606488408637,
+        "069500": 0.17605070011910146,
+        "091160": 0.05682145265780052
       },
-      "cash": 0.05582973194367624,
+      "cash": 0.11299047735680212,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3515459639796248,
-          "cap": 0.35,
-          "factor": 0.9956023845015203
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5042837679640514,
+          "sumBefore": 0.562990477356802,
           "cap": 0.5,
-          "factor": 0.9915052432059309
+          "factor": 0.8881144888053213
         }
       ],
-      "turnover": 0.1548121804837533,
-      "cost": 1313.6009775522616
+      "turnover": 0.1188460669635624,
+      "cost": 1138.532058174246
     },
     {
       "date": "2025-08-01",
       "signals": {
-        "132030": -0.3130353481281316,
         "133690": 0.4854263610654117,
         "273130": 0.09671215813582355,
+        "357870": 0.4117448171545509,
         "360750": 0.4540708098542361,
-        "459580": 0.41154638065375704,
+        "411060": 0.03212222960756623,
         "069500": -0.033797443648547754,
         "091160": -0.2918097331315699
       },
       "mapped": {
-        "132030": 0.04894979276752367,
-        "133690": 0.17640721480948124,
-        "273130": 0.19920214789166757,
-        "360750": 0.2201869282778551,
-        "459580": 0.20115999455423791,
-        "069500": 0.07045243645082733,
-        "091160": 0.03364148524840718
+        "133690": 0.15714924223929616,
+        "273130": 0.17745570456074827,
+        "357870": 0.17922500965336388,
+        "360750": 0.19614962442002928,
+        "411060": 0.06551542258809531,
+        "069500": 0.14453607536763352,
+        "091160": 0.02996892117083357
       },
       "target": {
-        "132030": 0.04894979276752367,
-        "133690": 0.17640721480948124,
-        "273130": 0.17414421687361184,
-        "360750": 0.2201869282778551,
-        "459580": 0.1758557831263881,
-        "069500": 0.07045243645082733,
-        "091160": 0.03364148524840718
+        "133690": 0.15714924223929616,
+        "273130": 0.16599643316509108,
+        "357870": 0.16765148469066476,
+        "360750": 0.19614962442002928,
+        "411060": 0.06551542258809531,
+        "069500": 0.13778331600415294,
+        "091160": 0.02856876614009115
       },
-      "cash": 0.10036214244590569,
+      "cash": 0.08118571075257941,
       "capApplications": [
         {
           "stage": "자산군",
           "groupId": "BOND",
-          "sumBefore": 0.4003621424459055,
+          "sumBefore": 0.3566807142141122,
           "cap": 0.35,
-          "factor": 0.8742085299618203
+          "factor": 0.9812697632704026
+        },
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.524504996538467,
+          "cap": 0.5,
+          "factor": 0.9532797653021597
         }
       ],
-      "turnover": 0.06918581275001379,
-      "cost": 596.3607696609351
+      "turnover": 0.1593523253688984,
+      "cost": 1552.732628043173
     },
     {
       "date": "2025-09-05",
       "signals": {
-        "132030": 0.6799298421448264,
         "133690": 0.18161818122796194,
         "273130": 0.019965354826088196,
+        "357870": 0.41171770972037225,
         "360750": 0.36504946831849827,
-        "459580": 0.41195102209912904,
+        "411060": 0.7656117146906,
         "069500": 0.05647439026538266,
         "091160": 0.1904378189632012
       },
       "mapped": {
-        "132030": 0.11464476917974115,
-        "133690": 0.1343968264298769,
-        "273130": 0.18380010565159183,
-        "360750": 0.20075609092882007,
-        "459580": 0.19271376096871456,
-        "069500": 0.06952845930128952,
-        "091160": 0.05415998753996578
+        "133690": 0.12137220582639238,
+        "273130": 0.1659877308613179,
+        "357870": 0.17400879081418408,
+        "360750": 0.18130048332523718,
+        "411060": 0.10881494133183499,
+        "069500": 0.14960459502446943,
+        "091160": 0.04891125281656394
       },
       "target": {
-        "132030": 0.11464476917974115,
-        "133690": 0.1343968264298769,
-        "273130": 0.17085701930582667,
-        "360750": 0.20075609092882007,
-        "459580": 0.1791429806941733,
-        "069500": 0.06952845930128952,
-        "091160": 0.05415998753996578
+        "133690": 0.12137220582639238,
+        "273130": 0.154116915652595,
+        "357870": 0.1615643397109015,
+        "360750": 0.18130048332523718,
+        "411060": 0.10881494133183499,
+        "069500": 0.1389054397754885,
+        "091160": 0.045413304861014976
       },
-      "cash": 0.07651386662030668,
+      "cash": 0.0885123695165354,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3765138666203064,
-          "cap": 0.35,
-          "factor": 0.9295806370737357
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5385123695165354,
+          "cap": 0.5,
+          "factor": 0.9284837792099169
         }
       ],
-      "turnover": 0.15382366261474661,
-      "cost": 1349.1867770987853
+      "turnover": 0.1202388600666946,
+      "cost": 1194.2119418353213
     },
     {
       "date": "2025-10-02",
       "signals": {
-        "132030": 0.8686920363352986,
         "133690": 0.8015528209116917,
         "273130": -0.19404897290306325,
+        "357870": 0.41594896331738485,
         "360750": 0.6726840652808175,
-        "459580": 0.41419079177841456,
+        "411060": 0.9165856293895193,
         "069500": 0.8806315321325328,
         "091160": 0.9741574462673279
       },
       "mapped": {
-        "132030": 0.10977543435930995,
-        "133690": 0.17638562123614324,
-        "273130": 0.1414529910592762,
-        "360750": 0.20293141685171406,
-        "459580": 0.16615194522780818,
-        "069500": 0.07598862443981767,
-        "091160": 0.07731396682593064
+        "133690": 0.15228839224736218,
+        "273130": 0.12212814421056427,
+        "357870": 0.14363115327507364,
+        "360750": 0.17520758774011802,
+        "411060": 0.09720738933086288,
+        "069500": 0.1927857486639446,
+        "091160": 0.0667515845320744
       },
       "target": {
-        "132030": 0.10977543435930995,
-        "133690": 0.17638562123614324,
-        "273130": 0.1414529910592762,
-        "360750": 0.20293141685171406,
-        "459580": 0.16615194522780818,
-        "069500": 0.07598862443981767,
-        "091160": 0.07731396682593064
+        "133690": 0.15228839224736218,
+        "273130": 0.11624683757449895,
+        "357870": 0.1367143294719872,
+        "360750": 0.17520758774011802,
+        "411060": 0.09720738933086288,
+        "069500": 0.18350179441830236,
+        "091160": 0.0635370385352115
       },
-      "cash": 0.050000000000000044,
-      "capApplications": [],
-      "turnover": 0.0902788176322135,
-      "cost": 832.2458528481965
+      "cash": 0.07529663068165693,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5252966306816569,
+          "cap": 0.5,
+          "factor": 0.9518431506997667
+        }
+      ],
+      "turnover": 0.14202722270673,
+      "cost": 1503.9408101416902
     },
     {
       "date": "2025-11-07",
       "signals": {
-        "132030": -0.2220267682789539,
         "133690": 0.44526712671914404,
         "273130": -0.5022639897479712,
+        "357870": 0.41060445387062583,
         "360750": 0.4921397395918389,
-        "459580": 0.41203085628187364,
+        "411060": -0.3505103428016686,
         "069500": 0.7197231307522629,
         "091160": 0.6948081264108352
       },
       "mapped": {
-        "132030": 0.05462027020619536,
-        "133690": 0.16911653204077648,
-        "273130": 0.14020490207448474,
-        "360750": 0.2214068977149669,
-        "459580": 0.19827290648286938,
-        "069500": 0.08705195937760063,
-        "091160": 0.07932653210310642
+        "133690": 0.14582128030928784,
+        "273130": 0.12089213324933919,
+        "357870": 0.1707887575969512,
+        "360750": 0.19090881834260542,
+        "411060": 0.039318439453596934,
+        "069500": 0.21387101049560775,
+        "091160": 0.06839956055261176
       },
       "target": {
-        "132030": 0.05462027020619536,
-        "133690": 0.16911653204077648,
-        "273130": 0.13885624688046347,
-        "360750": 0.2214068977149669,
-        "459580": 0.19636568511467672,
-        "069500": 0.0862145915293498,
-        "091160": 0.07856347647550993
+        "133690": 0.14582128030928784,
+        "273130": 0.10531564189269259,
+        "357870": 0.14878327605718472,
+        "360750": 0.19090881834260542,
+        "411060": 0.039318439453596934,
+        "069500": 0.1863145446042234,
+        "091160": 0.05958653744589934
       },
-      "cash": 0.0548563000380613,
+      "cash": 0.12395146189450978,
       "capApplications": [
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5048563000380613,
+          "sumBefore": 0.5739514618945099,
           "cap": 0.5,
-          "factor": 0.9903808271032863
+          "factor": 0.8711538051485931
         }
       ],
-      "turnover": 0.13450193581486825,
-      "cost": 1292.2249659997683
+      "turnover": 0.12390908362335627,
+      "cost": 1380.9792098661846
     },
     {
       "date": "2025-12-05",
       "signals": {
-        "132030": 0.5554067085037997,
         "133690": 0.2861776828871779,
         "273130": -0.05778778813814396,
+        "357870": 0.4121736062103035,
         "360750": 0.32360339539347505,
-        "459580": 0.4120296510314875,
+        "411060": 0.3985333554883411,
         "069500": 0.27502206481505287,
         "091160": -0.06416048249792039
       },
       "mapped": {
-        "132030": 0.10784918213078064,
-        "133690": 0.14863552023174462,
-        "273130": 0.17955946606848855,
-        "360750": 0.199186077286324,
-        "459580": 0.19581533521177488,
-        "069500": 0.07569476828139426,
-        "091160": 0.043259650789492995
+        "133690": 0.13358667132885554,
+        "273130": 0.1613796711598755,
+        "357870": 0.17600762995852579,
+        "360750": 0.1790191536871231,
+        "411060": 0.087153782026142,
+        "069500": 0.17397333589145897,
+        "091160": 0.03887975594801898
       },
       "target": {
-        "132030": 0.10784918213078064,
-        "133690": 0.14863552023174462,
-        "273130": 0.16742150221492585,
-        "360750": 0.199186077286324,
-        "459580": 0.18257849778507407,
-        "069500": 0.07569476828139426,
-        "091160": 0.043259650789492995
+        "133690": 0.13358667132885554,
+        "273130": 0.14664469677731298,
+        "357870": 0.15993703135131257,
+        "360750": 0.1790191536871231,
+        "411060": 0.087153782026142,
+        "069500": 0.15808848106937923,
+        "091160": 0.035329790801995165
       },
-      "cash": 0.07537480128026353,
+      "cash": 0.10024039295787945,
       "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.37537480128026346,
-          "cap": 0.35,
-          "factor": 0.932401426004837
-        }
-      ],
-      "turnover": 0.1873467139893858,
-      "cost": 1830.7612924432783
-    },
-    {
-      "date": "2026-01-02",
-      "signals": {
-        "132030": 0.39647327488249173,
-        "133690": -0.20337913949216005,
-        "273130": 0.22616545445203703,
-        "360750": -0.11545941117641317,
-        "459580": 0.4156234986095645,
-        "069500": 0.8313570487483531,
-        "091160": 0.8779951555803989
-      },
-      "mapped": {
-        "132030": 0.10055206088556891,
-        "133690": 0.09560019360823895,
-        "273130": 0.2137246050161585,
-        "360750": 0.15415404626849788,
-        "459580": 0.20386191813833127,
-        "069500": 0.09195804272791294,
-        "091160": 0.09014913335529154
-      },
-      "target": {
-        "132030": 0.10055206088556891,
-        "133690": 0.09560019360823895,
-        "273130": 0.16832436382166577,
-        "360750": 0.15415404626849788,
-        "459580": 0.16055674860414298,
-        "069500": 0.08640932396816017,
-        "091160": 0.08470956360603103
-      },
-      "cash": 0.14969369923769438,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.41758652315448974,
-          "cap": 0.35,
-          "factor": 0.8381496542466589
-        },
         {
           "stage": "국가",
           "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5321071760832046,
+          "sumBefore": 0.5502403929578793,
           "cap": 0.5,
-          "factor": 0.9396603212165964
+          "factor": 0.9086937389532485
         }
       ],
-      "turnover": 0.1618577206423515,
-      "cost": 1596.1019791696194
-    },
-    {
-      "date": "2026-02-06",
-      "signals": {
-        "132030": 0.4875824148629067,
-        "133690": -0.38042663073787275,
-        "273130": -0.3178825614101007,
-        "360750": -0.1810620631115517,
-        "459580": 0.41249589824226585,
-        "069500": 0.6981740976645435,
-        "091160": 0.8057948848670236
-      },
-      "mapped": {
-        "132030": 0.11721825299754855,
-        "133690": 0.08136838584884348,
-        "273130": 0.17672958532643987,
-        "360750": 0.1600827558044549,
-        "459580": 0.222603198187739,
-        "069500": 0.09713602031453912,
-        "091160": 0.09486180152043508
-      },
-      "target": {
-        "132030": 0.11721825299754855,
-        "133690": 0.08136838584884348,
-        "273130": 0.14289426553241527,
-        "360750": 0.1600827558044549,
-        "459580": 0.17998526082347374,
-        "069500": 0.08960923494644117,
-        "091160": 0.08751123869766982
-      },
-      "cash": 0.1413306053491531,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3993327835141789,
-          "cap": 0.35,
-          "factor": 0.8764619746967824
-        },
-        {
-          "stage": "국가",
-          "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5419978218349741,
-          "cap": 0.5,
-          "factor": 0.9225129324453973
-        }
-      ],
-      "turnover": 0.09993270163729297,
-      "cost": 1032.9604264439313
-    },
-    {
-      "date": "2026-03-06",
-      "signals": {
-        "132030": 0.6725738396624472,
-        "133690": 0.07881375783919792,
-        "273130": 0.11600698636974643,
-        "360750": -0.0008221044962496496,
-        "459580": 0.4154694814343497,
-        "069500": 0.6783056087488175,
-        "091160": 0.7713252219664584
-      },
-      "mapped": {
-        "132030": 0.11462739797531765,
-        "133690": 0.12322486759492252,
-        "273130": 0.19335658547595808,
-        "360750": 0.1598176790593831,
-        "459580": 0.1940142548242136,
-        "069500": 0.08402909553537491,
-        "091160": 0.08093011953483002
-      },
-      "target": {
-        "132030": 0.11462739797531765,
-        "133690": 0.12322486759492252,
-        "273130": 0.16962788886183688,
-        "360750": 0.1598176790593831,
-        "459580": 0.1702048491077945,
-        "069500": 0.08158810744256624,
-        "091160": 0.07857915458780239
-      },
-      "cash": 0.10233005537037676,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.38737084030017166,
-          "cap": 0.35,
-          "factor": 0.9035269658624454
-        },
-        {
-          "stage": "국가",
-          "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5149592150702049,
-          "cap": 0.5,
-          "factor": 0.9709506799132325
-        }
-      ],
-      "turnover": 0.12303354781927602,
-      "cost": 1322.7642516755225
-    },
-    {
-      "date": "2026-04-03",
-      "signals": {
-        "132030": -0.686012950765637,
-        "133690": -0.23560059751731832,
-        "273130": -0.07261898978365772,
-        "360750": -0.17711447850002782,
-        "459580": 0.41288547097983097,
-        "069500": -0.2541468762873582,
-        "091160": -0.6204389580819407
-      },
-      "mapped": {
-        "132030": 0.02927240101440049,
-        "133690": 0.1187724456534281,
-        "273130": 0.23958130322537113,
-        "360750": 0.1900120587103811,
-        "459580": 0.2634411208665571,
-        "069500": 0.08533017944525262,
-        "091160": 0.023590491084609456
-      },
-      "target": {
-        "132030": 0.02927240101440049,
-        "133690": 0.1187724456534281,
-        "273130": 0.16669924065563235,
-        "360750": 0.1900120587103811,
-        "459580": 0.18330075934436765,
-        "069500": 0.08533017944525262,
-        "091160": 0.023590491084609456
-      },
-      "cash": 0.20302242409192828,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.5030224240919282,
-          "cap": 0.35,
-          "factor": 0.6957940307170817
-        }
-      ],
-      "turnover": 0.1805837613740888,
-      "cost": 1889.202004185036
-    },
-    {
-      "date": "2026-05-08",
-      "signals": {
-        "132030": -0.27582803753016505,
-        "133690": 1,
-        "273130": -0.4264718524543546,
-        "360750": 0.8971060832962313,
-        "459580": 0.41470909680191215,
-        "069500": 1,
-        "091160": 1
-      },
-      "mapped": {
-        "132030": 0.04444168211713264,
-        "133690": 0.20456320883399676,
-        "273130": 0.1287543868210208,
-        "360750": 0.2349516957155857,
-        "459580": 0.17363845944506667,
-        "069500": 0.0818252835335987,
-        "091160": 0.0818252835335987
-      },
-      "target": {
-        "132030": 0.04444168211713264,
-        "133690": 0.20456320883399676,
-        "273130": 0.1287543868210208,
-        "360750": 0.2349516957155857,
-        "459580": 0.17363845944506667,
-        "069500": 0.0818252835335987,
-        "091160": 0.0818252835335987
-      },
-      "cash": 0.050000000000000155,
-      "capApplications": [],
-      "turnover": 0.24626248795166714,
-      "cost": 2803.4217461770927
-    },
-    {
-      "date": "2026-06-05",
-      "signals": {
-        "132030": -0.5536755822935465,
-        "133690": 0.9650719604692548,
-        "273130": -0.332208395898686,
-        "360750": 0.9272572286835415,
-        "459580": 0.4149597660139156,
-        "069500": 0.6779654583412412,
-        "091160": 0.5997954696528097
-      },
-      "mapped": {
-        "132030": 0.0283686464087448,
-        "133690": 0.2081685779922066,
-        "273130": 0.14134110652322593,
-        "360750": 0.2465364310635464,
-        "459580": 0.17987137468714234,
-        "069500": 0.07792455999265473,
-        "091160": 0.0677893033324792
-      },
-      "target": {
-        "132030": 0.0283686464087448,
-        "133690": 0.2081685779922066,
-        "273130": 0.14134110652322593,
-        "360750": 0.2465364310635464,
-        "459580": 0.17987137468714234,
-        "069500": 0.07792455999265473,
-        "091160": 0.0677893033324792
-      },
-      "cash": 0.050000000000000044,
-      "capApplications": [],
-      "turnover": 0.0859788112349376,
-      "cost": 1029.0928509642627
-    },
-    {
-      "date": "2026-07-03",
-      "signals": {
-        "132030": -0.502867257895753,
-        "133690": -0.1484825202454414,
-        "273130": -0.1626558900659186,
-        "360750": 0.04305158573752728,
-        "459580": 0.41316696442387457,
-        "069500": -0.04798805201004937,
-        "091160": -0.09660926646820106
-      },
-      "mapped": {
-        "132030": 0.042228570889127744,
-        "133690": 0.12055253125132265,
-        "273130": 0.2080957711365889,
-        "360750": 0.20429823875962855,
-        "459580": 0.2400808326675582,
-        "069500": 0.08358548616451494,
-        "091160": 0.05115856913125898
-      },
-      "target": {
-        "132030": 0.042228570889127744,
-        "133690": 0.12055253125132265,
-        "273130": 0.1625107586598481,
-        "360750": 0.20429823875962855,
-        "459580": 0.18748924134015188,
-        "069500": 0.08358548616451494,
-        "091160": 0.05115856913125898
-      },
-      "cash": 0.1481766038041471,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.4481766038041471,
-          "cap": 0.35,
-          "factor": 0.7809421487627448
-        }
-      ],
-      "turnover": 0.19036841050201,
-      "cost": 2260.6237452956498
-    },
-    {
-      "date": "2026-08-07",
-      "signals": {
-        "132030": 0.5534433205329008,
-        "133690": -0.3895202905551735,
-        "273130": 0.155491366938522,
-        "360750": -0.23581496682973904,
-        "459580": 0.4134182237549143,
-        "069500": -0.6485874427242505,
-        "091160": -0.7009170167592718
-      },
-      "mapped": {
-        "132030": 0.13182135669706027,
-        "133690": 0.08633966285451375,
-        "273130": 0.24387955246084272,
-        "360750": 0.16464976920461522,
-        "459580": 0.2398783468608385,
-        "069500": 0.06651168393841815,
-        "091160": 0.01691962798371136
-      },
-      "target": {
-        "132030": 0.13182135669706027,
-        "133690": 0.08633966285451375,
-        "273130": 0.17644744092237577,
-        "360750": 0.16464976920461522,
-        "459580": 0.17355255907762424,
-        "069500": 0.06651168393841815,
-        "091160": 0.01691962798371136
-      },
-      "cash": 0.1837578993216813,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.48375789932168123,
-          "cap": 0.35,
-          "factor": 0.7235023975644951
-        }
-      ],
-      "turnover": 0.20777259652246569,
-      "cost": 2329.9816311538716
-    },
-    {
-      "date": "2026-09-04",
-      "signals": {
-        "132030": 0.37257336859104984,
-        "133690": -0.64220375382207,
-        "273130": 0.041755325744979394,
-        "360750": -0.6848762603116408,
-        "459580": 0.41392126960186826,
-        "069500": 0.32583472384418627,
-        "091160": 0.5588781972201662
-      },
-      "mapped": {
-        "132030": 0.12008162002872086,
-        "133690": 0.05217056013715354,
-        "273130": 0.23816799677470157,
-        "360750": 0.1042727710686054,
-        "459580": 0.2473980051370862,
-        "069500": 0.09698853038288206,
-        "091160": 0.09092051647085024
-      },
-      "target": {
-        "132030": 0.12008162002872086,
-        "133690": 0.05217056013715354,
-        "273130": 0.15957480890810594,
-        "360750": 0.1042727710686054,
-        "459580": 0.16575900174926686,
-        "069500": 0.09015328051291831,
-        "091160": 0.08451290882970897
-      },
-      "cash": 0.22347504876552016,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.4855660019117878,
-          "cap": 0.35,
-          "factor": 0.7208082909881818
-        },
-        {
-          "stage": "국가",
-          "groupId": "COUNTRY_KR",
-          "sumBefore": 0.5379090468537322,
-          "cap": 0.5,
-          "factor": 0.9295251733067795
-        }
-      ],
-      "turnover": 0.20783931924076526,
-      "cost": 2336.924982156523
+      "turnover": 0.18801974145001035,
+      "cost": 2133.0401290981035
     }
   ],
   "control_decisions": [
     {
-      "date": "2023-08-18",
+      "date": "2023-01-06",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.9088235294117646,
-      "cost": 5907.35294117647
+      "turnover": 0.875,
+      "cost": 5687.5
+    },
+    {
+      "date": "2023-02-03",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.029253433625615128,
+      "cost": 199.1963356605758
+    },
+    {
+      "date": "2023-03-03",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.013528454220619409,
+      "cost": 91.85790684173502
+    },
+    {
+      "date": "2023-04-07",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.027192302997231695,
+      "cost": 192.79648254661063
+    },
+    {
+      "date": "2023-05-04",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.004065305518181217,
+      "cost": 28.84455195899323
+    },
+    {
+      "date": "2023-06-02",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.030483783009810646,
+      "cost": 221.45675658022483
+    },
+    {
+      "date": "2023-07-07",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.021454867694489347,
+      "cost": 156.75561611963826
+    },
+    {
+      "date": "2023-08-04",
+      "signals": {
+        "133690": 0,
+        "273130": 0,
+        "357870": 0,
+        "360750": 0,
+        "411060": 0,
+        "069500": 0,
+        "091160": 0
+      },
+      "mapped": {
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
+      },
+      "target": {
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
+      },
+      "cash": 0.125,
+      "capApplications": [
+        {
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
+        }
+      ],
+      "turnover": 0.013675704242473876,
+      "cost": 101.80332119691508
     },
     {
       "date": "2023-09-01",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.010010408967139221,
-      "cost": 66.1138636478607
+      "turnover": 0.004526312453320603,
+      "cost": 33.8169839113817
     },
     {
       "date": "2023-10-06",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.01728497709027382,
-      "cost": 110.89422709449954
+      "turnover": 0.014468967315268708,
+      "cost": 105.32434974933791
     },
     {
       "date": "2023-11-03",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.014858697000221214,
-      "cost": 96.17597151231197
+      "turnover": 0.009054562308409486,
+      "cost": 66.17601113996642
     },
     {
       "date": "2023-12-01",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.016744188410361297,
-      "cost": 112.04333158385607
+      "turnover": 0.016564440215357128,
+      "cost": 125.04424984921222
     },
     {
       "date": "2024-01-05",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.01124154537602832,
-      "cost": 76.70702430287207
+      "turnover": 0.009855547267592458,
+      "cost": 76.04200091975822
     },
     {
       "date": "2024-02-02",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.026710623677730437,
-      "cost": 186.7634733217751
+      "turnover": 0.02326999051996084,
+      "cost": 183.87625091686496
     },
     {
       "date": "2024-03-08",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.02060692218023681,
-      "cost": 148.21914609550183
+      "turnover": 0.01789167908535586,
+      "cost": 145.21395633873829
     },
     {
       "date": "2024-04-05",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.017007766638421278,
-      "cost": 124.65060989431913
+      "turnover": 0.018323766369866313,
+      "cost": 151.9453151549966
     },
     {
       "date": "2024-05-03",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.007500166296894608,
-      "cost": 54.56973332608308
+      "turnover": 0.008002615390763496,
+      "cost": 65.90143915055803
     },
     {
       "date": "2024-06-07",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.022320422555481025,
-      "cost": 167.84210185911658
+      "turnover": 0.020441011207744376,
+      "cost": 173.5343844474379
     },
     {
       "date": "2024-07-05",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.023970123925113964,
-      "cost": 185.53954481666483
+      "turnover": 0.022597597189692984,
+      "cost": 197.99317080992424
     },
     {
       "date": "2024-08-02",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.04279689376466293,
-      "cost": 321.6035436782875
+      "turnover": 0.041025567321727054,
+      "cost": 348.6519004345529
     },
     {
       "date": "2024-09-06",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.020979950862963316,
-      "cost": 155.09110179273375
+      "turnover": 0.020464367563070383,
+      "cost": 170.24081019076928
     },
     {
       "date": "2024-10-04",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.0213693494702463,
-      "cost": 162.02209535073018
+      "turnover": 0.02060375397426558,
+      "cost": 175.26401569226397
     },
     {
       "date": "2024-11-01",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.01816480542592934,
-      "cost": 139.66005826249335
+      "turnover": 0.022714743195222906,
+      "cost": 196.4129369984371
     },
     {
       "date": "2024-12-06",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.047504562455630554,
-      "cost": 373.50993755136466
+      "turnover": 0.045372271643822994,
+      "cost": 399.7341784311632
     },
     {
       "date": "2025-01-03",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.011409797706294212,
-      "cost": 90.59864635673682
+      "turnover": 0.013929007242794951,
+      "cost": 124.29685517389098
     },
     {
       "date": "2025-02-07",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.015139356051944691,
-      "cost": 122.73463431574976
+      "turnover": 0.01943384612711739,
+      "cost": 177.76971658620155
     },
     {
       "date": "2025-03-07",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.03140249813631349,
-      "cost": 249.60518665767728
+      "turnover": 0.030264883603938218,
+      "cost": 271.3628862708187
     },
     {
       "date": "2025-04-04",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.03831308271718403,
-      "cost": 297.19895425790753
+      "turnover": 0.03160831928761432,
+      "cost": 276.1590470584601
     },
     {
       "date": "2025-05-02",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.01399384998358665,
-      "cost": 110.84650186168369
+      "turnover": 0.011987642371341225,
+      "cost": 106.81415733015241
     },
     {
       "date": "2025-06-05",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.028095584207779033,
-      "cost": 228.9546294692164
+      "turnover": 0.03393086894762023,
+      "cost": 311.62130631736306
     },
     {
       "date": "2025-07-04",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.029203129482860024,
-      "cost": 245.60726480392367
+      "turnover": 0.02921557663944595,
+      "cost": 277.99390654040144
     },
     {
       "date": "2025-08-01",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.01880957023729881,
-      "cost": 160.25828722865015
+      "turnover": 0.014643259049341476,
+      "cost": 141.50998941813452
     },
     {
       "date": "2025-09-05",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.015038987655666426,
-      "cost": 130.77712029411418
+      "turnover": 0.013523473428436053,
+      "cost": 133.3151743431312
     },
     {
       "date": "2025-10-02",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.043274646339652556,
-      "cost": 395.556401302213
+      "turnover": 0.0517905362513132,
+      "cost": 541.9381736529252
     },
     {
       "date": "2025-11-07",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.03449427779744232,
-      "cost": 326.5552020598199
+      "turnover": 0.03518097220720951,
+      "cost": 383.54907584759246
     },
     {
       "date": "2025-12-05",
       "signals": {
-        "132030": 0,
         "133690": 0,
         "273130": 0,
+        "357870": 0,
         "360750": 0,
-        "459580": 0,
+        "411060": 0,
         "069500": 0,
         "091160": 0
       },
       "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.2,
+        "357870": 0.15000000000000002,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.17500000000000002,
+        "091160": 0.05
       },
       "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
+        "133690": 0.12500000000000003,
+        "273130": 0.17391304347826086,
+        "357870": 0.13043478260869565,
+        "360750": 0.17500000000000002,
+        "411060": 0.07500000000000001,
+        "069500": 0.15217391304347824,
+        "091160": 0.043478260869565216
       },
-      "cash": 0.0911764705882353,
+      "cash": 0.125,
       "capApplications": [
         {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
+          "stage": "국가",
+          "groupId": "COUNTRY_KR",
+          "sumBefore": 0.5750000000000001,
+          "cap": 0.5,
+          "factor": 0.8695652173913042
         }
       ],
-      "turnover": 0.0168694083351801,
-      "cost": 162.36956966761804
-    },
-    {
-      "date": "2026-01-02",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.027842502932269326,
-      "cost": 270.98205201183185
-    },
-    {
-      "date": "2026-02-06",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.06034890560733318,
-      "cost": 608.8798977083956
-    },
-    {
-      "date": "2026-03-06",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.03211778040571455,
-      "cost": 334.8708894102808
-    },
-    {
-      "date": "2026-04-03",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.01904450419967591,
-      "cost": 193.91295762912503
-    },
-    {
-      "date": "2026-05-08",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.10013702295942808,
-      "cost": 1131.1196345560359
-    },
-    {
-      "date": "2026-06-05",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.05039377502416789,
-      "cost": 589.731492956324
-    },
-    {
-      "date": "2026-07-03",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.011709707998486337,
-      "cost": 135.72633100348287
-    },
-    {
-      "date": "2026-08-07",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.06611577236755975,
-      "cost": 722.4941683650454
-    },
-    {
-      "date": "2026-09-04",
-      "signals": {
-        "132030": 0,
-        "133690": 0,
-        "273130": 0,
-        "360750": 0,
-        "459580": 0,
-        "069500": 0,
-        "091160": 0
-      },
-      "mapped": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.2235294117647059,
-        "360750": 0.19558823529411762,
-        "459580": 0.1676470588235294,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "target": {
-        "132030": 0.0838235294117647,
-        "133690": 0.13970588235294118,
-        "273130": 0.19999999999999998,
-        "360750": 0.19558823529411762,
-        "459580": 0.14999999999999997,
-        "069500": 0.08382352941176471,
-        "091160": 0.05588235294117647
-      },
-      "cash": 0.0911764705882353,
-      "capApplications": [
-        {
-          "stage": "자산군",
-          "groupId": "BOND",
-          "sumBefore": 0.3911764705882353,
-          "cap": 0.35,
-          "factor": 0.894736842105263
-        }
-      ],
-      "turnover": 0.03391443482741503,
-      "cost": 372.2210902215455
+      "turnover": 0.014764766376750806,
+      "cost": 163.56103937274628
     }
   ]
 }

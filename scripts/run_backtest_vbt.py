@@ -2,7 +2,7 @@
 
 실행
   python scripts/run_backtest_vbt.py              # 돌리고 TS 와 비교
-  python scripts/run_backtest_vbt.py --write      # data/backtest-result-py.json 도 저장
+  python scripts/run_backtest_vbt.py --write      # frontend/data/backtest-result-py.json 도 저장
   RISK_LEVEL=3 python scripts/run_backtest_vbt.py # 성향 변경
 
 두 구현이 일치하는지 보는 것이 이 스크립트의 요점이다. 서로 다른 언어와
@@ -25,7 +25,11 @@ from app.backtest.policy import HARDCAP, caps_for, profile_for  # noqa: E402
 from app.backtest.runner import monthly_first, run, run_buy_and_hold, weekly_dates  # noqa: E402
 
 # 데이터는 화면이 번들해야 해서 frontend/data 에 있다.
-DATA = ROOT / "frontend" / "data"
+# 입력은 저장소 루트 data/ (정본), 대조 대상인 TS 결과는 frontend/data/ 에 있다.
+# TS 러너(frontend/scripts/run-backtest.ts)와 같은 입력·같은 출력 위치를 써야
+# 두 러너 대조가 성립한다.
+SRC = ROOT / "data"
+OUT = ROOT / "frontend" / "data"
 MARKET_TICKER = "069500"
 INITIAL = 10_000_000
 
@@ -36,17 +40,21 @@ SPEC_UNIVERSE = [
     ("360750", 0.05, 0.30),
     ("133690", 0.00, 0.25),
     ("273130", 0.10, 0.40),
-    ("459580", 0.00, 0.30),
-    ("132030", 0.00, 0.15),
+    ("357870", 0.00, 0.30),  # TIGER CD금리투자KIS — 459580 대체
+    ("411060", 0.00, 0.15),  # ACE KRX금현물 — 132030 대체
 ]
+
+# TS 러너의 PERIOD_START 와 같아야 한다. 데이터는 2022-06 부터지만 그 앞은
+# 지표 워밍업으로만 쓰고 평가에 넣지 않는다 (데모 계획 1.4: 2023-01-01~2025-12-31).
+PERIOD_START = "2023-01-01"
 
 
 def main() -> int:
     risk_level = int(os.environ.get("RISK_LEVEL", 4))
     profile = profile_for(risk_level)
 
-    uni = pd.read_csv(DATA / "universe.csv", dtype={"ticker": str}).set_index("ticker")
-    prices = pd.read_csv(DATA / "prices.csv", dtype={"ticker": str}, parse_dates=["date"])
+    uni = pd.read_csv(SRC / "universe.csv", dtype={"ticker": str}).set_index("ticker")
+    prices = pd.read_csv(SRC / "prices.csv", dtype={"ticker": str}, parse_dates=["date"])
     wide = prices.pivot(index="date", columns="ticker", values="close").ffill()
     wide.index = wide.index.strftime("%Y-%m-%d")
 
@@ -69,7 +77,7 @@ def main() -> int:
             }
         )
 
-    all_dates = wide[MARKET_TICKER].dropna().index.tolist()
+    all_dates = [d for d in wide[MARKET_TICKER].dropna().index.tolist() if d >= PERIOD_START]
     weekly = weekly_dates(all_dates)
     rebalance = monthly_first(weekly)
 
@@ -102,18 +110,26 @@ def main() -> int:
     print(f"그룹캡 적용 {caps_hit}회 / 리밸런싱 {len(strategy['decisions'])}회")
 
     # --- TS 결과와 대조 ---
-    ts_path = DATA / "backtest-result.json"
+    ts_path = OUT / "backtest-result.json"
     if ts_path.exists():
         ts = json.loads(ts_path.read_text(encoding="utf-8"))
         if ts["profile"]["risk_level"] != risk_level:
             print(f"\n(TS 결과는 risk_level {ts['profile']['risk_level']} 이라 대조 생략)")
         else:
+            # 대조하는 것은 전략이 아니라 대조군이다.
+            #
+            # 신호 경로가 M3 bridge 로 바뀐 뒤로 두 러너는 서로 다른 신호를 쓴다 —
+            # 파이썬은 BacktestJudge(3관점), TS 는 자체 모멘텀·RSI 다. 그래서 전략끼리
+            # 비교하면 어긋나는 것이 정상이고, 그 차이는 버그가 아니라 신호 차이다.
+            # 검증하려는 것은 비중 매핑·정규화·클램프·그룹캡 파이프라인이 두 언어에서
+            # 같은가이고, 그건 신호가 개입하지 않는 대조군으로 봐야 한다.
+            # (같은 이유로 backend/tests/test_backtest_parity.py 도 대조군을 쓴다.)
             cmp = pd.DataFrame(
                 {
-                    "python": [p["equity"] for p in strategy["series"]],
-                    "typescript": [p["strategy"] for p in ts["series"]],
+                    "python": [p["equity"] for p in control["series"]],
+                    "typescript": [p["control"] for p in ts["series"]],
                 },
-                index=[p["date"] for p in strategy["series"]],
+                index=[p["date"] for p in control["series"]],
             )
             cmp["차이%"] = (cmp["python"] - cmp["typescript"]) / cmp["typescript"] * 100
             print("\n=== TS 러너와 대조 ===")
@@ -124,12 +140,12 @@ def main() -> int:
 
             # 목표 비중도 대조한다. 평가액보다 이쪽이 더 엄격한 검증이다.
             diffs = []
-            for pd_, td in zip(strategy["decisions"], ts["decisions"]):
+            for pd_, td in zip(control["decisions"], ts["control_decisions"]):
                 assert pd_["date"] == td["date"], f"리밸런싱 일정 불일치: {pd_['date']} vs {td['date']}"
                 diffs.append(max(abs(pd_["target"][t] - td["target"][t]) for t in pd_["target"]))
             print(f"목표 비중 최대 괴리 {max(diffs) * 100:.6f}%p   (리밸런싱 {len(diffs)}회 전부 비교)")
-            cmp.to_csv(DATA / "py-vs-ts.csv", encoding="utf-8")
-            print("저장: data/py-vs-ts.csv")
+            cmp.to_csv(OUT / "py-vs-ts.csv", encoding="utf-8")
+            print("저장: frontend/data/py-vs-ts.csv")
 
     if "--write" in sys.argv:
         out = {
@@ -156,10 +172,10 @@ def main() -> int:
             "decisions": strategy["decisions"],
             "control_decisions": control["decisions"],
         }
-        (DATA / "backtest-result-py.json").write_text(
+        (OUT / "backtest-result-py.json").write_text(
             json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        print("저장: data/backtest-result-py.json")
+        print("저장: frontend/data/backtest-result-py.json")
 
     return 0
 
