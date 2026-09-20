@@ -24,7 +24,6 @@ sys.path.insert(0, str(ROOT / "backend"))
 from app.backtest.policy import HARDCAP, caps_for, profile_for  # noqa: E402
 from app.backtest.runner import monthly_first, run, run_buy_and_hold, weekly_dates  # noqa: E402
 
-# 데이터는 화면이 번들해야 해서 frontend/data 에 있다.
 # 입력은 저장소 루트 data/ (정본), 대조 대상인 TS 결과는 frontend/data/ 에 있다.
 # TS 러너(frontend/scripts/run-backtest.ts)와 같은 입력·같은 출력 위치를 써야
 # 두 러너 대조가 성립한다.
