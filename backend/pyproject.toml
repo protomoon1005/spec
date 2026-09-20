@@ -51,6 +51,10 @@ ml = [
     "lightgbm",
     "shap",
     "scikit-learn",
+    # M3 적재 스크립트(ingest_prices.py 등)가 쓴다. backtest extra 에도 있지만 그쪽은
+    # vectorbt·plotly 를 함께 끌고 온다(.[dev,ml] 1.32GB -> .[dev,ml,backtest] 1.55GB,
+    # 실측 +230MB). 판단 계층만 필요한 환경에서 그걸 받지 않으려고 여기에도 선언한다.
+    "finance-datareader",
 ]
 
 [tool.pytest.ini_options]
