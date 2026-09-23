@@ -145,17 +145,16 @@ docker compose exec -T postgres psql -U spec -d spec < news_backup.sql
 
 ### 1. 계정 만들기
 
-`POST /auth/signup` 에 이메일과 비밀번호를 넣는다.
+`POST /auth/signup` 에 username 하나만 넣는다. 형식 제한 없음, 비밀번호 없음.
 
 ```json
-{ "email": "m1@test.local", "password": "test1234" }
+{ "username": "m1" }
 ```
 
 - 응답의 `access_token` 을 복사해 **`Authorize`** 에 붙여넣으면 끝. 따로 로그인할 필요 없음
-- 비밀번호는 **최소 8자, UTF-8 72바이트까지**(한글 24자). 이메일 인증은 안 함
-- 같은 이메일로 또 가입하면 409
-- 시드 계정(`system@spec.internal`)으로는 **로그인할 수 없음** — 비밀번호가 해시가 아님
-- 이미 만든 계정은 `POST /auth/login` 으로 토큰을 다시 받는다
+- 같은 username 으로 또 가입하면 409 (DB 컬럼은 여전히 `users.email`)
+- 이미 만든 계정은 `POST /auth/login` 에 같은 `{ "username": ... }` 로 토큰을 다시 받는다
+- dev_seed 계정은 `retail@test.local` 같은 이름 그대로 로그인하면 된다
 - 만료가 짧으면 `.env` 의 `JWT_ACCESS_TTL_MINUTES` 를 올릴 것 (예: `43200` = 30일)
   - **값 뒤에 주석을 달지 말 것.** 주석은 줄 위에
 

@@ -10,39 +10,31 @@
 from __future__ import annotations
 
 
-def _login(client, email: str, password: str) -> dict:
-    resp = client.post("/auth/login", json={"email": email, "password": password})
+def _login(client, username: str) -> dict:
+    resp = client.post("/auth/login", json={"username": username})
     assert resp.status_code == 200, resp.text
     return resp.json()
 
 
-def test_login_rejects_wrong_password(client, make_user, test_password):
-    email, _ = make_user("retail")
-
-    resp = client.post("/auth/login", json={"email": email, "password": "wrong-password"})
+def test_login_rejects_unknown_username(client):
+    resp = client.post("/auth/login", json={"username": "nobody-that-does-not-exist"})
 
     assert resp.status_code == 401
 
 
-def test_login_rejects_unknown_email(client):
-    resp = client.post("/auth/login", json={"email": "nobody@example.com", "password": "x"})
-
-    assert resp.status_code == 401
-
-
-def test_login_issues_access_and_refresh_tokens(client, make_user, test_password):
+def test_login_issues_access_and_refresh_tokens(client, make_user):
     email, _ = make_user("retail")
 
-    tokens = _login(client, email, test_password)
+    tokens = _login(client, email)
 
     assert tokens["token_type"] == "bearer"
     assert tokens["access_token"]
     assert tokens["refresh_token"]
 
 
-def test_refresh_issues_new_access_token(client, make_user, test_password):
+def test_refresh_issues_new_access_token(client, make_user):
     email, _ = make_user("retail")
-    tokens = _login(client, email, test_password)
+    tokens = _login(client, email)
 
     resp = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
 
@@ -50,10 +42,10 @@ def test_refresh_issues_new_access_token(client, make_user, test_password):
     assert resp.json()["access_token"]
 
 
-def test_refresh_rejects_access_token(client, make_user, test_password):
+def test_refresh_rejects_access_token(client, make_user):
     """refresh 엔드포인트에 access 토큰을 넣으면 거부되어야 한다 (type 혼용 방지)."""
     email, _ = make_user("retail")
-    tokens = _login(client, email, test_password)
+    tokens = _login(client, email)
 
     resp = client.post("/auth/refresh", json={"refresh_token": tokens["access_token"]})
 
@@ -72,11 +64,11 @@ def test_protected_endpoint_with_garbage_token_is_401(client):
     assert resp.status_code == 401
 
 
-def test_any_authenticated_role_reaches_stub_body(client, make_user, test_password):
+def test_any_authenticated_role_reaches_stub_body(client, make_user):
     """retail/pro/admin 모두 spec 라우터를 통과해 501(미구현)까지 도달해야 한다."""
     for role in ("retail", "pro", "admin"):
         email, _ = make_user(role)
-        tokens = _login(client, email, test_password)
+        tokens = _login(client, email)
 
         resp = client.get(
             "/specs/spec-does-not-exist",
@@ -86,9 +78,9 @@ def test_any_authenticated_role_reaches_stub_body(client, make_user, test_passwo
         assert resp.status_code == 501, f"role={role} 는 spec 라우터를 통과해야 한다"
 
 
-def test_admin_router_rejects_retail_role(client, make_user, test_password):
+def test_admin_router_rejects_retail_role(client, make_user):
     email, _ = make_user("retail")
-    tokens = _login(client, email, test_password)
+    tokens = _login(client, email)
 
     resp = client.get(
         "/admin/hardcap-versions",
@@ -98,9 +90,9 @@ def test_admin_router_rejects_retail_role(client, make_user, test_password):
     assert resp.status_code == 403
 
 
-def test_admin_router_accepts_admin_role(client, make_user, test_password):
+def test_admin_router_accepts_admin_role(client, make_user):
     email, _ = make_user("admin")
-    tokens = _login(client, email, test_password)
+    tokens = _login(client, email)
 
     resp = client.get(
         "/admin/hardcap-versions",
@@ -111,71 +103,58 @@ def test_admin_router_accepts_admin_role(client, make_user, test_password):
 
 
 # --- 회원가입 -------------------------------------------------------------
-# 계정을 만드는 경로가 없어서 한동안 DB 에 직접 INSERT 해야 했다. 여기서 보는 것은
-# "만들어진 계정이 곧바로 쓸 수 있는가" 와 "권한을 요청으로 고를 수 없는가" 둘이다.
+# 입력은 형식 제한 없는 username 하나. 보는 것은 "곧바로 쓸 수 있는가",
+# "중복을 막는가", "권한을 요청으로 고를 수 없는가" 셋이다.
 
 
-def _signup_email() -> str:
+def _signup_name() -> str:
     import uuid
 
-    return f"signup-test-{uuid.uuid4().hex[:8]}@example.com"
+    # 이메일 형식이 아니어도 된다는 것까지 같이 확인한다.
+    return f"아무 이름 {uuid.uuid4().hex[:8]}"
 
 
-def _cleanup(engine, email: str) -> None:
+def _cleanup(engine, username: str) -> None:
     from sqlalchemy import text
 
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM users WHERE email = :email"), {"email": email})
+        conn.execute(text("DELETE FROM users WHERE email = :u"), {"u": username})
 
 
 def test_signup_creates_usable_account(client, engine):
-    email = _signup_email()
+    name = _signup_name()
     try:
-        resp = client.post("/auth/signup", json={"email": email, "password": "test1234"})
+        resp = client.post("/auth/signup", json={"username": name})
 
         assert resp.status_code == 201, resp.text
-        assert resp.json()["access_token"]
-
-        # 발급받은 토큰이 실제로 인증을 통과한다.
-        # 갓 가입한 계정이라 확정된 성향이 없으므로 404 다 — 401/403 이 아니라는 것이
-        # 여기서 보려는 것이다(인증·인가는 지나갔다는 뜻).
+        # 갓 가입한 계정이라 확정된 성향이 없으므로 404 — 401/403 이 아니면 인증은 지나갔다.
         token = resp.json()["access_token"]
         me = client.get("/profile/me", headers={"Authorization": f"Bearer {token}"})
         assert me.status_code == 404
 
-        # 같은 자격으로 로그인도 된다 — 해시가 제대로 저장됐다는 뜻이다.
-        assert _login(client, email, "test1234")["access_token"]
+        assert _login(client, f"  {name}  ")["access_token"]
     finally:
-        _cleanup(engine, email)
+        _cleanup(engine, name)
 
 
-def test_signup_rejects_duplicate_email(client, engine):
-    email = _signup_email()
+def test_signup_rejects_duplicate_username(client, engine):
+    name = _signup_name()
     try:
-        first = client.post("/auth/signup", json={"email": email, "password": "test1234"})
-        assert first.status_code == 201
-
-        second = client.post("/auth/signup", json={"email": email, "password": "another12"})
-
-        assert second.status_code == 409
+        assert client.post("/auth/signup", json={"username": name}).status_code == 201
+        assert client.post("/auth/signup", json={"username": name}).status_code == 409
     finally:
-        _cleanup(engine, email)
+        _cleanup(engine, name)
 
 
-def test_signup_rejects_short_password(client):
-    resp = client.post("/auth/signup", json={"email": _signup_email(), "password": "short"})
-
-    assert resp.status_code == 422
+def test_signup_rejects_blank_username(client):
+    assert client.post("/auth/signup", json={"username": "   "}).status_code == 422
 
 
 def test_signup_ignores_requested_role(client, engine):
     """요청에 role 을 실어도 무시하고 retail 로 만든다 — 아무나 관리자가 되면 안 된다."""
-    email = _signup_email()
+    name = _signup_name()
     try:
-        resp = client.post(
-            "/auth/signup",
-            json={"email": email, "password": "test1234", "role": "admin"},
-        )
+        resp = client.post("/auth/signup", json={"username": name, "role": "admin"})
         assert resp.status_code == 201
 
         token = resp.json()["access_token"]
@@ -184,39 +163,4 @@ def test_signup_ignores_requested_role(client, engine):
         )
         assert forbidden.status_code == 403
     finally:
-        _cleanup(engine, email)
-
-
-def test_signup_rejects_password_over_bcrypt_limit(client):
-    """bcrypt 는 72바이트까지만 해싱한다. 넘기면 ValueError 가 나서 500 으로 죽었었다.
-
-    **글자 수가 아니라 바이트로 세야 한다** — 한글은 한 글자가 3바이트다.
-    """
-    long_ascii = client.post(
-        "/auth/signup", json={"email": _signup_email(), "password": "a" * 80}
-    )
-    long_korean = client.post(
-        "/auth/signup", json={"email": _signup_email(), "password": "가" * 25}
-    )
-
-    assert long_ascii.status_code == 422
-    assert long_korean.status_code == 422
-
-
-def test_email_is_normalized_on_signup_and_login(client, engine):
-    """이메일 UNIQUE 는 대소문자를 구분한다. 정규화하지 않으면 같은 주소로 두 계정이
-    생기고, 가입 때 섞인 공백 때문에 로그인이 401 이 나기도 한다."""
-    base = _signup_email()
-    try:
-        created = client.post(
-            "/auth/signup", json={"email": f"  {base.upper()}  ", "password": "test1234"}
-        )
-        assert created.status_code == 201
-
-        # 소문자·공백 없는 형태로 로그인된다.
-        assert _login(client, base, "test1234")["access_token"]
-        # 대소문자만 다른 주소로 다시 가입할 수 없다.
-        again = client.post("/auth/signup", json={"email": base.upper(), "password": "test1234"})
-        assert again.status_code == 409
-    finally:
-        _cleanup(engine, base)
+        _cleanup(engine, name)

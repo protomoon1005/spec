@@ -21,7 +21,6 @@ import pytest
 from sqlalchemy import text
 
 from app.core.db import get_engine
-from app.core.security import hash_password
 
 
 @pytest.fixture(scope="session")
@@ -30,12 +29,7 @@ def engine():
 
 
 @pytest.fixture
-def test_password() -> str:
-    return "correct horse battery staple"
-
-
-@pytest.fixture
-def make_user(engine, test_password):
+def make_user(engine):
     """(role) -> (email, user_id) 를 만드는 팩토리. 테스트 후 정리한다."""
     created_ids: list[int] = []
 
@@ -46,9 +40,9 @@ def make_user(engine, test_password):
             user_id = conn.execute(
                 text(
                     "INSERT INTO users (email, password_hash, role) "
-                    "VALUES (:email, :password_hash, :role) RETURNING user_id"
+                    "VALUES (:email, '', :role) RETURNING user_id"
                 ),
-                {"email": email, "password_hash": hash_password(test_password), "role": role},
+                {"email": email, "role": role},
             ).scalar_one()
         created_ids.append(user_id)
         return email, user_id
