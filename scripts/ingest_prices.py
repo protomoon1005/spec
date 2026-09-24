@@ -53,14 +53,14 @@ def load_universe(path: Path) -> list[str]:
 
 def load_prices(path: Path, *, start: date | None, end: date) -> tuple[dict[str, list[dict]], set[str]]:
     by_ticker: dict[str, list[dict]] = defaultdict(list)
-    present: set[str] = set()
 
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
-        missing = [column for column in _REQUIRED if column not in (reader.fieldnames or ())]
+        fieldnames = reader.fieldnames or ()
+        missing = [column for column in _REQUIRED if column not in fieldnames]
         if missing:
             raise SystemExit(f"[ingest_prices] {path} 에 필요한 컬럼이 없다: {missing}")
-        present = {column for column in _OPTIONAL if column in (reader.fieldnames or ())}
+        present = {column for column in _OPTIONAL if column in fieldnames}
 
         for row in reader:
             trade_date = date.fromisoformat(row["date"])

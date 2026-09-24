@@ -28,23 +28,21 @@ FX_GAP_WINDOW = 60
 VOLATILITY_CODE = "VIX_CLOSE"
 
 
+def _gap_to_average(window: list[tuple[date, float]]) -> float | None:
+    """마지막 값의 창 평균 대비 이격도. 창이 덜 찼거나 평균이 0 이하면 None."""
+    if len(window) != FX_GAP_WINDOW:
+        return None
+    values = [value for _, value in window]
+    average = sum(values) / len(values)
+    if average > 0:
+        return values[-1] / average - 1.0
+    return None
+
+
 def build_indicators(as_of: date, *, trend_index: str) -> dict[str, float | None]:
     """그 시점에 볼 수 있는 지표만 모은다. 없는 것은 None 으로 둔다."""
-    fx_window = get_macro_window(FX_CODE, as_of=as_of, lookback_days=FX_GAP_WINDOW)
-    fx_gap = None
-    if len(fx_window) == FX_GAP_WINDOW:
-        values = [value for _, value in fx_window]
-        average = sum(values) / len(values)
-        if average > 0:
-            fx_gap = values[-1] / average - 1.0
-
-    trend_window = get_macro_window(trend_index, as_of=as_of, lookback_days=FX_GAP_WINDOW)
-    trend_gap = None
-    if len(trend_window) == FX_GAP_WINDOW:
-        values = [value for _, value in trend_window]
-        average = sum(values) / len(values)
-        if average > 0:
-            trend_gap = values[-1] / average - 1.0
+    fx_gap = _gap_to_average(get_macro_window(FX_CODE, as_of=as_of, lookback_days=FX_GAP_WINDOW))
+    trend_gap = _gap_to_average(get_macro_window(trend_index, as_of=as_of, lookback_days=FX_GAP_WINDOW))
 
     return {
         VOLATILITY_CODE: get_macro(VOLATILITY_CODE, as_of=as_of),

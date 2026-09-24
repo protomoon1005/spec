@@ -77,7 +77,7 @@ def apply_floor(weights: Mapping[str, float], *, floor: float = WEIGHT_FLOOR) ->
             f"하한 {floor} × 관점 {len(names)}개 = {floor * len(names)} 라 합 1을 만족할 수 없다"
         )
 
-    negative = sorted(name for name in names if weights[name] < 0)
+    negative = [name for name in names if weights[name] < 0]
     if negative:
         raise ValueError(f"음수 가중치: {negative}")
 
@@ -103,9 +103,7 @@ def apply_floor(weights: Mapping[str, float], *, floor: float = WEIGHT_FLOOR) ->
 
         newly = [name for name in free if scaled[name] < floor - WEIGHT_SUM_TOLERANCE]
         if not newly:
-            result = {name: floor for name in pinned}
-            result.update(scaled)
-            return {name: result[name] for name in names}
+            return {name: floor if name in pinned else scaled[name] for name in names}
         pinned.update(newly)
 
 

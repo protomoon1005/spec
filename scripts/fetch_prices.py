@@ -73,8 +73,9 @@ def main() -> int:
                 }
             )
         )
-        first_dates[ticker] = bars.index[0].date().isoformat()
-        print(f"[fetch_prices] {ticker} {bars.index[0].date()} ~ {bars.index[-1].date()} {len(bars)}행")
+        first, last = bars.index[0].date(), bars.index[-1].date()
+        first_dates[ticker] = first.isoformat()
+        print(f"[fetch_prices] {ticker} {first} ~ {last} {len(bars)}행")
 
     if failed:
         print(f"[fetch_prices] {len(failed)}종목 실패 — prices.csv 를 쓰지 않았다: {failed}", file=sys.stderr)
