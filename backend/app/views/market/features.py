@@ -159,14 +159,12 @@ def _as_bars(prices) -> list[PriceBar]:
 
 
 def _rows_from_dataframe(frame) -> list[dict]:
-    records = frame.to_dict("records")
+    # 인덱스와 행 길이 대조(strict=True)는 trade_date 컬럼이 있어도 한다 — 잘못된 입력을 잡는 안전장치다.
+    pairs = zip(frame.index, frame.to_dict("records"), strict=True)
     if "trade_date" in list(frame.columns):
-        return records
+        return [row for _, row in pairs]
     # 거래일이 컬럼이 아니면 인덱스에 있다고 본다.
-    return [
-        {**row, "trade_date": index_value}
-        for index_value, row in zip(frame.index, records, strict=True)
-    ]
+    return [{**row, "trade_date": index_value} for index_value, row in pairs]
 
 
 def _bar_from_mapping(row: Mapping) -> PriceBar:
