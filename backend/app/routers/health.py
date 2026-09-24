@@ -47,8 +47,13 @@ def _check_llm_backend() -> str:
         return "down"
 
 
-@router.get("/health")
+@router.get("/health", summary="서비스 상태 확인")
 def health() -> dict:
+    """서버가 기대는 네 가지가 잘 붙어 있는지 본다.
+
+    데이터베이스 · 캐시(Redis) · 파일저장소(MinIO) · AI 모델 서버 — 각각 `ok` 또는 `down` 으로 나온다.
+    로그인 없이 부를 수 있는 유일한 주소다. 뭔가 안 될 때 여기부터 본다.
+    """
     return {
         "status": "ok",
         "database": _check_database(),

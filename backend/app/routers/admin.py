@@ -26,11 +26,30 @@ class HardcapVersionResponse(BaseModel):
     activated_at: datetime | None
 
 
-@router.get("/hardcap-versions", response_model=list[HardcapVersionResponse])
+@router.get("/hardcap-versions", response_model=list[HardcapVersionResponse],
+            summary="공통 상한선 목록 · 아직 안 만듦 · 관리자만")
 def list_hardcap_versions(user: AuthUser = Depends(require_admin)) -> list[HardcapVersionResponse]:
+    """성향과 상관없이 **모든 전략에 똑같이 걸리는 상한선** 목록이다.
+
+    한 종목에 최대 몇 %까지 담을 수 있는지, 현금은 최소 몇 % 남겨야 하는지,
+    레버리지를 허용할지 같은 것들이 들어 있다.
+
+    성향별 한도(`/profile`)보다 한 겹 더 바깥 울타리다 —
+    성향이 공격적이어도 이 선은 못 넘는다.
+
+    **아직 안 만들었다 (501).** 관리자 계정이 아니면 여기 오기 전에 403 이 난다.
+    """
     raise_not_implemented()
 
 
-@router.post("/hardcap-versions", response_model=HardcapVersionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/hardcap-versions", response_model=HardcapVersionResponse, status_code=status.HTTP_201_CREATED,
+             summary="공통 상한선 새로 만들기 · 아직 안 만듦 · 관리자만")
 def create_hardcap_version(user: AuthUser = Depends(require_admin)) -> HardcapVersionResponse:
+    """상한선을 바꿀 때 기존 값을 고치지 않고 **새 버전을 만든다.**
+
+    이미 만들어 둔 전략이 "그때 어떤 상한선으로 만들어졌는지"를 잃지 않게 하려는 것이다.
+    값을 덮어쓰면 과거 전략의 근거가 사라진다.
+
+    **아직 안 만들었다 (501).** 관리자만.
+    """
     raise_not_implemented()

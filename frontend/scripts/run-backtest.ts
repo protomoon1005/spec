@@ -1,5 +1,10 @@
-// data/prices.csv + data/universe.csv 를 읽어 백테스트를 돌리고
-// data/backtest-result.json 을 쓴다.
+// 저장소 루트 data/ 의 시세·유니버스를 읽어 백테스트를 돌리고
+// frontend/data/backtest-result.json 을 쓴다.
+//
+// 입력이 루트 data/ 인 이유: 그쪽이 정본이다. frontend/data/ 에 있던 옛 수집분은
+// risk_tag 를 2026-09-11 까지의 변동성으로 매겨서, 2023~2025 를 평가하는 백테스트의
+// 등급 상한 판단에 그 뒤 구간 정보가 섞여 있었다 — 시점 무결성 위반이다.
+// 루트 data/ 는 2025-12-31 까지만 쓰고 OHLCV 도 갖고 있다(M3 피처가 쓴다).
 //
 // 실행:  node --experimental-strip-types scripts/run-backtest.ts
 //
@@ -16,11 +21,18 @@ import { join } from "node:path";
 import { runBacktest, runBuyAndHold, type Costs, type Holding, type PriceTable } from "../lib/backtest.ts";
 import { capsFor, HARDCAP, profileFor, type Grade } from "../lib/policy.ts";
 
-const ROOT = join(import.meta.dirname, "..");
-const DATA = join(ROOT, "data");
+const ROOT = join(import.meta.dirname, "..");     // frontend/
+const REPO = join(ROOT, "..");                    // 저장소 루트
+const SRC = join(REPO, "data");                   // 입력 — 정본
+const OUT = join(ROOT, "data");                   // 출력 — 화면이 import 하는 곳
 
 // --- 설정 -------------------------------------------------------------------
 const MARKET_TICKER = "069500"; // KODEX 200
+
+// 성과를 집계하는 구간의 시작. 데이터는 2022-06 부터 있지만 그 앞 구간은 지표
+// 워밍업(모멘텀 20 · RSI 14, M3 피처는 120행)으로만 쓰고 평가에 넣지 않는다.
+// 데모 계획 1.4 의 백테스트 구간이 2023-01-01 ~ 2025-12-31 이다.
+const PERIOD_START = "2023-01-01";
 const INITIAL = 10_000_000;
 const COSTS: Costs = { fee: 0.00015, slippage: 0.0005, tax: 0 };
 
@@ -38,8 +50,9 @@ const SPEC_UNIVERSE: { ticker: string; min: number; max: number }[] = [
   { ticker: "360750", min: 0.05, max: 0.3 }, // TIGER 미국S&P500
   { ticker: "133690", min: 0.0, max: 0.25 }, // TIGER 미국나스닥100
   { ticker: "273130", min: 0.1, max: 0.4 }, // KODEX 종합채권(AA-이상)
-  { ticker: "459580", min: 0.0, max: 0.3 }, // KODEX CD금리액티브
-  { ticker: "132030", min: 0.0, max: 0.15 }, // KODEX 골드선물(H)
+  // 아래 둘은 정본 교체(60종목) 때 옛 종목이 유니버스에서 빠져 대체한 것이다.
+  { ticker: "357870", min: 0.0, max: 0.3 }, // TIGER CD금리투자KIS — 459580 KODEX CD금리 대체
+  { ticker: "411060", min: 0.0, max: 0.15 }, // ACE KRX금현물 — 132030 골드선물 대체(롤코스트 없음)
 ];
 
 // --- CSV 읽기 ---------------------------------------------------------------
@@ -54,8 +67,8 @@ function parseCsv(path: string): Record<string, string>[] {
   });
 }
 
-const universeRows = parseCsv(join(DATA, "universe.csv"));
-const priceRows = parseCsv(join(DATA, "prices.csv"));
+const universeRows = parseCsv(join(SRC, "universe.csv"));
+const priceRows = parseCsv(join(SRC, "prices.csv"));
 
 const byTicker = new Map(universeRows.map((r) => [r.ticker, r]));
 
@@ -90,7 +103,9 @@ for (const spec of SPEC_UNIVERSE) {
 // --- 평가·리밸런싱 일정 ------------------------------------------------------
 // 평가는 주간(각 주의 마지막 거래일), 리밸런싱은 월간(각 달의 첫 평가일).
 const marketBars = prices.get(MARKET_TICKER) ?? [];
-const allDates = marketBars.map((b) => b.date);
+// 평가 시점만 자른다. prices 는 그대로 둔다 — 지표가 PERIOD_START 이전 종가를
+// 되돌아볼 수 있어야 첫 리밸런싱부터 신호가 나온다.
+const allDates = marketBars.map((b) => b.date).filter((d) => d >= PERIOD_START);
 
 /** 각 주의 마지막 거래일 */
 function weeklyDates(dates: string[]): string[] {
@@ -149,7 +164,7 @@ const control = runBacktest({
 
 const market = runBuyAndHold(marketBars, weekly, INITIAL, COSTS);
 
-const meta = JSON.parse(readFileSync(join(DATA, "meta.json"), "utf-8"));
+const meta = JSON.parse(readFileSync(join(SRC, "meta.json"), "utf-8"));
 
 const out = {
   as_of: weekly[weekly.length - 1],
@@ -181,7 +196,7 @@ const out = {
   control_decisions: control.decisions,
 };
 
-writeFileSync(join(DATA, "backtest-result.json"), JSON.stringify(out, null, 2), "utf-8");
+writeFileSync(join(OUT, "backtest-result.json"), JSON.stringify(out, null, 2), "utf-8");
 
 // --- 요약 -------------------------------------------------------------------
 const summary = (s: { date: string; equity: number }[]) => {

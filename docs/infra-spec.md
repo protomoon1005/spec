@@ -280,6 +280,7 @@ Celery 태스크 이름도 미리 박는다: `compile_spec`, `run_backtest`, `da
 - [ ] `docker compose ps` 에서 전 서비스 `healthy`
 - [ ] `GET /health` 200, DB·Redis·MinIO·LLM 백엔드 연결 상태를 각각 보고
 - [ ] `--profile gpu` 와 `--profile cpu` 가 **둘 다** 기동되고, 양쪽에서 동일한 프롬프트로 JSON 응답 1건을 받는다
+- [ ] 빈 볼륨으로 기동 시 `db/init/` 3개가 전부 실행되고 표가 생성됨 (postgres 로그에 `running /docker-entrypoint-initdb.d/02_schema.sql` 이 찍히는지 확인)
 - [ ] `db/migrate` 순번 SQL 적용 + 재적용 멱등성 (`scripts/apply_migrations.py` 두 번 연속 실행 시 두 번째는 아무것도 적용하지 않음)
 - [ ] 시드 적재 후 `ASSET_BOUND_PRESETS` 30행(5×6), `GROUP_CAPS` 상위 15행(3×5) + 하위 10행, `HARDCAP_VERSIONS` 1행 활성
 - [ ] 하이퍼테이블 3종 전환 확인 (`SELECT * FROM timescaledb_information.hypertables`)

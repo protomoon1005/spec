@@ -1,0 +1,54 @@
+{
+  "spec_id": "STR-001",
+  "spec_version": "0.1",
+  "user_id": 1,
+  "name": "월간 동일비중 리밸런싱",
+  "created_at": "2026-08-13T09:00:00+09:00",
+
+  "universe": [
+    {
+      "ticker": "069500",
+      "name": "KODEX 200",
+      "weight_min": 0.10,
+      "weight_max": 0.40
+    },
+    {
+      "ticker": "232080",
+      "name": "TIGER 코스닥150",
+      "weight_min": 0.20,
+      "weight_max": 0.30
+    }
+  ],
+
+  "rebalance": {
+    "trigger": {
+      "type": "calendar",
+      "freq": "monthly",
+      "day": 1
+    },
+    "min_interval_days": 20
+  },
+
+  "signal_rules": {
+    "market_analysis": {
+      "indicators": ["ret_20", "rsi_14", "volume_ratio_20"]
+    },
+    "sentiment": {
+      "target_sectors": ["SECTOR_SEMICONDUCTOR", "SECTOR_BATTERY"],
+      "lookback_hours": 48
+    },
+    "market_temperature": {
+      "trend_index": "KOSPI200",
+      "trend_ma_window": 200,
+      "volatility_index": "VIX_CLOSE"
+    }
+  },
+
+  "constraint": {
+    "max_weight_per_asset": 0.40,
+    "min_weight_per_asset": 0.00,
+    "cash_min": 0.02,
+    "max_loss_per_trade": 0.05,
+    "max_drawdown": 0.20
+  }
+}
