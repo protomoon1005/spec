@@ -156,6 +156,14 @@
   있다는 뜻이다 — Spec JSON 스키마(계약 ①)처럼 전원 합의가 필요한 고정
   계약이 아니다.
 
+- **`scripts/build_universe.py`는 재실행하면 결과가 달라진다.** 종목을 `AS_OF`가
+  아니라 실행하는 날의 순자산으로 뽑기 때문에, 다시 돌릴 때마다 `marcap_eok` 값과
+  행 순서가 바뀌고 순위가 크게 움직이면 선정 종목 자체가 달라질 수 있다.
+  대응 — 선정 방식은 고치지 않고 커밋된 `data/universe.csv`를 고정된 기준본으로
+  쓴다. 평소에는 `fetch_prices.py` → `ingest_prices.py`만 돌린다.
+  한계 — 유니버스를 2026-09 시점 순자산으로 뽑았으므로 백테스트 구간
+  (2023-01~2025-12) 기준으로는 생존편향이 있다.
+
 ## M3 ML 의존성 설치 (판단 계층)
 
 시장분석 관점(LightGBM + scikit-learn isotonic 보정 + SHAP)의 의존성은 `backend/pyproject.toml` 의
