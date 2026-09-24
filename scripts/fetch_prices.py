@@ -17,7 +17,7 @@ build_universe.py 는 종목을 **뽑는** 스크립트다. 그쪽 START 를 당
 
 사용:
     python scripts/fetch_prices.py
-    DATABASE_URL=... python scripts/ingest_prices.py --start 2019-01-02
+    DATABASE_URL=... python scripts/ingest_prices.py
 """
 from __future__ import annotations
 

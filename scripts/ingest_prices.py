@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""build_universe.py 가 만든 CSV 를 price_daily 에 적재한다 (질의 8번 답, 2026-09-19).
+"""fetch_prices.py 가 만든 data/prices.csv 를 price_daily 에 적재한다 (질의 8번 답, 2026-09-19).
 
 ## 왜 FinanceDataReader 를 여기서 다시 부르지 않는가
 
 ingest_index.py · ingest_macro.py 는 외부 API 를 직접 때리므로 분기 청크와
---resume 이 필요했다. 여기는 다르다. **종목 선정과 수집이 build_universe.py 에서
-이미 끝나 있다.** 60종목이 어떤 기준으로 뽑혔는지(3년 커버리지·레버리지 제외·
-순자산 상위)와 risk_tag 산정 근거가 data/meta.json 에 함께 남으므로, 적재가
-같은 수집을 다시 하면 두 산출물이 갈라진다. 그래서 이 스크립트는 CSV 만 읽는다.
+--resume 이 필요했다. 여기는 다르다. **종목 선정은 build_universe.py 에서, 수집은
+fetch_prices.py 에서 이미 끝나 있다.** 60종목이 어떤 기준으로 뽑혔는지는
+data/meta.json 에, 가격을 언제 어느 구간으로 받았는지는 data/prices.meta.json 에
+남으므로, 적재가 같은 수집을 다시 하면 산출물이 갈라진다. 그래서 이 스크립트는 CSV 만 읽는다.
 
-시세를 다시 받으려면 build_universe.py 를 다시 돌린다. 그게 재현 단위다.
+시세를 다시 받으려면 fetch_prices.py 를 다시 돌린다. 그게 재현 단위다.
+--start 를 주지 않으면 prices.csv 전체를 적재한다(2026-09-24).
 
 ## atr_14 · nav 는 채우지 않는다
 
@@ -17,7 +18,8 @@ atr_14 는 app/views/market/features.py 가 계산하는 값이라 DB 에 두면
 두 곳이 된다. nav 는 FinanceDataReader 가 주지 않는다(시장가격만 준다).
 
 사용:
-    python scripts/build_universe.py                       # 먼저 CSV 를 만들고
+    python scripts/build_universe.py                       # 종목 선정
+    python scripts/fetch_prices.py                         # 가격 CSV
     DATABASE_URL=... python scripts/ingest_prices.py       # 그 다음 적재
 """
 from __future__ import annotations
@@ -49,7 +51,7 @@ def load_universe(path: Path) -> list[str]:
         return [row["ticker"] for row in csv.DictReader(handle) if row.get("ticker")]
 
 
-def load_prices(path: Path, *, start: date, end: date) -> tuple[dict[str, list[dict]], set[str]]:
+def load_prices(path: Path, *, start: date | None, end: date) -> tuple[dict[str, list[dict]], set[str]]:
     by_ticker: dict[str, list[dict]] = defaultdict(list)
     present: set[str] = set()
 
@@ -62,7 +64,7 @@ def load_prices(path: Path, *, start: date, end: date) -> tuple[dict[str, list[d
 
         for row in reader:
             trade_date = date.fromisoformat(row["date"])
-            if trade_date < start or trade_date > end:
+            if (start is not None and trade_date < start) or trade_date > end:
                 continue
             bar: dict = {"trade_date": trade_date, "close": _number(row.get("close"))}
             for column in present:
@@ -82,7 +84,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prices", default=str(DEFAULT_PRICES))
     parser.add_argument("--universe", default=str(DEFAULT_UNIVERSE))
-    parser.add_argument("--start", default="2023-01-01")
+    parser.add_argument("--start", default=None, help="생략하면 prices.csv 전체")
     parser.add_argument("--end", default="2025-12-31")
     parser.add_argument("--dry-run", action="store_true", help="적재하지 않고 집계만 보여준다")
     args = parser.parse_args()
@@ -91,11 +93,15 @@ def main() -> int:
     universe_path = Path(args.universe)
     for path in (prices_path, universe_path):
         if not path.exists():
-            raise SystemExit(f"[ingest_prices] {path} 가 없다. 먼저 build_universe.py 를 돌려라")
+            raise SystemExit(
+                f"[ingest_prices] {path} 가 없다. build_universe.py → fetch_prices.py 를 먼저 돌려라"
+            )
 
     tickers = load_universe(universe_path)
     by_ticker, present = load_prices(
-        prices_path, start=date.fromisoformat(args.start), end=date.fromisoformat(args.end)
+        prices_path,
+        start=date.fromisoformat(args.start) if args.start else None,
+        end=date.fromisoformat(args.end),
     )
 
     lacking = sorted(set(_OPTIONAL) - present)
@@ -103,7 +109,7 @@ def main() -> int:
         print(
             f"[ingest_prices] 경고: CSV 에 {lacking} 이 없다. "
             "atr_14_pct(고가·저가) · volume_ratio_20(거래량) 이 영구 결측이 된다. "
-            "build_universe.py 가 OHLCV 를 저장하는지 확인하라.",
+            "fetch_prices.py 가 OHLCV 를 저장하는지 확인하라.",
             file=sys.stderr,
         )
 
