@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
 import os
 import sys
 import urllib.parse
@@ -62,8 +63,6 @@ def fetch_fred_api(indicator: MacroIndicator, *, api_key: str, start: str, end: 
         "observation_start": start,
         "observation_end": end,
     }
-    import json
-
     url = "https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(params)
     payload = json.loads(_get(url))
     for row in payload.get("observations", []):

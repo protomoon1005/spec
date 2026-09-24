@@ -96,11 +96,14 @@ def main() -> int:
 
     total = skipped_quarters = failed_quarters = 0
     for chunk_start, chunk_end in quarters(start, end):
-        if args.resume and get_macro(args.code, as_of=chunk_end + timedelta(days=7)) is not None:
-            # 분기 끝 시점에 이미 값이 보이면 그 분기는 채워져 있다고 본다.
-            if get_macro(args.code, as_of=chunk_start + timedelta(days=7)) is not None:
-                skipped_quarters += 1
-                continue
+        # 분기 끝과 분기 초 시점에 모두 값이 이미 보이면 그 분기는 채워져 있다고 본다.
+        if (
+            args.resume
+            and get_macro(args.code, as_of=chunk_end + timedelta(days=7)) is not None
+            and get_macro(args.code, as_of=chunk_start + timedelta(days=7)) is not None
+        ):
+            skipped_quarters += 1
+            continue
 
         try:
             points = fetch_chunk(indicator.external_id, chunk_start, chunk_end)
