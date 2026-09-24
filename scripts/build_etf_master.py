@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
