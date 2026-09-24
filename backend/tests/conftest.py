@@ -14,8 +14,11 @@ os.environ.setdefault(
 )
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 # 워커 컨테이너 없이(docker compose worker 미기동) 단위 테스트를 돌리기 위해
-# 기본적으로 eager 모드를 켠다 — .delay()가 브로커 없이 그 자리에서 동기 실행된다.
-os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
+# eager 모드를 켠다 — .delay()가 브로커 없이 그 자리에서 동기 실행된다.
+# setdefault 가 아니라 강제로 넣는다. api 컨테이너는 .env 에서 false 를 받아 오므로
+# setdefault 면 무시되고, 테스트가 떠 있는 워커(옛 코드일 수 있다)로 새어 나간다.
+# app 을 import 하기 전(아래)에 둬야 get_settings()·celery_app 이 이 값을 읽는다.
+os.environ["CELERY_TASK_ALWAYS_EAGER"] = "true"
 
 import pytest
 from sqlalchemy import text

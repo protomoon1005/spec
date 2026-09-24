@@ -1,9 +1,9 @@
 {
   "as_of": "2025-12-31",
   "start": "2022-06-01",
+  "start_note": "상장일 필터(start+45일)와 risk_tag 변동성 구간(start~as_of)의 시작. 가격 수집 구간이 아니다 — 그건 prices.meta.json",
   "source": "FinanceDataReader",
   "source_note": "pykrx 는 KRX 로그인(KRX_ID/KRX_PW)을 요구해 사용하지 않았다",
-  "price_field": "OHLCV (시장가격, NAV 아님)",
   "leverage_inverse_excluded": true,
   "risk_tag_method": "3.5y_daily_volatility (2022-06-01~2025-12-31)",
   "risk_tag_bands": {
@@ -15,6 +15,5 @@
     "G6": ">0%"
   },
   "risk_tag_caveat": "경계값은 팀 프로젝트 기준이며 금융투자협회 공시 수치가 아니다",
-  "ticker_count": 60,
-  "price_rows": 52543
+  "ticker_count": 60
 }

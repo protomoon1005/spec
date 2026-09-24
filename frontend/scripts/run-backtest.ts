@@ -29,7 +29,7 @@ const OUT = join(ROOT, "data");                   // 출력 — 화면이 import
 // --- 설정 -------------------------------------------------------------------
 const MARKET_TICKER = "069500"; // KODEX 200
 
-// 성과를 집계하는 구간의 시작. 데이터는 2022-06 부터 있지만 그 앞 구간은 지표
+// 성과를 집계하는 구간의 시작. 데이터는 2019-01 부터(종목별 상장일) 있지만 그 앞 구간은 지표
 // 워밍업(모멘텀 20 · RSI 14, M3 피처는 120행)으로만 쓰고 평가에 넣지 않는다.
 // 데모 계획 1.4 의 백테스트 구간이 2023-01-01 ~ 2025-12-31 이다.
 const PERIOD_START = "2023-01-01";
@@ -165,6 +165,8 @@ const control = runBacktest({
 const market = runBuyAndHold(marketBars, weekly, INITIAL, COSTS);
 
 const meta = JSON.parse(readFileSync(join(SRC, "meta.json"), "utf-8"));
+// 가격 설명(price_field)은 meta.json 이 아니라 fetch_prices.py 가 쓰는 prices.meta.json 에 있다.
+const pricesMeta = JSON.parse(readFileSync(join(SRC, "prices.meta.json"), "utf-8"));
 
 const out = {
   as_of: weekly[weekly.length - 1],
@@ -174,7 +176,7 @@ const out = {
   costs: COSTS,
   hardcap_max_per_asset: HARDCAP.maxWeightPerAsset,
   data_source: meta.source,
-  price_field: meta.price_field,
+  price_field: pricesMeta.price_field,
   universe: holdings.map((h) => ({
     ticker: h.ticker,
     name: byTicker.get(h.ticker)?.name ?? h.ticker,

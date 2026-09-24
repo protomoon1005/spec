@@ -28,6 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 docker compose up -d --build                # 전 스택 기동
 docker compose exec api ruff check .        # lint
+docker compose exec api ruff check /repo/scripts --config /app/pyproject.toml   # scripts/ lint (위 명령 범위 밖)
 docker compose exec api pytest -m "not requires_ollama and not requires_ml and not requires_backfill and not requires_backtest" -q  # 테스트
 docker compose exec api pytest tests/test_hedge.py::test_confirmed_constants -q                           # 단일 테스트
 docker compose exec api python /repo/scripts/check_asof_guard.py                                          # as_of 가드
@@ -38,14 +39,18 @@ docker compose logs -f                      # 로그
   앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo`에서 찾는다.
 - DB 스키마는 `db/init/`의 SQL로 postgres 컨테이너 최초 기동 시 자동 생성된다.
   시드 데이터는 `docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql` 식으로 넣는다.
+- 가격 데이터 순서: `scripts/build_universe.py`(종목 선정) → `scripts/fetch_prices.py`(`data/prices.csv`를 쓰는 유일한 곳) → `scripts/ingest_prices.py`(`price_daily` upsert).
 - `tests/conftest.py`가 `CELERY_TASK_ALWAYS_EAGER=true`를 넣는다.
   DB 픽스처를 쓰는 테스트는 seed된 상태여야 한다.
   `test_hedge`·`test_views_base` 등 순수 함수 테스트는 DB 없이 돈다.
 - 마커: `requires_ollama` · `requires_ml` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외.
   `requires_backtest`(두 러너 대조)는 `pip install -e "backend[backtest]"` 뒤
-  `pytest -m requires_backtest` 로 따로 돌린다. api 이미지는 `.[dev]` 만 깔린다.
-- ML extra 설치 시 `--extra-index-url https://download.pytorch.org/whl/cpu` 필수(CUDA 휠 방지).
-- 프론트: `frontend/`에서 `npm run dev`. TS 백테스트는 `node --experimental-strip-types scripts/run-backtest.ts`.
+  `pytest -m requires_backtest` 로 따로 돌린다. api 이미지는 `.[dev,ml]` 이 깔린다(backtest 없음).
+- ml extra 에는 torch 가 없다(2026-09-19 경량화). torch 를 되살리면 `--extra-index-url https://download.pytorch.org/whl/cpu` 가 다시 필요하다.
+- 프론트: `frontend/`에서 `npm run dev`.
+- TS 백테스트는 node 22 이상이 필요하다(`--experimental-strip-types`). frontend 컨테이너는 node 20이라 안 된다. 저장소 루트에서:
+  `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w/frontend node:22-slim node --experimental-strip-types scripts/run-backtest.ts`
+  (루트 `data/`를 읽고 `frontend/data/backtest-result.json`에 쓴다. `--user`가 없으면 결과 파일이 root 소유가 된다.)
 
 ## 아키텍처
 
@@ -60,8 +65,11 @@ docker compose logs -f                      # 로그
 - **판단 계층** (`app/views/`): `as_of`를 받는 순수 함수. stdlib만 사용(numpy/pandas 금지).
   `integrator.py`: tanh 스케일 0.5, 데드존 0.10, 연산 순서 고정.
   `hedge.py`: 롤링 재계산 + water-filling 하한. `app/llm/` import 금지.
+- **라벨** (`views/market/labels.py`): 사건 = 20거래일 선행 수익률 > 0. 라벨·채점·보정이 이 정의 하나를 쓴다.
+  `THETA`는 학습 표본 필터에만 쓴다 — 보정·채점은 전체 표본.
 - **피처셋** `v0.1-ta9` (`views/market/features.py`의 `FEATURE_SETS`가 정본): 워밍업 120행은 정의의 일부. 결측은 None.
 - **백테스트 접합**: `backtest/runner.py` → `views/bridge.py` 단방향. 스코어러 교체는 `bridge.SCORERS` 한 곳.
 - **정책 값 3중 사본**: `db/seeds/` ↔ `backtest/policy.py` ↔ `frontend/lib/policy.ts`. 수치가 같아야 한다.
-- **DB**: 스키마는 `db/init/`의 SQL로 생성. 트리거가 approved Spec과 view_weights UPDATE를 막는다. 스키마 정본은 `docs/db-erd.md`.
-- 알려진 설계 구멍은 README "알려진 설계 구멍"에 기록. 컬럼을 임의 추가하지 않는다.
+- **DB**: `db/init/`은 빈 DB 부트스트랩 전용 — 고치지 않는다. 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후
+  `docker compose exec api python /repo/scripts/apply_migrations.py` (멱등, `schema_migrations`에 이력). Alembic은 쓰지 않는다. 트리거가 approved Spec과 view_weights UPDATE를 막는다. 스키마 정본은 `docs/db-erd.md`.
+- 알려진 설계 구멍은 `docs/known-issues.md`에 기록. 컬럼을 임의 추가하지 않는다.

@@ -19,7 +19,6 @@ BACKEND_ROOT = REPO_ROOT / "backend"
 sys.path.insert(0, str(BACKEND_ROOT))
 
 import httpx  # noqa: E402
-import redis  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.exc import DBAPIError  # noqa: E402
 

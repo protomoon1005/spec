@@ -4,7 +4,7 @@
       "Bash(docker compose:*)",
       "Bash(docker:*)",
       "Bash(git:*)",
-      "Bash(alembic:*)",
+      "Bash(docker compose exec api python /repo/scripts/apply_migrations.py)",
       "Bash(pytest:*)",
       "Bash(python:*)",
       "Bash(npm:*)",

@@ -18,9 +18,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_ROOT = REPO_ROOT / "backend"
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.core.security import hash_password  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.engine import Connection  # noqa: E402
+
+from app.core.security import hash_password  # noqa: E402
 
 TEST_PASSWORD = "test1234"
 TEST_USERS: tuple[tuple[str, str], ...] = (
