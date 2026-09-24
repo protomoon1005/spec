@@ -6,8 +6,10 @@ pykrx 를 쓰지 않는 이유: 2026년 현재 pykrx 는 KRX 로그인(KRX_ID / 
 
 산출물
   data/universe.csv    선별된 종목과 분류 (risk_tag 산정 근거 포함)
-  data/prices.csv      long format 일별 종가 (ticker, date, close)
-  data/meta.json       수집 시점·파라미터. 재현용
+  data/meta.json       선정·risk_tag 파라미터. 재현용
+
+data/prices.csv 는 여기서 쓰지 않는다. 선정이 끝난 universe.csv 를 읽어
+scripts/fetch_prices.py 가 받는다 (2026-09-24). 순서: build_universe → fetch_prices → ingest_prices
 
 실행:  python scripts/build_universe.py
 """
@@ -31,8 +33,10 @@ OUT.mkdir(exist_ok=True)
 # 섞이면 판단 입력에 미래가 들어가므로 AS_OF 를 2025-12-31 로 고정한다.
 AS_OF = date(2025, 12, 31)
 YEARS = 3
-# 시작일은 수식이 아니라 상수다. 백테스트가 2023-01 부터 시작하고 FEATURE_WARMUP_ROWS = 120
-# (달력 약 175일) 이므로 2022-07-11 이전이어야 한다 — 여유를 두고 2022-06-01.
+# 시작일은 수식이 아니라 상수다. 처음에는 가격 워밍업(FEATURE_WARMUP_ROWS = 120)을 위해
+# 2022-06-01 로 잡았는데, 가격 수집이 fetch_prices.py 로 옮겨 간 뒤(2026-09-24)에는 이 값이
+# 상장일 필터(first > START+45일)와 risk_tag 변동성 구간만 정한다. 바꾸면 유니버스와
+# risk_tag 가 바뀌므로 그대로 둔다.
 # YEARS 는 아래 커버리지 필터(len(rets) < 250*YEARS*MIN_COVERAGE, first > START+45일)에
 # 물려 있어 START 와 분리했다.
 START = date(2022, 6, 1)
@@ -151,7 +155,6 @@ def main() -> int:
     print(f"      순자산 상위 {len(listing)}종목을 후보로 삼음")
 
     print(f"[2/4] 일별 시세 수집 ({START} ~ {AS_OF})")
-    frames: list[pd.DataFrame] = []
     kept: list[dict] = []
     for i, row in enumerate(listing.itertuples(index=False), 1):
         ticker, name = row.Symbol, row.Name
@@ -194,20 +197,6 @@ def main() -> int:
                 "first_date": first.isoformat(),
             }
         )
-        bars = df.reindex(columns=["Open", "High", "Low", "Close", "Volume"])
-        frames.append(
-            pd.DataFrame(
-                {
-                    "ticker": ticker,
-                    "date": bars.index.date,
-                    "open": bars["Open"].astype(float).values,
-                    "high": bars["High"].astype(float).values,
-                    "low": bars["Low"].astype(float).values,
-                    "close": bars["Close"].astype(float).values,
-                    "volume": bars["Volume"].astype(float).values,
-                }
-            )
-        )
 
         if i % 25 == 0:
             print(f"      [{i:3}/{len(listing)}] 수집중... 통과 {len(kept)}종목")
@@ -223,22 +212,18 @@ def main() -> int:
     uni = pd.DataFrame(kept)
     uni.to_csv(OUT / "universe.csv", index=False, encoding="utf-8")
 
-    prices = pd.concat(frames, ignore_index=True)
-    prices = prices[prices["ticker"].isin(uni["ticker"])]
-    prices.to_csv(OUT / "prices.csv", index=False, encoding="utf-8")
-
     meta = {
         "as_of": AS_OF.isoformat(),
         "start": START.isoformat(),
+        "start_note": "상장일 필터(start+45일)와 risk_tag 변동성 구간(start~as_of)의 시작. "
+        "가격 수집 구간이 아니다 — 그건 prices.meta.json",
         "source": "FinanceDataReader",
         "source_note": "pykrx 는 KRX 로그인(KRX_ID/KRX_PW)을 요구해 사용하지 않았다",
-        "price_field": "OHLCV (시장가격, NAV 아님)",
         "leverage_inverse_excluded": True,
         "risk_tag_method": RISK_TAG_METHOD,
         "risk_tag_bands": {tag: f">{t:.0%}" for t, tag in VOL_BANDS},
         "risk_tag_caveat": "경계값은 팀 프로젝트 기준이며 금융투자협회 공시 수치가 아니다",
         "ticker_count": int(len(uni)),
-        "price_rows": int(len(prices)),
     }
     (OUT / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -247,7 +232,7 @@ def main() -> int:
     print(uni["asset_group"].value_counts().to_string())
     print(uni["sector_group"].value_counts().to_string())
     print(uni["country_group"].value_counts().to_string())
-    print(f"\n저장: {OUT/'universe.csv'} / {OUT/'prices.csv'} / {OUT/'meta.json'}")
+    print(f"\n저장: {OUT/'universe.csv'} / {OUT/'meta.json'}")
     return 0
 
 
