@@ -165,6 +165,8 @@ const control = runBacktest({
 const market = runBuyAndHold(marketBars, weekly, INITIAL, COSTS);
 
 const meta = JSON.parse(readFileSync(join(SRC, "meta.json"), "utf-8"));
+// 가격 설명(price_field)은 meta.json 이 아니라 fetch_prices.py 가 쓰는 prices.meta.json 에 있다.
+const pricesMeta = JSON.parse(readFileSync(join(SRC, "prices.meta.json"), "utf-8"));
 
 const out = {
   as_of: weekly[weekly.length - 1],
@@ -174,7 +176,7 @@ const out = {
   costs: COSTS,
   hardcap_max_per_asset: HARDCAP.maxWeightPerAsset,
   data_source: meta.source,
-  price_field: meta.price_field,
+  price_field: pricesMeta.price_field,
   universe: holdings.map((h) => ({
     ticker: h.ticker,
     name: byTicker.get(h.ticker)?.name ?? h.ticker,
