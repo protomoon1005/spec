@@ -34,6 +34,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 
 @dataclass(frozen=True)
@@ -126,8 +127,6 @@ def available_codes() -> tuple[str, ...]:
 
 def estimate_released_at(code: str, as_of_date):
     """공표일 추정. 지표별 lag 를 더한다."""
-    from datetime import timedelta
-
     indicator = BY_CODE.get(code)
     if indicator is None:
         raise ValueError(f"등록되지 않은 지표 코드: {code!r} (아는 것: {sorted(BY_CODE)})")

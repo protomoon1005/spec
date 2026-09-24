@@ -143,13 +143,13 @@ def judge(indicators: dict[str, float | None]) -> RegimeJudgement:
 
         distance = (value - rule.threshold) / rule.scale
         # + 가 위험선호다. above_is_risk_off 면 부호를 뒤집는다.
-        score = -distance if rule.direction == ABOVE_IS_RISK_OFF else distance
+        if rule.direction == ABOVE_IS_RISK_OFF:
+            score = -distance
+            breached = value > rule.threshold
+        else:
+            score = distance
+            breached = value < rule.threshold
         score = max(-1.0, min(1.0, score))
-        breached = (
-            value > rule.threshold
-            if rule.direction == ABOVE_IS_RISK_OFF
-            else value < rule.threshold
-        )
 
         scores.append(score)
         state[rule.key] = {
