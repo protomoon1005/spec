@@ -47,7 +47,10 @@ docker compose logs -f                      # 로그
   `requires_backtest`(두 러너 대조)는 `pip install -e "backend[backtest]"` 뒤
   `pytest -m requires_backtest` 로 따로 돌린다. api 이미지는 `.[dev,ml]` 이 깔린다(backtest 없음).
 - ml extra 에는 torch 가 없다(2026-09-19 경량화). torch 를 되살리면 `--extra-index-url https://download.pytorch.org/whl/cpu` 가 다시 필요하다.
-- 프론트: `frontend/`에서 `npm run dev`. TS 백테스트는 `node --experimental-strip-types scripts/run-backtest.ts`.
+- 프론트: `frontend/`에서 `npm run dev`.
+- TS 백테스트는 node 22 이상이 필요하다(`--experimental-strip-types`). frontend 컨테이너는 node 20이라 안 된다. 저장소 루트에서:
+  `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w/frontend node:22-slim node --experimental-strip-types scripts/run-backtest.ts`
+  (루트 `data/`를 읽고 `frontend/data/backtest-result.json`에 쓴다. `--user`가 없으면 결과 파일이 root 소유가 된다.)
 
 ## 아키텍처
 
