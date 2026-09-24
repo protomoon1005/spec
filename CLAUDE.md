@@ -38,6 +38,7 @@ docker compose logs -f                      # 로그
   앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo`에서 찾는다.
 - DB 스키마는 `db/init/`의 SQL로 postgres 컨테이너 최초 기동 시 자동 생성된다.
   시드 데이터는 `docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql` 식으로 넣는다.
+- 가격 데이터 순서: `scripts/build_universe.py`(종목 선정) → `scripts/fetch_prices.py`(`data/prices.csv`를 쓰는 유일한 곳) → `scripts/ingest_prices.py`(`price_daily` upsert).
 - `tests/conftest.py`가 `CELERY_TASK_ALWAYS_EAGER=true`를 넣는다.
   DB 픽스처를 쓰는 테스트는 seed된 상태여야 한다.
   `test_hedge`·`test_views_base` 등 순수 함수 테스트는 DB 없이 돈다.
