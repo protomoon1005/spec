@@ -163,7 +163,7 @@ SELECT create_hypertable('macro_indicators', 'as_of',      if_not_exists => TRUE
 
 **주의** — TimescaleDB 하이퍼테이블은 파티션 키가 PK에 포함되어야 한다. 위 복합 PK 설계가 이미 이를 만족하는지 확인하고, 충돌하면 하이퍼테이블 전환을 마이그레이션 후반부로 분리한다.
 
-Alembic으로 관리하되 초기 리비전 하나에 전부 넣지 말고 `001_core` / `002_timeseries` / `003_hypertables` / `004_triggers` 로 쪼갠다.
+`db/init/`의 SQL은 빈 DB를 처음 만들 때(postgres 컨테이너 최초 기동)만 실행되며 고치지 않는다. 스키마 변경은 `db/migrate/NNN_설명.sql`을 추가한 뒤 `docker compose exec api python /repo/scripts/apply_migrations.py`로 적용한다. 적용 이력은 `schema_migrations` 테이블에 남고, 이미 적용된 파일은 건너뛰므로 여러 번 실행해도 안전하다.
 
 # 4. 시드 데이터
 
