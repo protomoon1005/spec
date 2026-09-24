@@ -35,27 +35,29 @@
 
 ### 1.0 먼저 — 데이터가 어디에 있나
 
-받아온 데이터는 **데이터베이스가 아니라 프론트엔드 폴더 밑의 표 파일**로 저장돼 있다.
-저장소에 커밋까지 되어 있어서 누가 받아오지 않아도 바로 쓸 수 있다.
+받아온 데이터는 **저장소 루트 `data/` 밑의 표 파일**이 정본이다. 저장소에 커밋까지 되어 있어서
+누가 받아오지 않아도 바로 쓸 수 있고, DB `price_daily` 에는 같은 CSV 를 적재한다 (2026-09-24 기준).
 
 | 파일 | 내용 | 크기 |
 |---|---|---|
-| `frontend/data/prices.csv` | 173종목 × 3년치 일별 종가 (종목·날짜·종가) | 129,555행 |
-| `frontend/data/universe.csv` | 173종목의 자산군·섹터·국가·위험등급 분류 | 173행 |
-| `frontend/data/meta.json` | 수집 시점(2026-09-11)·출처·위험등급 산정 방식 | — |
-| `frontend/data/backtest-result.json` | 백테스트 실행 결과 | — |
+| `data/universe.csv` | 60종목의 자산군·섹터·국가·위험등급 분류 (고정 기준본) | 60행 |
+| `data/meta.json` | 종목 선정·위험등급 산정 파라미터 | — |
+| `data/prices.csv` | 60종목 일별 OHLCV, 2019-01-02(또는 상장일) ~ 2025-12-30 | 89,175행 |
+| `data/prices.meta.json` | 가격 수집 구간·행 수·종목별 첫 날짜·수집 시각 | — |
+| `frontend/data/backtest-result.json` | 백테스트 실행 결과 (화면이 import) | — |
 
-**주의 — 경로가 어긋나 있다.**
+**경로 — 쓰는 쪽과 읽는 쪽이 같은 폴더다.**
 
 ```
-쓰는 쪽:  scripts/build_universe.py          →  <저장소 루트>/data/   ← 이 폴더는 없다
-읽는 쪽:  scripts/run_backtest_vbt.py        ←  frontend/data/
-          frontend/scripts/run-backtest.ts   ←  frontend/data/
+쓰는 쪽:  scripts/build_universe.py          →  data/universe.csv · data/meta.json
+          scripts/fetch_prices.py            →  data/prices.csv · data/prices.meta.json
+읽는 쪽:  scripts/ingest_prices.py           ←  data/prices.csv  (→ DB price_daily)
+          scripts/run_backtest_vbt.py        ←  data/
+          frontend/scripts/run-backtest.ts   ←  data/  (결과는 frontend/data/ 에 쓴다)
 ```
 
-수집 스크립트를 지금 다시 돌리면 **아무도 읽지 않는 폴더에 떨어진다.** 기존 파일은 그대로
-남아 있으므로, 새 데이터로 돌렸다고 생각하면서 옛 데이터로 백테스트하게 된다.
-조용히 틀리는 종류라 출력 경로를 맞춰두는 게 좋다.
+평소에는 `fetch_prices.py` → `ingest_prices.py` 만 돌린다. `build_universe.py` 는 실행일 순자산으로
+종목을 다시 뽑으므로 돌리지 않는다 (`docs/known-issues.md` 참고).
 
 ### 1.1 기술적 지표
 
@@ -305,11 +307,11 @@ M1의 프리셋 조회·ETF 후보 선정·스키마 조립이 전부 이 칸에
 | 지표 → 관점 → 통합 신호 접합, 관점 교체 지점 | `backend/app/views/bridge.py` |
 | 국면 판정 순수 함수와 임계값 근거 | `backend/app/views/regime/judge.py` |
 | 백테스트 러너 | `backend/app/backtest/runner.py` |
-| 종가·종목목록 수집 (출력 경로 어긋남) | `scripts/build_universe.py` |
+| 종목 선정 / 가격 수집 / 가격 적재 | `scripts/build_universe.py` / `scripts/fetch_prices.py` / `scripts/ingest_prices.py` |
 | 종목 마스터 수집 (죽은 경로, 상장폐지 탐지만 살릴 것) | `scripts/build_etf_master.py` |
 | 거시지표·지수 수집 | `scripts/ingest_macro.py`, `scripts/ingest_index.py` |
 | 국면 스냅샷 백필 | `scripts/build_regime.py` |
 | 뉴스 수집·중복제거 | `scripts/ingest_news.py`, `backend/app/news/` |
 | 시점 기준 조회 (피처·거시·뉴스·국면) | `backend/app/repositories/` |
-| 실제 데이터 파일 4종 | `frontend/data/` |
+| 실제 데이터 파일 (정본) | `data/` |
 | 종목 마스터 시드 (4/60행, 분류 비어 있음) | `db/seeds/04_etf_master.csv` |
