@@ -34,7 +34,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 CURRENT_FEATURE_SET_VERSION = "v0.1-ta9"
 
@@ -151,26 +151,22 @@ def _as_bars(prices) -> list[PriceBar]:
     else:
         rows = list(prices)
 
-    bars: list[PriceBar] = []
-    for row in rows:
-        bars.append(row if isinstance(row, PriceBar) else _bar_from_mapping(row))
-
+    bars = [row if isinstance(row, PriceBar) else _bar_from_mapping(row) for row in rows]
     bars.sort(key=lambda bar: bar.trade_date)
-    seen = {bar.trade_date for bar in bars}
-    if len(seen) != len(bars):
+    if len({bar.trade_date for bar in bars}) != len(bars):
         raise ValueError("같은 거래일이 두 번 들어왔다")
     return bars
 
 
 def _rows_from_dataframe(frame) -> list[dict]:
-    columns = list(frame.columns)
-    has_date_column = "trade_date" in columns
-    rows: list[dict] = []
-    for index_value, row in zip(frame.index, frame.to_dict("records"), strict=True):
-        if not has_date_column:
-            row = {**row, "trade_date": index_value}
-        rows.append(row)
-    return rows
+    records = frame.to_dict("records")
+    if "trade_date" in list(frame.columns):
+        return records
+    # 거래일이 컬럼이 아니면 인덱스에 있다고 본다.
+    return [
+        {**row, "trade_date": index_value}
+        for index_value, row in zip(frame.index, records, strict=True)
+    ]
 
 
 def _bar_from_mapping(row: Mapping) -> PriceBar:
@@ -268,15 +264,14 @@ def _wilder_rsi(closes: list[float], period: int) -> float | None:
 def _wilder_atr_pct(bars: list[PriceBar], period: int) -> float | None:
     if len(bars) < period + 1:
         return None
-    true_ranges: list[float] = []
-    for previous, current in zip(bars[:-1], bars[1:], strict=True):
-        true_ranges.append(
-            max(
-                current.high - current.low,
-                abs(current.high - previous.close),
-                abs(current.low - previous.close),
-            )
+    true_ranges = [
+        max(
+            current.high - current.low,
+            abs(current.high - previous.close),
+            abs(current.low - previous.close),
         )
+        for previous, current in zip(bars[:-1], bars[1:], strict=True)
+    ]
 
     average_true_range = math.fsum(true_ranges[:period]) / period
     for index in range(period, len(true_ranges)):
@@ -296,18 +291,14 @@ def synthetic_series(
     거래일을 하루씩 늘리므로 실제 휴장일과는 무관하다 — 피처 계산은 달력이 아니라
     '행 순서'만 보기 때문에 회귀 테스트 목적에는 충분하다.
     """
-    from datetime import timedelta
-
-    bars: list[PriceBar] = []
-    for offset, close in enumerate(closes):
-        bars.append(
-            PriceBar(
-                trade_date=start + timedelta(days=offset),
-                open=close,
-                high=close * 1.01,
-                low=close * 0.99,
-                close=close,
-                volume=volume,
-            )
+    return [
+        PriceBar(
+            trade_date=start + timedelta(days=offset),
+            open=close,
+            high=close * 1.01,
+            low=close * 0.99,
+            close=close,
+            volume=volume,
         )
-    return bars
+        for offset, close in enumerate(closes)
+    ]
