@@ -10,14 +10,16 @@ pro/admin 계정은 여전히 DB 나 관리자 경로로만 만든다.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.security import (
+    AuthUser,
     Role,
     create_access_token,
     create_refresh_token,
     decode_token,
+    require_any_role,
 )
 from app.repositories.users import get_user_by_email, get_user_by_id, insert_user
 
@@ -117,3 +119,22 @@ def refresh(payload: RefreshRequest) -> AccessTokenResponse:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="사용자를 찾을 수 없다")
     role: Role = user.role  # type: ignore[assignment]
     return AccessTokenResponse(access_token=create_access_token(user.user_id, role))
+
+
+class MeResponse(BaseModel):
+    user_id: int
+    username: str
+    role: str
+
+
+@router.get("/me", response_model=MeResponse, summary="내 계정 보기")
+def me(user: AuthUser = Depends(require_any_role)) -> MeResponse:
+    """토큰 주인이 누구인지 돌려준다.
+
+    로그인 화면이 입력한 토큰이 입력한 아이디의 것인지 비교하는 데 쓴다
+    (docs/frontend_milestone.md 2단계).
+    """
+    record = get_user_by_id(user.user_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="사용자를 찾을 수 없다")
+    return MeResponse(user_id=record.user_id, username=record.email, role=record.role)

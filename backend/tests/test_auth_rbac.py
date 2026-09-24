@@ -9,6 +9,8 @@
 """
 from __future__ import annotations
 
+import uuid
+
 
 def _login(client, username: str) -> dict:
     resp = client.post("/auth/login", json={"username": username})
@@ -65,7 +67,7 @@ def test_protected_endpoint_with_garbage_token_is_401(client):
 
 
 def test_any_authenticated_role_reaches_stub_body(client, make_user):
-    """retail/pro/admin 모두 spec 라우터를 통과해 501(미구현)까지 도달해야 한다."""
+    """retail/pro/admin 모두 spec 라우터를 통과해 본체(없는 전략서 → 404)까지 도달해야 한다."""
     for role in ("retail", "pro", "admin"):
         email, _ = make_user(role)
         tokens = _login(client, email)
@@ -75,7 +77,7 @@ def test_any_authenticated_role_reaches_stub_body(client, make_user):
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
 
-        assert resp.status_code == 501, f"role={role} 는 spec 라우터를 통과해야 한다"
+        assert resp.status_code == 404, f"role={role} 는 spec 라우터를 통과해야 한다"
 
 
 def test_admin_router_rejects_retail_role(client, make_user):
@@ -164,3 +166,17 @@ def test_signup_ignores_requested_role(client, engine):
         assert forbidden.status_code == 403
     finally:
         _cleanup(engine, name)
+
+
+def test_me_returns_token_owner(client):
+    username = f"me-check-{uuid.uuid4().hex[:8]}"
+    tokens = client.post("/auth/signup", json={"username": username}).json()
+
+    resp = client.get("/auth/me", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["username"] == username
+
+
+def test_me_without_token_is_401(client):
+    assert client.get("/auth/me").status_code == 401

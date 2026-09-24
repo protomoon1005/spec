@@ -113,16 +113,33 @@ def insert_spec(
     )
 
 
+def get_spec(spec_id: str) -> dict | None:
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT spec_id, user_id, profile_id, hardcap_version, spec_version, name,
+                       input_prompt, rebalance, signal_rules, constraint_user, status, created_at
+                  FROM strategy_specs
+                 WHERE spec_id = :spec_id
+                """
+            ),
+            {"spec_id": spec_id},
+        ).one_or_none()
+    return dict(row._mapping) if row is not None else None
+
+
 def get_spec_universe(spec_id: str) -> list[dict]:
     with get_engine().connect() as conn:
         rows = conn.execute(
             text(
                 """
-                SELECT ticker, preset_id, weight_min, weight_max,
-                       weight_min_raw, weight_max_raw, was_adjusted
-                  FROM spec_universe
-                 WHERE spec_id = :spec_id
-                 ORDER BY ticker
+                SELECT u.ticker, e.name, u.preset_id, u.weight_min, u.weight_max,
+                       u.weight_min_raw, u.weight_max_raw, u.was_adjusted
+                  FROM spec_universe u
+                  JOIN etf_master e ON e.ticker = u.ticker
+                 WHERE u.spec_id = :spec_id
+                 ORDER BY u.ticker
                 """
             ),
             {"spec_id": spec_id},

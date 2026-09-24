@@ -34,6 +34,9 @@ class OllamaClient:
                 "messages": messages,
                 "stream": False,
                 "format": json_schema,
+                # qwen3 는 기본으로 생각(thinking)부터 길게 써서 호출 한 번이 1분 가까이 걸린다.
+                # 결과는 format 으로 JSON 이 강제되므로 생각은 끈다.
+                "think": False,
             },
             timeout=self._timeout,
         )
