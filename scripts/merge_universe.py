@@ -41,11 +41,22 @@ def read_rows(path: Path) -> dict[str, dict]:
         return {row["ticker"]: row for row in csv.DictReader(handle)}
 
 
-def write_rows(path: Path, fields: list[str], rows: list[dict]) -> None:
-    with path.open("w", encoding="utf-8", newline="") as handle:
+def write_rows(path: Path, fields: list[str], rows: list[dict], encoding: str = "utf-8") -> None:
+    with path.open("w", encoding=encoding, newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def is_active(master_row: dict) -> bool:
+    return master_row["active"].lower() == "true"
+
+
+def universe_axes(universe_row: dict) -> dict[str, str]:
+    # universe.csv 의 묶음 이름을 원장의 한글 분류값으로 되돌린다.
+    return {"asset_group": universe_row["asset_group"],
+            "sector": SECTOR_LABEL[universe_row["sector_group"]],
+            "country": COUNTRY_LABEL[universe_row["country_group"]]}
 
 
 def coverage_by_ticker() -> dict[str, float]:
@@ -62,7 +73,7 @@ def coverage_by_ticker() -> dict[str, float]:
 
 def review() -> int:
     master, universe = read_rows(MASTER), read_rows(UNIVERSE)
-    delisted = {t for t, r in master.items() if r["active"].lower() != "true"}
+    delisted = {t for t, r in master.items() if not is_active(r)}
     order = list(master) + [t for t in universe if t not in master]
     candidates = [t for t in order if t not in delisted]
     # 판정 구간 뒤에 상장한 종목은 구간 가격이 없어 커버리지 0 이 정의상 확정이다. 받지 않는다.
@@ -85,16 +96,18 @@ def review() -> int:
         if m:
             axes = {"asset_group": m["group_id"], "sector": m["sector"], "country": m["country"]}
         else:
-            axes = {"asset_group": u["asset_group"], "sector": SECTOR_LABEL[u["sector_group"]],
-                    "country": COUNTRY_LABEL[u["country_group"]]}
+            axes = universe_axes(u)
         diff = []
         if m and u:
-            theirs = {"asset_group": u["asset_group"], "sector": SECTOR_LABEL[u["sector_group"]],
-                      "country": COUNTRY_LABEL[u["country_group"]]}
+            source = "both"
+            theirs = universe_axes(u)
             diff = [f"{k}: {axes[k]}≠{theirs[k]}" for k in axes if axes[k] != theirs[k]]
+        elif m:
+            source = "master"
+        else:
+            source = "universe"
         rows.append({
-            "ticker": t, "name": (m or u)["name"],
-            "source": "both" if m and u else ("master" if m else "universe"),
+            "ticker": t, "name": (m or u)["name"], "source": source,
             "coverage": f"{coverage[t]:.4f}", "pass": str(coverage[t] >= MIN_COVERAGE).lower(),
             "risk_tag": m["risk_tag"] if m else "",
             "is_leveraged": m["is_leveraged"] if m else "false",
@@ -124,7 +137,7 @@ def apply() -> int:
     passed = {r["ticker"]: r for r in review_rows}
     rows = []
     for t, m in master.items():  # 기존 순서 유지. 통과했거나 상장폐지면 남긴다.
-        if t in passed or m["active"].lower() != "true":
+        if t in passed or not is_active(m):
             rows.append({**m, "risk_tag": passed[t]["risk_tag"] if t in passed else m["risk_tag"]})
     for t, r in passed.items():
         if t not in master:
@@ -132,12 +145,7 @@ def apply() -> int:
                          "group_id": r["asset_group"], "risk_tag": r["risk_tag"], "is_leveraged": "false",
                          "active": "true", "country": r["country"]})
     check_g1_leveraged_consistency(rows)
-
-    with MASTER.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-
+    write_rows(MASTER, fields, rows, encoding="utf-8-sig")  # 원장은 BOM 을 유지한다
     print(f"[merge] 원장 {len(rows)}행 → {MASTER}")
     return derive()
 
@@ -146,17 +154,23 @@ def derive() -> int:
     # 원장에서 universe.csv(백테스트·가격 수집 대상)를 다시 만든다. 원장을 고친 뒤 평소에 쓰는 모드다.
     # 원장에 없는 ann_vol·marcap_eok·first_date 는 기존 universe.csv 값이 있으면 옮긴다.
     master, universe = read_rows(MASTER), read_rows(UNIVERSE)
-    derived = [{
-        "ticker": t, "name": r["name"], "risk_tag": r["risk_tag"],
-        "risk_tag_method": "product (04_etf_master.csv)", "ann_vol": universe.get(t, {}).get("ann_vol", ""),
-        "asset_group": r["group_id"], "sector_group": SECTOR_GROUP_MAP[r["sector"]],
-        "country_group": COUNTRY_GROUP_MAP[r["country"]],
-        "marcap_eok": universe.get(t, {}).get("marcap_eok", ""),
-        "first_date": universe.get(t, {}).get("first_date", ""),
-    } for t, r in master.items() if r["active"].lower() == "true"]
+    derived = []
+    for t, r in master.items():
+        if not is_active(r):
+            continue
+        previous = universe.get(t, {})
+        derived.append({
+            "ticker": t, "name": r["name"], "risk_tag": r["risk_tag"],
+            "risk_tag_method": "product (04_etf_master.csv)", "ann_vol": previous.get("ann_vol", ""),
+            "asset_group": r["group_id"], "sector_group": SECTOR_GROUP_MAP[r["sector"]],
+            "country_group": COUNTRY_GROUP_MAP[r["country"]],
+            "marcap_eok": previous.get("marcap_eok", ""),
+            "first_date": previous.get("first_date", ""),
+        })
     write_rows(UNIVERSE, list(derived[0]), derived)
     print(f"[merge] universe.csv {len(derived)}행 → {UNIVERSE}")
     return 0
+
 
 if __name__ == "__main__":
     modes = {"review": review, "apply": apply, "derive": derive}

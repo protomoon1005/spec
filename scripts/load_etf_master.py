@@ -14,11 +14,11 @@ db/migrate/001_etf_master_group_axes.sql 이후 etf_master는 자산군/섹터/�
 ticker 기준 UPSERT다(INSERT ... ON CONFLICT (ticker) DO UPDATE) — TRUNCATE를
 쓰지 않는다. price_daily 등 etf_master를 참조하는 테이블에 데이터가 쌓인
 뒤에는 TRUNCATE ... CASCADE가 그 데이터를 통째로 지운다(사용자 지시,
-2026-09-20). CSV에 없는 기존 행은 지우지 않고 그대로 둔다 — 이 스크립트는
-갱신만 하지 삭제는 하지 않는다.
+2026-09-20). CSV에 없는 기존 행은 upsert 뒤에 지운다(2026-09-27) — 단,
+REFERENCING_TABLES 가 참조하는 행은 남기고 알린다.
 
 group_id가 비어 있는 행(risk_tag/group_id/sector를 사람이 아직 검토하지 않은
-행)은 FK NOT NULL을 만족 못 하므로 건너뛴다 — 지금은 71행 전부 채워져 있어
+행)은 FK NOT NULL을 만족 못 하므로 건너뛴다 — 지금은 76행 전부 채워져 있어
 해당 없지만, 앞으로 CSV에 신규 종목이 그룹 미배정 상태로 추가될 경우를 대비한
 안전장치다(README "group_id를 FK NOT NULL로 둔 결과" 항목 참고).
 
@@ -61,15 +61,22 @@ SECTOR_GROUP_MAP = {
     "기타": "SECTOR_OTHER",
 }
 
-# etf_master(ticker) 를 FK 로 참조하는 표 (db/init/02_schema.sql)
-REFERENCING_TABLES = ("spec_universe", "positions", "orders", "view_scores")
-
 # CSV의 country 한글값 -> asset_groups.group_id (db/seeds/03_asset_groups.sql 레벨2 국가)
 COUNTRY_GROUP_MAP = {
     "한국": "COUNTRY_KR",
     "미국": "COUNTRY_US",
     "기타": "COUNTRY_OTHER",
 }
+
+# etf_master(ticker) 를 FK 로 참조하는 표 (db/init/02_schema.sql)
+REFERENCING_TABLES = ("spec_universe", "positions", "orders", "view_scores")
+
+# CSV(:tickers)에 없고 어느 표도 참조하지 않는 행만 지운다
+_DELETE_NOT_IN_CSV_SQL = (
+    "DELETE FROM etf_master e WHERE e.ticker <> ALL(:tickers)"
+    + "".join(f" AND NOT EXISTS (SELECT 1 FROM {t} x WHERE x.ticker = e.ticker)" for t in REFERENCING_TABLES)
+    + " RETURNING ticker"
+)
 
 
 def _database_url() -> str:
@@ -245,15 +252,11 @@ def main() -> int:
                 )
             # CSV 가 정본이다. 원장에서 빠진 종목은 지운다 — 남겨 두면 M1 이 가격 없는
             # 종목을 계속 고른다. 전략서·주문 등이 참조하는 종목은 지우지 않고 알린다.
-            tickers = [r["ticker"] for r in rows]
-            deleted = conn.execute(text(
-                "DELETE FROM etf_master e WHERE e.ticker <> ALL(:tickers)"
-                + "".join(f" AND NOT EXISTS (SELECT 1 FROM {t} x WHERE x.ticker = e.ticker)"
-                          for t in REFERENCING_TABLES)
-                + " RETURNING ticker"
-            ), {"tickers": tickers}).scalars().all()
-            kept = conn.execute(text("SELECT ticker FROM etf_master WHERE ticker <> ALL(:tickers)"),
-                                {"tickers": tickers}).scalars().all()
+            in_csv = {"tickers": [r["ticker"] for r in rows]}
+            deleted = conn.execute(text(_DELETE_NOT_IN_CSV_SQL), in_csv).scalars().all()
+            kept = conn.execute(
+                text("SELECT ticker FROM etf_master WHERE ticker <> ALL(:tickers)"), in_csv
+            ).scalars().all()
         print(f"load_etf_master: CSV 에 없는 {len(deleted)}행 삭제 {sorted(deleted)}")
         if kept:
             print(f"load_etf_master: CSV 에 없지만 참조가 있어 남긴 {len(kept)}행 {sorted(kept)}",
