@@ -1,0 +1,105 @@
+ticker,name,source,coverage,pass,risk_tag,is_leveraged,asset_group,sector,country,axis_diff,risk_tag_draft,draft_reason
+069500,KODEX 200,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+122630,KODEX 레버리지,master,1.0000,true,G1,true,EQUITY,기타,한국,,,
+102110,TIGER 200,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+360750,TIGER 미국S&P500,both,1.0000,true,G3,false,EQUITY,기타,미국,,,
+114800,KODEX 인버스,master,1.0000,true,G1,true,EQUITY,기타,한국,,,
+133690,TIGER 미국나스닥100,both,1.0000,true,G3,false,EQUITY,기타,미국,,,
+459580,KODEX CD금리액티브(합성),master,0.8550,false,G6,false,BOND,기타,한국,,,
+379810,KODEX 미국나스닥100,both,1.0000,true,G3,false,EQUITY,기타,미국,,,
+252670,KODEX 200선물인버스2X,master,1.0000,true,G1,true,EQUITY,기타,한국,,,
+379800,KODEX 미국S&P500,both,1.0000,true,G3,false,EQUITY,기타,미국,,,
+233740,KODEX 코스닥150레버리지,master,1.0000,true,G1,true,EQUITY,기타,한국,,,
+229200,KODEX 코스닥150,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+396500,TIGER 반도체TOP10,both,1.0000,true,G2,false,EQUITY,반도체,한국,,,
+0193T0,KODEX SK하이닉스단일종목레버리지,master,0.0000,false,G1,true,EQUITY,반도체,한국,,,
+494310,KODEX 반도체레버리지,master,0.3981,false,G1,true,EQUITY,반도체,한국,,,
+0167A0,SOL AI반도체TOP2플러스,master,0.0000,false,G2,false,EQUITY,반도체,한국,,,
+091160,KODEX 반도체,both,1.0000,true,G2,false,EQUITY,반도체,한국,,,
+488080,TIGER 반도체TOP10레버리지,master,0.4774,false,G1,true,EQUITY,반도체,한국,,,
+232080,TIGER 코스닥150,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+395160,KODEX AI반도체TOP2플러스,both,1.0000,true,G2,false,EQUITY,반도체,한국,,,
+498400,KODEX 200타겟위클리커버드콜,master,0.3570,false,G3,false,EQUITY,기타,한국,,,
+0197X0,SOL SK하이닉스선물단일종목인버스2X,master,0.0000,false,G1,true,EQUITY,반도체,한국,,,
+0195S0,TIGER SK하이닉스단일종목레버리지,master,0.0000,false,G1,true,EQUITY,반도체,한국,,,
+251340,KODEX 코스닥150선물인버스,master,1.0000,true,G1,true,EQUITY,기타,한국,,,
+148020,RISE 200,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+0193W0,KODEX 삼성전자단일종목레버리지,master,0.0000,false,G1,true,EQUITY,반도체,한국,,,
+487240,KODEX AI전력핵심설비,master,0.4911,false,G2,false,EQUITY,기타,한국,,,
+472150,TIGER 배당커버드콜액티브,master,0.6813,false,G3,false,EQUITY,기타,한국,,,
+0162Z0,RISE 삼성전자SK하이닉스채권혼합50,master,0.0000,false,G4,false,BOND,반도체,한국,,,
+462330,KODEX 2차전지산업레버리지,master,0.8304,false,G1,true,EQUITY,2차전지,한국,,,
+475630,TIGER CD1년금리액티브(합성),master,0.6306,false,G6,false,BOND,기타,한국,,,
+381180,TIGER 미국필라델피아반도체나스닥,both,1.0000,true,G2,false,EQUITY,반도체,미국,,,
+0195R0,TIGER 삼성전자단일종목레버리지,master,0.0000,false,G1,true,EQUITY,반도체,한국,,,
+488770,KODEX 머니마켓액티브,master,0.4637,false,G6,false,BOND,기타,한국,,,
+395270,HANARO Fn K-반도체,both,1.0000,true,G2,false,EQUITY,반도체,한국,,,
+0177N0,KODEX 삼성전자SK하이닉스채권혼합50,master,0.0000,false,G4,false,BOND,반도체,한국,,,
+305720,KODEX 2차전지산업,both,1.0000,true,G2,false,EQUITY,2차전지,한국,,,
+0091P0,TIGER 코리아원자력,master,0.1231,false,G2,false,EQUITY,기타,한국,,,
+442580,PLUS 글로벌HBM반도체,master,1.0000,true,G2,false,EQUITY,반도체,기타,,,
+139260,TIGER 200 IT,both,1.0000,true,G2,false,EQUITY,반도체,한국,sector: 반도체≠인터넷과플랫폼,,
+152100,PLUS 200,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+0219E0,KODEX 200커버드콜액티브,master,0.0000,false,G3,false,EQUITY,기타,한국,,,
+243880,TIGER 200IT레버리지,master,1.0000,true,G1,true,EQUITY,반도체,한국,,,
+278530,KODEX 200TR,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+228790,TIGER 화장품,master,1.0000,true,G2,false,EQUITY,소비재,한국,,,
+455850,SOL AI반도체소부장,master,0.8933,false,G2,false,EQUITY,반도체,한국,,,
+0148J0,TIGER 코리아휴머노이드로봇산업,master,0.0000,false,G2,false,EQUITY,기타,한국,,,
+0008T0,SOL 화장품TOP3플러스,master,0.3133,false,G2,false,EQUITY,소비재,한국,,,
+226490,KODEX 코스피,both,1.0000,true,G3,false,EQUITY,기타,한국,,,
+364980,TIGER 2차전지TOP10,both,1.0000,true,G2,false,EQUITY,2차전지,한국,,,
+426030,TIME 미국나스닥100액티브,both,1.0000,true,G3,false,EQUITY,기타,미국,,,
+481050,KODEX CD1년금리플러스액티브(합성),master,0.5609,false,G6,false,BOND,기타,한국,,,
+390390,KODEX 미국반도체,both,1.0000,true,G2,false,EQUITY,반도체,미국,,,
+458730,TIGER 미국배당다우존스,master,0.8440,false,G3,false,EQUITY,기타,미국,,,
+0117V0,TIGER 코리아AI전력기기TOP3플러스,master,0.0684,false,G2,false,EQUITY,기타,한국,,,
+411060,ACE KRX금현물,both,1.0000,true,G2,false,COMMODITY,기타,기타,,,
+466920,SOL 조선TOP3플러스,master,0.7456,false,G2,false,EQUITY,기타,한국,,,
+471990,KODEX AI반도체핵심장비,master,0.7018,false,G2,false,EQUITY,반도체,한국,,,
+469150,ACE AI반도체TOP3+,master,0.7360,false,G2,false,EQUITY,반도체,한국,,,
+486290,TIGER 미국나스닥100타겟데일리커버드콜,master,0.5048,false,G3,false,EQUITY,기타,미국,,,
+148070,KIWOOM 국고채10년,master,1.0000,true,G5,false,BOND,기타,한국,,,
+114260,KODEX 국고채3년,master,1.0000,true,G5,false,BOND,기타,한국,,,
+273130,KODEX 종합채권(AA-이상)액티브,both,1.0000,true,G5,false,BOND,기타,한국,,,
+438330,TIGER 우량회사채액티브,master,1.0000,true,G5,false,BOND,기타,한국,,,
+305080,TIGER 미국채10년선물,master,1.0000,true,G5,false,BOND,기타,미국,,,
+464470,PLUS 미국채30년액티브,master,0.7839,false,G4,false,BOND,기타,미국,,,
+132030,KODEX 골드선물(H),master,1.0000,true,G2,false,COMMODITY,기타,기타,,,
+0072R0,TIGER KRX금현물,master,0.1765,false,G2,false,COMMODITY,기타,기타,,,
+310970,TIGER MSCI Korea TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(MSCI Korea)
+360200,ACE 미국S&P500,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,시장대표 지수(S&P500) — 기존 360750·379800과 같음
+381170,TIGER 미국테크TOP10 INDXX,universe,1.0000,true,G2,false,EQUITY,인터넷과플랫폼,미국,,G2,해외 섹터·테마(미국 테크 10종목)
+423160,KODEX KOFR금리액티브(합성),universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기금리(KOFR)
+367380,ACE 미국나스닥100,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,시장대표 지수(나스닥100) — 기존 133690과 같음
+357870,TIGER CD금리투자KIS(합성),universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기금리(CD) — 기존 459580과 같음
+102780,KODEX 삼성그룹,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,그룹 테마(삼성그룹)
+278540,KODEX MSCI Korea TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(MSCI Korea)
+161510,PLUS 고배당주,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,"배당 — 기존 458730 미국배당다우존스가 G3. 단 M2_잔여작업_계획은 배당주를 G4로 적음, 확인 필요"
+385540,RISE 종합채권(A-이상)액티브,universe,1.0000,true,G5,false,BOND,기타,한국,,G5,중장기 회사채 종합 — 기존 273130과 같음
+284430,KODEX 200미국채혼합50,universe,1.0000,true,G4,false,BOND,기타,미국,,G4,혼합형(주식·채권 50)
+292150,TIGER 코리아TOP10,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,"시장대표 대형주 — 상위 10종목 집중이라 G2도 가능, 확인 필요"
+214980,KODEX 단기채권PLUS,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채
+294400,KIWOOM 200TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200TR) — 기존 278530과 같음
+105190,ACE 200,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200)
+368590,RISE 미국나스닥100,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,시장대표 지수(나스닥100)
+329200,TIGER 리츠부동산인프라,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,단일 섹터(리츠·인프라)
+379780,RISE 미국S&P500,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,시장대표 지수(S&P500)
+091230,TIGER 반도체,universe,1.0000,true,G2,false,EQUITY,반도체,한국,,G2,단일 섹터(반도체) — 기존 396500과 같음
+157450,TIGER 단기통안채,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채(통안채)
+356540,ACE 종합채권(AA-이상)액티브,universe,1.0000,true,G5,false,BOND,기타,한국,,G5,중장기 회사채 종합 — 기존 273130과 같음
+295040,SOL 200TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200TR)
+402970,ACE 미국배당다우존스,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,배당 — 기존 458730과 같은 지수. 161510과 같이 확인 필요
+315930,KODEX Top5PlusTR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,"시장대표 대형주 — 상위 5종목 집중이라 G2도 가능, 확인 필요"
+237350,KODEX 코스피100,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(코스피100)
+305540,TIGER 2차전지테마,universe,1.0000,true,G2,false,EQUITY,2차전지,한국,,G2,단일 테마(2차전지) — 기존 364980과 같음
+153130,KODEX 단기채권,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채
+144600,KODEX 은선물(H),universe,1.0000,true,G2,false,COMMODITY,기타,기타,,G2,원자재(은 선물)
+272580,TIGER 단기채권액티브,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채
+069660,KIWOOM 200,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200)
+434730,HANARO 원자력iSelect,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,단일 테마(원자력) — 기존 0091P0과 같음
+329750,TIGER 미국달러단기채권액티브,universe,1.0000,true,G5,false,BOND,기타,미국,,G5,"달러 단기채 — 단기금리지만 환노출이 있어 G6 대신 G5, 확인 필요"
+367760,RISE 네트워크인프라,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,단일 테마(네트워크인프라)
+290130,RISE ESG사회책임투자,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,광범위 지수(ESG) — 확인 필요
+371460,TIGER 차이나전기차SOLACTIVE,universe,1.0000,true,G2,false,EQUITY,2차전지,기타,,G2,해외 테마(중국 전기차)
+314250,KODEX 미국빅테크10(H),universe,1.0000,true,G2,false,EQUITY,인터넷과플랫폼,미국,,G2,해외 섹터·테마(미국 빅테크 10종목)

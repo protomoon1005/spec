@@ -1,5 +1,7 @@
 """universe.csv 에 이미 고정된 종목의 일별 OHLCV 만 다시 받아 data/prices.csv 를 쓴다.
 
+universe.csv 는 db/seeds/04_etf_master.csv 의 파생본이다(scripts/merge_universe.py derive, 2026-09-27).
+
 ## 왜 build_universe.py 와 따로 두는가 (2026-09-24 결정)
 
 build_universe.py 는 종목을 **뽑는** 스크립트다. 그쪽 START 를 당기면 상장일 필터
@@ -21,10 +23,12 @@ build_universe.py 는 종목을 **뽑는** 스크립트다. 그쪽 START 를 당
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import sys
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import FinanceDataReader as fdr
 import pandas as pd
@@ -37,7 +41,10 @@ PRICES_META = OUT / "prices.meta.json"
 
 
 def main() -> int:
-    with UNIVERSE.open(encoding="utf-8", newline="") as handle:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--universe", type=Path, default=UNIVERSE, help="ticker 칸이 있는 CSV")
+    universe = parser.parse_args().universe
+    with universe.open(encoding="utf-8-sig", newline="") as handle:
         tickers = [row["ticker"] for row in csv.DictReader(handle) if row.get("ticker")]
     print(f"[fetch_prices] {len(tickers)}종목 · {PRICE_START} ~ {AS_OF}")
 
