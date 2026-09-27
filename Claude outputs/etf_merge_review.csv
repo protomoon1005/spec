@@ -75,10 +75,10 @@ ticker,name,source,coverage,pass,risk_tag,is_leveraged,asset_group,sector,countr
 357870,TIGER CD금리투자KIS(합성),universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기금리(CD) — 기존 459580과 같음
 102780,KODEX 삼성그룹,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,그룹 테마(삼성그룹)
 278540,KODEX MSCI Korea TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(MSCI Korea)
-161510,PLUS 고배당주,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,"배당 — 기존 458730 미국배당다우존스가 G3. 단 M2_잔여작업_계획은 배당주를 G4로 적음, 확인 필요"
+161510,PLUS 고배당주,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,배당 — G4 확정(2026-09-27)
 385540,RISE 종합채권(A-이상)액티브,universe,1.0000,true,G5,false,BOND,기타,한국,,G5,중장기 회사채 종합 — 기존 273130과 같음
 284430,KODEX 200미국채혼합50,universe,1.0000,true,G4,false,BOND,기타,미국,,G4,혼합형(주식·채권 50)
-292150,TIGER 코리아TOP10,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,"시장대표 대형주 — 상위 10종목 집중이라 G2도 가능, 확인 필요"
+292150,TIGER 코리아TOP10,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 대형주 — G3 유지 확정(2026-09-27)
 214980,KODEX 단기채권PLUS,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채
 294400,KIWOOM 200TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200TR) — 기존 278530과 같음
 105190,ACE 200,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200)
@@ -89,8 +89,8 @@ ticker,name,source,coverage,pass,risk_tag,is_leveraged,asset_group,sector,countr
 157450,TIGER 단기통안채,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채(통안채)
 356540,ACE 종합채권(AA-이상)액티브,universe,1.0000,true,G5,false,BOND,기타,한국,,G5,중장기 회사채 종합 — 기존 273130과 같음
 295040,SOL 200TR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200TR)
-402970,ACE 미국배당다우존스,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,배당 — 기존 458730과 같은 지수. 161510과 같이 확인 필요
-315930,KODEX Top5PlusTR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,"시장대표 대형주 — 상위 5종목 집중이라 G2도 가능, 확인 필요"
+402970,ACE 미국배당다우존스,universe,1.0000,true,G3,false,EQUITY,기타,미국,,G3,배당 — G4 확정(2026-09-27)
+315930,KODEX Top5PlusTR,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 대형주 — G3 유지 확정(2026-09-27)
 237350,KODEX 코스피100,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(코스피100)
 305540,TIGER 2차전지테마,universe,1.0000,true,G2,false,EQUITY,2차전지,한국,,G2,단일 테마(2차전지) — 기존 364980과 같음
 153130,KODEX 단기채권,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채
@@ -98,8 +98,8 @@ ticker,name,source,coverage,pass,risk_tag,is_leveraged,asset_group,sector,countr
 272580,TIGER 단기채권액티브,universe,1.0000,true,G6,false,BOND,기타,한국,,G6,단기채
 069660,KIWOOM 200,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,시장대표 지수(200)
 434730,HANARO 원자력iSelect,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,단일 테마(원자력) — 기존 0091P0과 같음
-329750,TIGER 미국달러단기채권액티브,universe,1.0000,true,G5,false,BOND,기타,미국,,G5,"달러 단기채 — 단기금리지만 환노출이 있어 G6 대신 G5, 확인 필요"
+329750,TIGER 미국달러단기채권액티브,universe,1.0000,true,G5,false,BOND,기타,미국,,G5,"달러 단기채 — 환노출이 있어 G6 대신 G5, 확정(2026-09-27)"
 367760,RISE 네트워크인프라,universe,1.0000,true,G2,false,EQUITY,기타,한국,,G2,단일 테마(네트워크인프라)
-290130,RISE ESG사회책임투자,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,광범위 지수(ESG) — 확인 필요
+290130,RISE ESG사회책임투자,universe,1.0000,true,G3,false,EQUITY,기타,한국,,G3,광범위 지수(ESG) — G3 확정(2026-09-27)
 371460,TIGER 차이나전기차SOLACTIVE,universe,1.0000,true,G2,false,EQUITY,2차전지,기타,,G2,해외 테마(중국 전기차)
 314250,KODEX 미국빅테크10(H),universe,1.0000,true,G2,false,EQUITY,인터넷과플랫폼,미국,,G2,해외 섹터·테마(미국 빅테크 10종목)
