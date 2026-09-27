@@ -147,5 +147,54 @@ def get_spec_universe(spec_id: str) -> list[dict]:
     return [dict(row._mapping) for row in rows]
 
 
+def list_specs(user_id: int) -> list[dict]:
+    """사용자의 전략서 목록. 최근 것부터, 종목 수를 곁들인다."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT s.spec_id, s.name, s.status, s.created_at,
+                       (SELECT count(*) FROM spec_universe u WHERE u.spec_id = s.spec_id) AS universe_size
+                  FROM strategy_specs s
+                 WHERE s.user_id = :user_id
+                 ORDER BY s.created_at DESC
+                """
+            ),
+            {"user_id": user_id},
+        ).all()
+    return [dict(row._mapping) for row in rows]
+
+
+# draft 전략서가 지워질 때 함께 지우는 하위 기록. 나머지(백테스트·승인·포트폴리오·
+# 판단 기록)가 붙은 전략서는 지우지 않는다 — 실제로 굴러간 흔적이라서다.
+_OWNED_BY_DRAFT = ("spec_universe", "validation_logs")
+_BLOCKS_DELETE = ("backtest_runs", "approvals", "portfolios", "decision_records")
+
+
+def delete_draft_spec(spec_id: str, user_id: int) -> str:
+    """draft 전략서를 하위 기록과 함께 한 트랜잭션으로 지운다.
+
+    결과: "deleted" · "not_found"(없거나 남의 것) · "not_draft" · "has_records".
+    FK 에 ON DELETE CASCADE 가 없으므로 하위 테이블을 먼저 지운다.
+    """
+    with get_engine().begin() as conn:
+        row = conn.execute(
+            text("SELECT user_id, status FROM strategy_specs WHERE spec_id = :s FOR UPDATE"),
+            {"s": spec_id},
+        ).one_or_none()
+        if row is None or row.user_id != user_id:
+            return "not_found"
+        if row.status != DRAFT:
+            return "not_draft"
+        for table in _BLOCKS_DELETE:
+            found = conn.execute(text(f"SELECT 1 FROM {table} WHERE spec_id = :s LIMIT 1"), {"s": spec_id})
+            if found.first():
+                return "has_records"
+        for table in _OWNED_BY_DRAFT:
+            conn.execute(text(f"DELETE FROM {table} WHERE spec_id = :s"), {"s": spec_id})
+        conn.execute(text("DELETE FROM strategy_specs WHERE spec_id = :s"), {"s": spec_id})
+    return "deleted"
+
+
 def _dump(value: dict) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)

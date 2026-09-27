@@ -30,6 +30,28 @@ export function loadSession(): Session | null {
 
 export function saveSession(session: Session): void {
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  rememberToken(session.username, session.access);
+}
+
+// 로그아웃은 로그인 상태(SESSION_KEY)만 지운다. 인증받은 토큰은 아이디별로 따로
+// 기억해 두어, 유효기간 안이면 로그인 화면에서 토큰 없이 다시 들어올 수 있게 한다.
+const TOKENS_KEY = "spec.tokens";
+
+function loadTokens(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(TOKENS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberToken(username: string, access: string): void {
+  window.localStorage.setItem(TOKENS_KEY, JSON.stringify({ ...loadTokens(), [username]: access }));
+}
+
+export function loadRememberedToken(username: string): string | null {
+  return loadTokens()[username] ?? null;
 }
 
 export function clearSession(): void {
@@ -56,7 +78,7 @@ export class ApiError extends Error {
 }
 
 type ApiOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   body?: unknown;
   // 생략하면 보관된 토큰을 쓴다. 로그인 화면처럼 입력한 토큰으로 확인할 때만 넘긴다.
   token?: string | null;

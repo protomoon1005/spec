@@ -2,69 +2,123 @@
 
 // 로그인 — docs/frontend_milestone.md 2단계.
 //
-// 아이디와 가입 때 받은 토큰을 넣고, 인증 버튼으로 "이 토큰이 이 아이디의 것인가"를
-// 확인한 뒤에만 로그인 버튼이 눌린다. 확인은 GET /auth/me 가 돌려준 username 과
-// 입력한 아이디를 비교한다.
+// 아이디만 넣으면 로그인 버튼이 눌린다. 누르면 쓸 토큰을 이렇게 고른다.
+//   1) 토큰 칸에 값이 있으면 그 토큰
+//   2) 비어 있으면 이 브라우저가 그 아이디로 인증받아 기억해 둔 토큰(로그아웃해도 남는다)
+// 고른 토큰은 GET /auth/me 로 "이 아이디의 것인가"를 확인한 뒤에 쓴다.
 // 서버는 아이디만으로도 토큰을 내주므로 이건 보안 장치가 아니라 흐름 확인용이다.
+//
+// 서버는 만료와 위조를 둘 다 401 하나로 돌려준다. 그래서 만료는 토큰 안의 exp 를
+// 읽어 따로 판단하고, 만료면 "토큰 재인증" 버튼으로 POST /auth/login 에서 새 토큰을 받는다.
+// 로그인하면 홈(/home)으로 간다. 성향이 없으면 홈이 설문으로 안내한다.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import ScaffoldShell from "@/components/scaffold-shell";
-import { api, ApiError, saveSession } from "@/lib/api";
+import { api, loadRememberedToken, saveSession } from "@/lib/api";
 
 type MeResponse = { user_id: number; username: string; role: string };
+type TokenResponse = { access_token: string; refresh_token: string };
+
+// JWT 가운데 조각의 exp(초)를 읽는다. 서명은 서버가 본다 — 여기선 만료 안내용일 뿐이다.
+function isExpired(token: string): boolean {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const { exp } = JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, "="))) as { exp?: number };
+    return typeof exp === "number" && exp * 1000 <= Date.now();
+  } catch {
+    // 모양이 JWT 가 아니면 만료 판단은 서버에 맡긴다.
+    return false;
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [token, setToken] = useState("");
   const [verified, setVerified] = useState<MeResponse | null>(null);
+  const [expired, setExpired] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // 아이디나 토큰을 고치면 앞의 인증은 무효다.
+  // 아이디나 토큰을 고치면 앞의 인증·만료 안내는 무효다.
   function edit(set: (v: string) => void, value: string) {
     set(value);
     setVerified(null);
+    setExpired(false);
     setMessage(null);
+  }
+
+  // 토큰이 이 아이디의 것인지 확인한다. 통과하면 주인 정보, 아니면 메시지를 띄우고 null.
+  async function check(candidate: string): Promise<MeResponse | null> {
+    if (isExpired(candidate)) {
+      setExpired(true);
+      setMessage("토큰의 유효기간이 지났습니다. 아래 토큰 재인증 버튼으로 새 토큰을 받으세요.");
+      return null;
+    }
+    try {
+      const me = await api<MeResponse>("/auth/me", { token: candidate });
+      if (me.username === username.trim()) return me;
+      setMessage(`인증 실패: 이 토큰은 '${me.username}' 의 것입니다. 입력한 아이디와 다릅니다.`);
+    } catch (err) {
+      setMessage(`인증 실패: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
   }
 
   async function verify() {
     setBusy(true);
     setMessage(null);
+    setVerified(await check(token.trim()));
+    setBusy(false);
+  }
+
+  // 만료됐을 때 아이디로 새 토큰을 받아 토큰 칸에 넣고 곧바로 인증까지 한다.
+  async function reissue() {
+    setBusy(true);
+    setMessage(null);
     try {
-      const me = await api<MeResponse>("/auth/me", { token: token.trim() });
-      if (me.username === username.trim()) {
-        setVerified(me);
-      } else {
-        setMessage(`인증 실패: 이 토큰은 '${me.username}' 의 것입니다. 입력한 아이디와 다릅니다.`);
-      }
+      const res = await api<TokenResponse>("/auth/login", { body: { username: username.trim() }, token: null });
+      setToken(res.access_token);
+      setExpired(false);
+      const me = await check(res.access_token);
+      setVerified(me);
+      if (me) setMessage("새 토큰으로 재인증했습니다. 로그인 버튼을 누르세요.");
     } catch (err) {
-      setMessage(`인증 실패: ${err instanceof Error ? err.message : String(err)}`);
+      setMessage(`재인증 실패: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
   }
 
   async function login() {
-    if (!verified) return;
-    // 로그인 화면에는 refresh 토큰이 없다. 만료되면 다시 로그인한다(자동 재발급은 범위 밖).
-    saveSession({ access: token.trim(), refresh: "", username: verified.username });
     setBusy(true);
-    try {
-      // 성향이 확정됐는지로 다음 화면을 정한다. 없으면 404 가 온다.
-      await api("/profile/me");
-      router.push("/compile");
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        router.push("/survey");
-      } else {
-        setMessage(`다음 단계 확인 실패: ${err instanceof Error ? err.message : String(err)}`);
+    setMessage(null);
+
+    let access = token.trim();
+    let me = verified;
+    if (!me) {
+      if (!access) {
+        const remembered = loadRememberedToken(username.trim());
+        if (!remembered) {
+          setMessage("이 아이디로 인증된 토큰이 이 브라우저에 없습니다. 토큰을 입력해 인증하세요.");
+          setBusy(false);
+          return;
+        }
+        access = remembered;
+      }
+      me = await check(access);
+      if (!me) {
         setBusy(false);
+        return;
       }
     }
+
+    // 로그인 화면에는 refresh 토큰이 없다. 만료되면 이 화면에서 재인증한다.
+    saveSession({ access, refresh: "", username: me.username });
+    router.push("/home");
   }
 
   return (
@@ -103,14 +157,21 @@ export default function LoginPage() {
           )}
         </p>
         <p>
-          <button onClick={login} disabled={busy || !verified}>
+          <button onClick={login} disabled={busy || !username.trim()}>
             로그인
           </button>{" "}
-          인증이 통과해야 누를 수 있습니다.
+          이 브라우저에서 이미 인증한 토큰이 유효기간 안이면 토큰 없이 로그인됩니다.
         </p>
 
         {busy && <p>확인 중…</p>}
         {message && <p>{message}</p>}
+        {expired && (
+          <p>
+            <button onClick={reissue} disabled={busy || !username.trim()}>
+              토큰 재인증
+            </button>
+          </p>
+        )}
 
         <p>
           계정이 없으면 <Link href="/signup">회원가입</Link>
