@@ -44,6 +44,13 @@
   - 대응 — 선정 방식은 고치지 않고 커밋된 `data/universe.csv` 를 고정된 기준본으로 쓴다. 평소에는 `fetch_prices.py` → `ingest_prices.py` 만 돌린다
   - 한계 — 2026-09 시점 순자산으로 뽑았으므로 백테스트 구간(2023-01~2025-12) 기준으로는 생존편향이 있다
 
+- **`price_daily` 에 `etf_master` FK 가 없음** (`db/init/02_schema.sql:304-316`)
+  - 원장에서 종목이 빠져도 시세는 고아 행으로 남는다. 데이터를 잃지는 않는다
+  - 반대로 `ingest_prices.py` 가 원장에 없는 종목을 넣어도 DB 가 막지 못한다
+  - `load_etf_master.py` 는 `spec_universe`·`positions`·`orders`·`view_scores` 가 참조 중인 종목은 지우지 않는다
+  - FK 를 걸면 커버리지 필터로 빠져야 할 종목이 안 지워져 "CSV 가 정본" 원칙과 부딪힌다. 데모 후 판단
+  - 2026-09-27 기준 고아 행 0
+
 ### 전략서와 승인
 
 - **승인한 전략서의 상태를 바꿀 수 없음**
