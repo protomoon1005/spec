@@ -94,9 +94,9 @@ def test_same_answers_give_same_result():
 # --- API 흐름 (postgres + 시드 필요) ----------------------------------------
 
 
-def _auth(client, make_user, test_password):
+def _auth(client, make_user):
     email, user_id = make_user("retail")
-    tokens = client.post("/auth/login", json={"email": email, "password": test_password}).json()
+    tokens = client.post("/auth/login", json={"username": email}).json()
     return {"Authorization": f"Bearer {tokens['access_token']}"}, user_id
 
 
@@ -113,8 +113,8 @@ def _cleanup(engine, user_id: int) -> None:
         conn.execute(text("DELETE FROM survey_responses WHERE user_id = :u"), {"u": user_id})
 
 
-def test_questions_are_served_without_a_profile(client, make_user, test_password):
-    headers, _ = _auth(client, make_user, test_password)
+def test_questions_are_served_without_a_profile(client, make_user):
+    headers, _ = _auth(client, make_user)
 
     resp = client.get("/profile/survey/questions", headers=headers)
 
@@ -123,8 +123,8 @@ def test_questions_are_served_without_a_profile(client, make_user, test_password
     assert [q["question_code"] for q in body["questions"]] == ALL_QUESTIONS
 
 
-def test_profile_flow_end_to_end(client, engine, make_user, test_password):
-    headers, user_id = _auth(client, make_user, test_password)
+def test_profile_flow_end_to_end(client, engine, make_user):
+    headers, user_id = _auth(client, make_user)
     try:
         # 확정 전에는 볼 성향이 없다.
         assert client.get("/profile/me", headers=headers).status_code == 404
@@ -143,8 +143,8 @@ def test_profile_flow_end_to_end(client, engine, make_user, test_password):
         _cleanup(engine, user_id)
 
 
-def test_profile_requires_all_questions(client, engine, make_user, test_password):
-    headers, user_id = _auth(client, make_user, test_password)
+def test_profile_requires_all_questions(client, engine, make_user):
+    headers, user_id = _auth(client, make_user)
     try:
         partial = dict(LOWEST)
         del partial["LOSS_TOLERANCE"]
@@ -158,9 +158,9 @@ def test_profile_requires_all_questions(client, engine, make_user, test_password
         _cleanup(engine, user_id)
 
 
-def test_latest_answer_wins(client, engine, make_user, test_password):
+def test_latest_answer_wins(client, engine, make_user):
     """답을 고치면 마지막 답으로 판정한다."""
-    headers, user_id = _auth(client, make_user, test_password)
+    headers, user_id = _auth(client, make_user)
     try:
         _submit(client, headers, LOWEST)
         _submit(client, headers, HIGHEST)
@@ -172,9 +172,9 @@ def test_latest_answer_wins(client, engine, make_user, test_password):
         _cleanup(engine, user_id)
 
 
-def test_reassessment_appends_instead_of_overwriting(client, engine, make_user, test_password):
+def test_reassessment_appends_instead_of_overwriting(client, engine, make_user):
     """다시 진단하면 새 행이 쌓인다 — 전략서가 가리키는 과거 성향이 바뀌면 안 된다."""
-    headers, user_id = _auth(client, make_user, test_password)
+    headers, user_id = _auth(client, make_user)
     try:
         _submit(client, headers, LOWEST)
         first = client.post("/profile", headers=headers).json()
@@ -197,9 +197,9 @@ def test_reassessment_appends_instead_of_overwriting(client, engine, make_user, 
         _cleanup(engine, user_id)
 
 
-def test_profile_copies_defaults_and_keeps_reasoning(client, engine, make_user, test_password):
+def test_profile_copies_defaults_and_keeps_reasoning(client, engine, make_user):
     """성향별 기본값이 복사되고, 어떤 답이 몇 점이어서 그 등급이 됐는지가 남는다."""
-    headers, user_id = _auth(client, make_user, test_password)
+    headers, user_id = _auth(client, make_user)
     try:
         _submit(client, headers, LOWEST)
         profile_id = client.post("/profile", headers=headers).json()["profile_id"]
@@ -231,8 +231,8 @@ def test_profile_copies_defaults_and_keeps_reasoning(client, engine, make_user, 
         _cleanup(engine, user_id)
 
 
-def test_survey_rejects_unknown_choice(client, make_user, test_password):
-    headers, _ = _auth(client, make_user, test_password)
+def test_survey_rejects_unknown_choice(client, make_user):
+    headers, _ = _auth(client, make_user)
 
     resp = client.post(
         "/profile/survey",

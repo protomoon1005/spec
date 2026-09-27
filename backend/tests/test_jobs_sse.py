@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 
 
-def _login(client, email: str, password: str) -> str:
-    resp = client.post("/auth/login", json={"email": email, "password": password})
+def _login(client, email: str) -> str:
+    resp = client.post("/auth/login", json={"username": email})
     assert resp.status_code == 200, resp.text
     return resp.json()["access_token"]
 
@@ -30,9 +30,9 @@ def _parse_sse_events(body: str) -> list[dict]:
     return events
 
 
-def test_compile_spec_returns_202_with_job_id(client, make_user, test_password):
+def test_compile_spec_returns_202_with_job_id(client, make_user):
     email, _ = make_user("retail")
-    token = _login(client, email, test_password)
+    token = _login(client, email)
 
     resp = client.post(
         "/specs/compile",
@@ -50,9 +50,9 @@ def test_compile_spec_requires_auth(client):
     assert resp.status_code == 401
 
 
-def test_job_stream_reports_completion(client, make_user, test_password):
+def test_job_stream_reports_completion(client, make_user):
     email, _ = make_user("retail")
-    token = _login(client, email, test_password)
+    token = _login(client, email)
     headers = {"Authorization": f"Bearer {token}"}
 
     compile_resp = client.post(

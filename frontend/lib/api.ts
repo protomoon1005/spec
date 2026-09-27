@@ -1,0 +1,193 @@
+// 흐름 화면(가입 → 로그인 → 설문 → 전략 만들기 …)이 공통으로 쓰는 바닥.
+// docs/frontend_milestone.md 0단계.
+//
+// 네 가지만 한다.
+//   1) 토큰 보관       브라우저 저장소에 access · refresh · username
+//   2) API 호출        주소 · 토큰 헤더 · 오류 메시지 꺼내기
+//   3) 진행 상황 스트림 전략서 컴파일 결과를 받는 SSE 읽기
+//   4) 흐름 상태       전략 만들기 결과를 다음 화면으로 넘기기
+//
+// 서버 오류는 가공하지 않고 "HTTP 상태: 서버가 준 detail" 로 그대로 올린다.
+// 의도 파악이 우선인 화면이라, 무엇이 왜 실패했는지 그대로 보여야 한다.
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+// --- 1) 토큰 보관 ----------------------------------------------------------
+
+export type Session = { access: string; refresh: string; username: string };
+
+const SESSION_KEY = "spec.session";
+
+export function loadSession(): Session | null {
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as Session) : null;
+  } catch {
+    // 서버 렌더링 중이거나 저장소가 막힌 브라우저 — 로그인 안 된 것으로 본다.
+    return null;
+  }
+}
+
+export function saveSession(session: Session): void {
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  rememberToken(session.username, session.access);
+}
+
+// 로그아웃은 로그인 상태(SESSION_KEY)만 지운다. 인증받은 토큰은 아이디별로 따로
+// 기억해 두어, 유효기간 안이면 로그인 화면에서 토큰 없이 다시 들어올 수 있게 한다.
+const TOKENS_KEY = "spec.tokens";
+
+function loadTokens(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(TOKENS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberToken(username: string, access: string): void {
+  window.localStorage.setItem(TOKENS_KEY, JSON.stringify({ ...loadTokens(), [username]: access }));
+}
+
+export function loadRememberedToken(username: string): string | null {
+  return loadTokens()[username] ?? null;
+}
+
+export function clearSession(): void {
+  try {
+    window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // 지울 게 없으면 그만이다.
+  }
+}
+
+// --- 2) API 호출 -----------------------------------------------------------
+
+// 생성자 매개변수 속성(readonly status)을 쓰지 않는다 — node 의 타입 제거 실행
+// (scripts/check-api.ts)이 그 문법을 못 읽는다.
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: unknown;
+
+  constructor(status: number, detail: unknown) {
+    super(`HTTP ${status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+type ApiOptions = {
+  method?: "GET" | "POST" | "DELETE";
+  body?: unknown;
+  // 생략하면 보관된 토큰을 쓴다. 로그인 화면처럼 입력한 토큰으로 확인할 때만 넘긴다.
+  token?: string | null;
+};
+
+export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method ?? (options.body === undefined ? "GET" : "POST"),
+    headers: headers(options.token, options.body !== undefined),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+  const text = await res.text();
+  const data: unknown = text ? safeJson(text) : null;
+  if (!res.ok) {
+    // FastAPI 오류는 { detail: ... } 모양이다. 아니면 본문을 통째로 보여 준다.
+    const detail = data && typeof data === "object" && "detail" in data ? data.detail : data;
+    throw new ApiError(res.status, detail);
+  }
+  return data as T;
+}
+
+function headers(token: string | null | undefined, json: boolean): HeadersInit {
+  const h: Record<string, string> = {};
+  if (json) h["Content-Type"] = "application/json";
+  const access = token === undefined ? loadSession()?.access : token;
+  if (access) h.Authorization = `Bearer ${access}`;
+  return h;
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+// --- 3) 진행 상황 스트림 ---------------------------------------------------
+//
+// 브라우저 기본 EventSource 는 Authorization 헤더를 못 싣는다. 서버의 스트림
+// 주소는 인증이 필요하므로 fetch 로 받아 직접 끊어 읽는다.
+// 서버는 event: status(상태 바뀔 때마다) → complete(끝) 또는 timeout 을 보낸다.
+
+export type StreamEvent = { event: string; data: unknown };
+
+// signal 로 끊을 수 있다. 개발 모드(reactStrictMode)는 effect 를 두 번 돌리므로
+// 화면이 정리될 때 끊지 않으면 스트림이 두 개 열려 이벤트가 두 번 온다.
+export async function streamJob(
+  jobId: string,
+  onEvent: (e: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/stream`, { headers: headers(undefined, false), signal });
+  if (!res.ok || !res.body) {
+    throw new ApiError(res.status, safeJson(await res.text()));
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = parseSse(buffer);
+    buffer = parsed.rest;
+    parsed.events.forEach(onEvent);
+  }
+}
+
+// 이벤트는 빈 줄로 끝난다. 아직 빈 줄이 안 온 끝 조각은 rest 로 남겨 다음 읽기에 붙인다.
+export function parseSse(buffer: string): { events: StreamEvent[]; rest: string } {
+  const blocks = buffer.replace(/\r\n/g, "\n").split("\n\n");
+  const rest = blocks.pop() ?? "";
+  const events = blocks
+    .filter((block) => block.trim())
+    .map((block) => {
+      let event = "message";
+      const data: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+      }
+      return { event, data: safeJson(data.join("\n")) };
+    });
+  return { events, rest };
+}
+
+// --- 4) 화면 사이에 넘기는 전략 만들기 결과 --------------------------------
+//
+// 진행 상황 화면이 받은 결과(되묻기 질문, 완료된 spec_id)를 다음 화면이 읽는다.
+// 질문 문장과 선택지는 주소에 싣기엔 길어서 탭 저장소(sessionStorage)에 둔다.
+// 탭을 닫으면 사라지는 게 맞다 — 되묻기 대화도 서버에서 30분이면 만료된다.
+
+export type CompileResult =
+  | { status: "completed"; spec_id: string; universe_size: number }
+  | { status: "need_answer"; session_id: string; question: string; choices: string[] }
+  | { status: "failed"; reason: string };
+
+const COMPILE_KEY = "spec.compile";
+
+export function saveCompileResult(result: CompileResult): void {
+  window.sessionStorage.setItem(COMPILE_KEY, JSON.stringify(result));
+}
+
+export function loadCompileResult(): CompileResult | null {
+  try {
+    const raw = window.sessionStorage.getItem(COMPILE_KEY);
+    return raw ? (JSON.parse(raw) as CompileResult) : null;
+  } catch {
+    return null;
+  }
+}
