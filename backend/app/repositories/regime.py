@@ -1,7 +1,7 @@
 """regime_snapshots 적재와 시점 경계 조회.
 
-이 테이블은 아직 scripts/check_asof_guard.py 의 감시 대상이 아니다(Q5: T8 이후
-현서가 별도 PR로 넓힌다). 그때 파일을 옮기지 않으려고 처음부터 저장소 계층에 뒀다.
+이 테이블은 scripts/check_asof_guard.py 의 감시 대상이다(Q5 확장으로 추가됐다).
+그때 파일을 옮기지 않으려고 처음부터 저장소 계층에 뒀다.
 
 PK 가 (as_of, trend_index) 라 추세 지수를 여러 개 동시에 볼 수 있는 구조다.
 적재는 ON CONFLICT DO UPDATE 다 — 거시지표가 개정되면 그날의 국면 판정도 바뀐다.
