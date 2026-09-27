@@ -55,9 +55,14 @@ SECTOR_GROUP_MAP = {
     "반도체": "SECTOR_SEMICONDUCTOR",
     "2차전지": "SECTOR_BATTERY",
     "바이오와헬스케어": "SECTOR_BIOHEALTH",
+    "금융": "SECTOR_FINANCE",
+    "인터넷과플랫폼": "SECTOR_INTERNET_PLATFORM",
     "소비재": "SECTOR_CONSUMER",
     "기타": "SECTOR_OTHER",
 }
+
+# etf_master(ticker) 를 FK 로 참조하는 표 (db/init/02_schema.sql)
+REFERENCING_TABLES = ("spec_universe", "positions", "orders", "view_scores")
 
 # CSV의 country 한글값 -> asset_groups.group_id (db/seeds/03_asset_groups.sql 레벨2 국가)
 COUNTRY_GROUP_MAP = {
@@ -238,6 +243,21 @@ def main() -> int:
                         "country_group_id": row["country_group_id"],
                     },
                 )
+            # CSV 가 정본이다. 원장에서 빠진 종목은 지운다 — 남겨 두면 M1 이 가격 없는
+            # 종목을 계속 고른다. 전략서·주문 등이 참조하는 종목은 지우지 않고 알린다.
+            tickers = [r["ticker"] for r in rows]
+            deleted = conn.execute(text(
+                "DELETE FROM etf_master e WHERE e.ticker <> ALL(:tickers)"
+                + "".join(f" AND NOT EXISTS (SELECT 1 FROM {t} x WHERE x.ticker = e.ticker)"
+                          for t in REFERENCING_TABLES)
+                + " RETURNING ticker"
+            ), {"tickers": tickers}).scalars().all()
+            kept = conn.execute(text("SELECT ticker FROM etf_master WHERE ticker <> ALL(:tickers)"),
+                                {"tickers": tickers}).scalars().all()
+        print(f"load_etf_master: CSV 에 없는 {len(deleted)}행 삭제 {sorted(deleted)}")
+        if kept:
+            print(f"load_etf_master: CSV 에 없지만 참조가 있어 남긴 {len(kept)}행 {sorted(kept)}",
+                  file=sys.stderr)
     finally:
         engine.dispose()
 
