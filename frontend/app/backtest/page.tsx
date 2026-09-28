@@ -49,10 +49,6 @@ export default function BacktestPage() {
         </RequireLogin>
 
         <p>
-          <Link href="/report">자세한 리포트 보기 (/report)</Link> — 데모 Spec 결과입니다. 이번 전략서 결과가
-          아닙니다.
-        </p>
-        <p>
           <button onClick={() => router.push("/confirm")}>다음 — 최종 확인</button>
         </p>
       </main>
@@ -153,6 +149,14 @@ function Result({ run }: { run: BacktestRun }) {
         <li>비중 계산: {run.weight_path}</li>
         <li>서버 지표 (전략 기준, benchmark_cagr 은 시장): {JSON.stringify(run.metrics)}</li>
       </ul>
+      {/* 리포트는 이 실행 번호로 같은 결과를 받아 그린다. 예전에는 /report 가 늘 데모 결과를
+          보여 줘서 "이번 전략서 결과가 아닙니다" 라고 적어 둬야 했다. */}
+      {run.status === "done" && (
+        <p>
+          <Link href={`/report?run_id=${run.run_id}`}>이 실행의 자세한 리포트 보기</Link> — 차트, 종목별 비중,
+          그룹캡 적용, 전략서 내용
+        </p>
+      )}
     </>
   );
 }
@@ -170,6 +174,9 @@ function Stored() {
         </li>
         <SeriesRows totals={{ strategy, control, market }} />
       </ul>
+      <p>
+        <Link href="/report">데모 리포트 보기</Link> — 위와 같은 데모 결과입니다
+      </p>
     </>
   );
 }

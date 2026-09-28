@@ -63,6 +63,13 @@ class BacktestRunDetail(BacktestRunResponse):
     schedule: dict | None
     weight_path: str | None
     reason: str | None  # failed 일 때만
+    # 아래는 done 일 때만. 리포트 화면(/report?run_id=)이 비중 표·캡 로그·리밸런싱
+    # 이력을 이 실행 그대로 그리는 데 쓴다. 저장은 전부터 하고 있었고 내보내지만
+    # 않았다 — 그래서 리포트가 이 실행 대신 미리 저장된 결과 파일을 읽고 있었다.
+    risk_level: int | None
+    universe: list[dict] | None  # 이 실행이 쓴 종목과 등급·분류·요청 밴드
+    decisions: list[dict] | None  # 전략 리밸런싱 결정 (signals·mapped·target·cash·capApplications)
+    control_decisions: list[dict] | None  # 대조군(신호 미사용) 결정
 
 
 @router.post("/runs", response_model=BacktestRunResponse, status_code=status.HTTP_202_ACCEPTED,
@@ -118,4 +125,9 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
         schedule=results.get("schedule"),
         weight_path=results.get("weight_path"),
         reason=results.get("error"),
+        risk_level=results.get("risk_level"),
+        # universe 는 2026-09-29 이전 실행에는 없다(그때는 저장하지 않았다). 없으면 None.
+        universe=results.get("universe") if done else None,
+        decisions=results.get("decisions") if done else None,
+        control_decisions=results.get("control_decisions") if done else None,
     )

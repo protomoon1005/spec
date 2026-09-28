@@ -88,6 +88,23 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
                 "skipped_rebalance_dates": inp.skipped_rebalance_dates,
             },
             "summary": summary,
+            # 이 실행이 실제로 쓴 종목과 분류. etf_master 의 등급·분류는 나중에 바뀔 수
+            # 있어서, 실행 기록 안에 그때 쓴 값을 그대로 남긴다 — 리포트가 같은 실행을
+            # 언제 다시 열어도 같은 비중 표를 그리려면 여기서 읽어야 한다.
+            # 키는 frontend/data/backtest-result.json 의 universe 와 같다.
+            "universe": [
+                {
+                    "ticker": h["ticker"],
+                    "name": h["name"],
+                    "grade": h["grade"],
+                    "asset_group": h["asset_group"],
+                    "sector_group": h["sector_group"],
+                    "country_group": h["country_group"],
+                    "weight_min_raw": h["min_raw"],
+                    "weight_max_raw": h["max_raw"],
+                }
+                for h in inp.holdings
+            ],
             "series": [
                 {"date": d, "strategy": s, "control": c, "market": m}
                 for d, s, c, m in zip(dates, curves["strategy"], curves["control"], curves["market"])
