@@ -108,14 +108,12 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="실행 기록을 찾을 수 없다")
 
     results = run["window_results"] or {}
-    metrics = None
-    if run["status"] == backtests.DONE:
-        metrics = BacktestMetrics(**{key: run[key] for key in BacktestMetrics.model_fields})
+    done = run["status"] == backtests.DONE
     return BacktestRunDetail(
         **{key: run[key] for key in BacktestRunDetail.model_fields if key in run},
-        metrics=metrics,
+        metrics=BacktestMetrics(**{key: run[key] for key in BacktestMetrics.model_fields}) if done else None,
         summary=results.get("summary"),
-        series=results.get("series") if run["status"] == backtests.DONE else None,
+        series=results.get("series") if done else None,
         scorer_sources=results.get("scorer_sources"),
         schedule=results.get("schedule"),
         weight_path=results.get("weight_path"),

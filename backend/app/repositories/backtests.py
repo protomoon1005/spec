@@ -134,7 +134,6 @@ def fail_run(run_id: int, *, reason: str) -> None:
 
 
 def _upsert_metrics(conn, run_id: int, metrics: dict, window_results: dict) -> None:
-    params = {key: metrics.get(key) for key in _METRIC_FIELDS}
     conn.execute(
         text(
             """
@@ -150,7 +149,7 @@ def _upsert_metrics(conn, run_id: int, metrics: dict, window_results: dict) -> N
         ),
         {
             "run_id": run_id,
-            **params,
+            **{key: metrics.get(key) for key in _METRIC_FIELDS},
             "window_results": json.dumps(window_results, ensure_ascii=False, default=str),
         },
     )

@@ -63,19 +63,17 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
 
     dates = inp.valuation_dates
     years = (date.fromisoformat(dates[-1]) - date.fromisoformat(dates[0])).days / 365.25
-    summary = {
-        "strategy": compute_metrics([p["equity"] for p in strategy["series"]], years),
-        "control": compute_metrics([p["equity"] for p in control["series"]], years),
-        "market": compute_metrics([p["equity"] for p in market], years),
+    curves = {
+        "strategy": [p["equity"] for p in strategy["series"]],
+        "control": [p["equity"] for p in control["series"]],
+        "market": [p["equity"] for p in market],
     }
+    summary = {name: compute_metrics(values, years) for name, values in curves.items()}
 
     return {
         "data_snapshot_asof": inp.data_snapshot_asof,
         "metrics": {
-            "cagr": summary["strategy"]["cagr"],
-            "mdd": summary["strategy"]["mdd"],
-            "sharpe": summary["strategy"]["sharpe"],
-            "sortino": summary["strategy"]["sortino"],
+            **{key: summary["strategy"][key] for key in ("cagr", "mdd", "sharpe", "sortino")},
             "win_rate": None,  # 정의가 문서에 없다
             "benchmark_cagr": summary["market"]["cagr"],
         },
@@ -91,8 +89,8 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
             },
             "summary": summary,
             "series": [
-                {"date": d, "strategy": s["equity"], "control": c["equity"], "market": m["equity"]}
-                for d, s, c, m in zip(dates, strategy["series"], control["series"], market)
+                {"date": d, "strategy": s, "control": c, "market": m}
+                for d, s, c, m in zip(dates, curves["strategy"], curves["control"], curves["market"])
             ],
             "decisions": strategy["decisions"],
             "control_decisions": control["decisions"],
@@ -104,9 +102,10 @@ def compute_metrics(values: list[float], years: float) -> dict:
     """frontend/lib/data.ts computeMetrics 의 파이썬 판. 주간 수익률, 표본 표준편차."""
     first, last = values[0], values[-1]
     rets = [b / a - 1 for a, b in zip(values, values[1:])]
+    annualize = math.sqrt(PERIODS_PER_YEAR)
     cagr = (last / first) ** (1 / years) - 1
-    vol = _stdev(rets) * math.sqrt(PERIODS_PER_YEAR)
-    down = _stdev([min(r, 0.0) for r in rets]) * math.sqrt(PERIODS_PER_YEAR)
+    vol = _stdev(rets) * annualize
+    down = _stdev([min(r, 0.0) for r in rets]) * annualize
 
     peak, mdd = first, 0.0
     for v in values:

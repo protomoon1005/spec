@@ -12,13 +12,7 @@ import { useEffect, useRef, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import {
-  api,
-  type BacktestRun,
-  loadBacktestRun,
-  loadCompileResult,
-  saveBacktestRun,
-} from "@/lib/api";
+import { api, type BacktestRun, loadBacktestRun, loadCompileResult, saveBacktestRun } from "@/lib/api";
 import { control, DATA_SOURCE, market, PERIOD_END, PERIOD_START, PROFILE_LABEL, strategy } from "@/lib/data";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
@@ -26,6 +20,15 @@ const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 // 데모 계획 1.4 의 평가 구간 끝. 시작일은 서버 기본값(2023-01-01)을 쓴다.
 const REQUEST_PERIOD_END = "2025-12-31";
 const POLL_MS = 3000;
+
+// 저장된 결과와 서버 결과를 같은 세 계열, 같은 문장으로 적는다.
+const SERIES = [
+  { key: "strategy", label: "전략 (3관점 신호 사용)" },
+  { key: "control", label: "대조군 (같은 제약, 신호 없음)" },
+  { key: "market", label: "시장 (KODEX 200 매수 후 보유)" },
+] as const;
+
+type SeriesTotals = Record<(typeof SERIES)[number]["key"], { total: number; mdd: number }>;
 
 export default function BacktestPage() {
   const router = useRouter();
@@ -42,7 +45,7 @@ export default function BacktestPage() {
         <h1>백테스트</h1>
         <p>이 화면에서 하는 일: 전략을 과거 데이터로 돌려 본 결과를 확인한다.</p>
         <RequireLogin>
-          {() => (specId === undefined ? <p>불러오는 중…</p> : specId ? <LiveRun specId={specId} /> : <Stored />)}
+          {() => <Body specId={specId} />}
         </RequireLogin>
 
         <p>
@@ -55,6 +58,11 @@ export default function BacktestPage() {
       </main>
     </ScaffoldShell>
   );
+}
+
+function Body({ specId }: { specId: string | null | undefined }) {
+  if (specId === undefined) return <p>불러오는 중…</p>;
+  return specId ? <LiveRun specId={specId} /> : <Stored />;
 }
 
 function LiveRun({ specId }: { specId: string }) {
@@ -131,8 +139,6 @@ function LiveRun({ specId }: { specId: string }) {
 }
 
 function Result({ run }: { run: BacktestRun }) {
-  const s = run.summary;
-  const m = run.metrics;
   return (
     <>
       <h2>결과 (실행 번호 {run.run_id})</h2>
@@ -141,23 +147,11 @@ function Result({ run }: { run: BacktestRun }) {
         <li>
           기간: {run.period_start} ~ {run.period_end} (실제로 쓴 마지막 거래일 {run.data_snapshot_asof})
         </li>
-        {s && (
-          <>
-            <li>
-              전략 (3관점 신호 사용): 최종 수익률 {pct(s.strategy.total)}, 최대 낙폭 {pct(s.strategy.mdd)}
-            </li>
-            <li>
-              대조군 (같은 제약, 신호 없음): 최종 수익률 {pct(s.control.total)}, 최대 낙폭 {pct(s.control.mdd)}
-            </li>
-            <li>
-              시장 (KODEX 200 매수 후 보유): 최종 수익률 {pct(s.market.total)}, 최대 낙폭 {pct(s.market.mdd)}
-            </li>
-          </>
-        )}
+        {run.summary && <SeriesRows totals={run.summary} />}
         <li>관점 출처: {JSON.stringify(run.scorer_sources)}</li>
         <li>리밸런싱 일정: {run.schedule?.note}</li>
         <li>비중 계산: {run.weight_path}</li>
-        <li>서버 지표 (전략 기준, benchmark_cagr 은 시장): {JSON.stringify(m)}</li>
+        <li>서버 지표 (전략 기준, benchmark_cagr 은 시장): {JSON.stringify(run.metrics)}</li>
       </ul>
     </>
   );
@@ -174,16 +168,20 @@ function Stored() {
         <li>
           기간: {PERIOD_START} ~ {PERIOD_END}
         </li>
-        {[
-          { label: "전략 (3관점 신호 사용)", m: strategy },
-          { label: "대조군 (같은 제약, 신호 없음)", m: control },
-          { label: "시장 (KODEX 200 매수 후 보유)", m: market },
-        ].map(({ label, m }) => (
-          <li key={label}>
-            {label}: 최종 수익률 {pct(m.total)}, 최대 낙폭 {pct(m.mdd)}
-          </li>
-        ))}
+        <SeriesRows totals={{ strategy, control, market }} />
       </ul>
+    </>
+  );
+}
+
+function SeriesRows({ totals }: { totals: SeriesTotals }) {
+  return (
+    <>
+      {SERIES.map(({ key, label }) => (
+        <li key={key}>
+          {label}: 최종 수익률 {pct(totals[key].total)}, 최대 낙폭 {pct(totals[key].mdd)}
+        </li>
+      ))}
     </>
   );
 }

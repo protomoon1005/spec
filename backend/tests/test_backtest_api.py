@@ -93,8 +93,8 @@ def fake_runner(monkeypatch):
         calls.append({"spec_id": spec_id, **kwargs})
         return FAKE_RESULT
 
-    monkeypatch.setattr(service, "run_conditions", lambda: {"fee_rate": 0.00015, "tax_rate": 0.0,
-                                                            "slippage_bp": 5.0})
+    conditions = {"fee_rate": 0.00015, "tax_rate": 0.0, "slippage_bp": 5.0}
+    monkeypatch.setattr(service, "run_conditions", lambda: conditions)
     monkeypatch.setattr(service, "run_spec_backtest", _fake)
     return calls
 
@@ -102,6 +102,10 @@ def fake_runner(monkeypatch):
 def _post(client, email, spec_id, **extra):
     return client.post("/backtest/runs", json={"spec_id": spec_id, **BODY, **extra},
                        headers=_auth(client, email))
+
+
+def _get(client, email, run_id):
+    return client.get(f"/backtest/runs/{run_id}", headers=_auth(client, email))
 
 
 # ── 202 → done ─────────────────────────────────────────────────────
@@ -118,7 +122,7 @@ def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, f
     assert fake_runner == [{"spec_id": spec_id, "period_start": date(2023, 1, 1),
                             "period_end": date(2025, 12, 31), "seed_money": 10_000_000}]
 
-    got = client.get(f"/backtest/runs/{body['run_id']}", headers=_auth(client, email)).json()
+    got = _get(client, email, body["run_id"]).json()
     assert got["status"] == "done"
     assert got["metrics"] == FAKE_RESULT["metrics"]
     assert got["series"] == FAKE_RESULT["window_results"]["series"]
@@ -152,8 +156,8 @@ def test_cannot_run_or_read_someone_elses(client, owner, make_user, fake_runner)
 
     assert _post(client, other, spec_id).status_code == 404
     assert _post(client, email, "STR-없는전략서").status_code == 404
-    assert client.get(f"/backtest/runs/{run_id}", headers=_auth(client, other)).status_code == 404
-    assert client.get("/backtest/runs/999999999", headers=_auth(client, email)).status_code == 404
+    assert _get(client, other, run_id).status_code == 404
+    assert _get(client, email, 999999999).status_code == 404
 
 
 # ── failed ─────────────────────────────────────────────────────────
@@ -168,7 +172,7 @@ def test_input_failure_ends_failed_with_the_reason(client, owner, fake_runner, m
     monkeypatch.setattr(service, "run_spec_backtest", _raise)
     run_id = _post(client, email, spec_id).json()["run_id"]
 
-    got = client.get(f"/backtest/runs/{run_id}", headers=_auth(client, email)).json()
+    got = _get(client, email, run_id).json()
     assert got["status"] == "failed"
     assert got["reason"] == "러너가 지원하지 않는 리밸런싱 규칙: {...}"
     assert got["metrics"] is None and got["series"] is None
@@ -183,7 +187,7 @@ def test_unexpected_error_does_not_leak_the_stack(client, owner, fake_runner, mo
     monkeypatch.setattr(service, "run_spec_backtest", _boom)
     run_id = _post(client, email, spec_id).json()["run_id"]
 
-    got = client.get(f"/backtest/runs/{run_id}", headers=_auth(client, email)).json()
+    got = _get(client, email, run_id).json()
     assert got["status"] == "failed"
     assert got["reason"] == tasks.UNEXPECTED_FAILURE
     assert "secret" not in str(got)

@@ -35,10 +35,7 @@ _SCHEDULES = {
         monthly_first,
         "매달 첫 거래일 → 그 달 첫 주간 평가일(주 마지막 거래일)로 근사",
     ),
-    ("calendar", "weekly", 1): (
-        lambda weekly: list(weekly),
-        "매주 월요일 → 각 주 마지막 거래일로 근사",
-    ),
+    ("calendar", "weekly", 1): (list, "매주 월요일 → 각 주 마지막 거래일로 근사"),
 }
 
 
@@ -113,18 +110,15 @@ def _holdings(spec_id: str) -> list[dict]:
     holdings = []
     for u in universe:
         rec = records[u["ticker"]]  # spec_universe.ticker 는 etf_master FK 라 항상 있다
-        missing = [
-            name
-            for name, value in (
-                ("risk_tag", rec.risk_tag),
-                ("asset_group_id", rec.asset_group_id),
-                ("sector_group_id", rec.sector_group_id),
-                ("country_group_id", rec.country_group_id),
-                ("weight_min_raw", u["weight_min_raw"]),
-                ("weight_max_raw", u["weight_max_raw"]),
-            )
-            if value is None
-        ]
+        required = {
+            "risk_tag": rec.risk_tag,
+            "asset_group_id": rec.asset_group_id,
+            "sector_group_id": rec.sector_group_id,
+            "country_group_id": rec.country_group_id,
+            "weight_min_raw": u["weight_min_raw"],
+            "weight_max_raw": u["weight_max_raw"],
+        }
+        missing = [name for name, value in required.items() if value is None]
         if missing:
             # 비어 있는 값을 추정하면 비중 상한이 조용히 풀린다(등급 없음 → 상한 1.0).
             raise InputError(f"{u['ticker']}: 값이 비어 있다 — {', '.join(missing)}")
@@ -159,9 +153,10 @@ def _prices_wide(tickers: list[str], *, as_of: date) -> pd.DataFrame:
 
 
 def _schedule(rule: dict | None):
-    trigger = (rule or {}).get("trigger") or {}
+    given = rule or {}
+    trigger = given.get("trigger") or {}
     key = (trigger.get("type"), trigger.get("freq"), trigger.get("day"))
-    if key not in _SCHEDULES or "min_interval_days" not in (rule or {}):
+    if key not in _SCHEDULES or "min_interval_days" not in given:
         raise InputError(f"러너가 지원하지 않는 리밸런싱 규칙: {rule}")
     return _SCHEDULES[key]
 

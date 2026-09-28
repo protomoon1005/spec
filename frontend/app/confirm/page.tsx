@@ -43,11 +43,13 @@ function Summary({ session }: { session: Session }) {
     const id = r?.status === "completed" ? r.spec_id : null;
     setSpecId(id);
     const saved = id ? loadBacktestRun(id) : null;
-    if (!saved) setBacktest("없음 (이번 전략서로 돌린 백테스트가 없습니다)");
-    else
+    if (saved) {
       api<BacktestRun>(`/backtest/runs/${saved.run_id}`)
         .then((run) => setBacktest(describeRun(run)))
         .catch((err) => setBacktest(`받지 못함 — ${err instanceof Error ? err.message : String(err)}`));
+    } else {
+      setBacktest("없음 (이번 전략서로 돌린 백테스트가 없습니다)");
+    }
     api<{ risk_level: number }>("/profile/me")
       .then((p) => setProfile(`${p.risk_level} ${PROFILE_LABEL[p.risk_level] ?? "(알 수 없는 등급)"}`))
       .catch((err) => setProfile(`받지 못함 — ${err instanceof Error ? err.message : String(err)}`));

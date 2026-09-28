@@ -224,14 +224,7 @@ export type BacktestRun = {
   period_end: string | null;
   status: "queued" | "running" | "done" | "failed" | null;
   data_snapshot_asof: string | null;
-  metrics: {
-    cagr: number | null;
-    mdd: number | null;
-    sharpe: number | null;
-    sortino: number | null;
-    win_rate: number | null;
-    benchmark_cagr: number | null;
-  } | null;
+  metrics: Record<"cagr" | "mdd" | "sharpe" | "sortino" | "win_rate" | "benchmark_cagr", number | null> | null;
   summary: { strategy: SeriesSummary; control: SeriesSummary; market: SeriesSummary } | null;
   scorer_sources: Record<string, string> | null;
   schedule: { note: string; skipped_rebalance_dates: string[] } | null;
