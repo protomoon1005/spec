@@ -8,6 +8,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 # /app/tests/ 에서 실행되면 parents[2]=/  이므로 /repo 를 직접 시도한다.
 _candidates = [
     Path(__file__).resolve().parents[2] / "scripts" / "check_asof_guard.py",
@@ -149,6 +151,90 @@ def test_allows_orm_class_reference_inside_repositories(tmp_path):
     (app_root / "repositories" / "view_weights.py").write_text(
         "from app.models.view_weights import ViewWeights\n"
         "q = select(ViewWeights)\n",
+        encoding="utf-8",
+    )
+
+    errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
+
+    assert errors == []
+
+
+@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots"])
+def test_flags_new_table_string_outside_repositories(tmp_path, table):
+    app_root = tmp_path / "app"
+    (app_root / "views").mkdir(parents=True)
+    (app_root / "repositories").mkdir(parents=True)
+    (app_root / "views" / "peek.py").write_text(
+        f'q = "SELECT * FROM {table} WHERE as_of <= %s"\n',
+        encoding="utf-8",
+    )
+
+    errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
+
+    assert len(errors) == 1
+    assert table in errors[0]
+    assert "views" in errors[0]
+
+
+@pytest.mark.parametrize(
+    ("cls", "table"),
+    [("PriceDaily", "price_daily"), ("RegimeSnapshots", "regime_snapshots")],
+)
+def test_flags_new_orm_class_outside_repositories(tmp_path, cls, table):
+    app_root = tmp_path / "app"
+    (app_root / "workers").mkdir(parents=True)
+    (app_root / "repositories").mkdir(parents=True)
+    (app_root / "workers" / "job.py").write_text(
+        f"from app.models.{table} import {cls}\n"
+        f"q = select({cls})\n",
+        encoding="utf-8",
+    )
+
+    errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
+
+    assert len(errors) == 2  # import 1건 + 사용(select) 1건
+    assert all(table in error for error in errors)
+
+
+@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots"])
+def test_allows_new_table_inside_repositories(tmp_path, table):
+    app_root = tmp_path / "app"
+    (app_root / "repositories").mkdir(parents=True)
+    (app_root / "repositories" / "repo.py").write_text(
+        f'SQL = "SELECT * FROM {table} WHERE as_of <= %s"\n',
+        encoding="utf-8",
+    )
+
+    errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
+
+    assert errors == []
+
+
+def test_allows_new_tables_in_comments(tmp_path):
+    """views/bridge.py · views/regime/judge.py 처럼 # 주석에만 나오는 테이블명은 통과한다."""
+    app_root = tmp_path / "app"
+    (app_root / "views").mkdir(parents=True)
+    (app_root / "repositories").mkdir(parents=True)
+    (app_root / "views" / "bridge.py").write_text(
+        "# 시장분석은 price_daily 대기\n"
+        "# regime_snapshots 에 버전 컬럼이 없어서\n"
+        "x = 1\n",
+        encoding="utf-8",
+    )
+
+    errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
+
+    assert errors == []
+
+
+def test_allows_regime_snapshot_dto_outside_repositories(tmp_path):
+    """저장소가 돌려주는 DTO RegimeSnapshot(단수)은 ORM 클래스명 RegimeSnapshots 와 다르다."""
+    app_root = tmp_path / "app"
+    (app_root / "views").mkdir(parents=True)
+    (app_root / "repositories").mkdir(parents=True)
+    (app_root / "views" / "judge.py").write_text(
+        "from app.repositories.regime import RegimeSnapshot, get_regime_snapshot\n"
+        "def f(s: RegimeSnapshot) -> None: ...\n",
         encoding="utf-8",
     )
 

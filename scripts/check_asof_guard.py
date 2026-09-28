@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """app/ 전체를 AST로 훑어 app/repositories/ 밖에서 feature_store · macro_indicators ·
-view_weights 를 문자열로 참조하거나, 그에 대응하는 ORM 모델 클래스
-(FeatureStore · MacroIndicators · ViewWeights)를 import/참조하는 코드를 찾아
+view_weights · price_daily · regime_snapshots 를 문자열로 참조하거나, 그에 대응하는 ORM
+모델 클래스(FeatureStore · MacroIndicators · ViewWeights · PriceDaily · RegimeSnapshots)를
+import/참조하는 코드를 찾아
 실패시킨다 (docs/infra-spec.md 5단계).
 
 피처 / 거시지표 / 관점 가중치는 app/repositories/ 의 단일 함수를 거쳐서만
@@ -17,14 +18,24 @@ import re
 import sys
 from pathlib import Path
 
-GUARDED_TABLES = ("feature_store", "macro_indicators", "view_weights")
+GUARDED_TABLES = (
+    "feature_store",
+    "macro_indicators",
+    "view_weights",
+    "price_daily",
+    "regime_snapshots",
+)
 _TABLE_PATTERN = re.compile(r"\b(" + "|".join(GUARDED_TABLES) + r")\b")
 
 # 테이블명 -> 관례적 ORM 모델 클래스명 (snake_case -> PascalCase).
+# app/models/ 에 실제 ORM 클래스는 아직 없다 — 생기면 이 관례 이름을 따라야 가드가 잡는다.
+# repositories/regime.py 의 RegimeSnapshot(단수)은 저장소가 돌려주는 DTO라 대상이 아니다.
 GUARDED_CLASSES: dict[str, str] = {
     "FeatureStore": "feature_store",
     "MacroIndicators": "macro_indicators",
     "ViewWeights": "view_weights",
+    "PriceDaily": "price_daily",
+    "RegimeSnapshots": "regime_snapshots",
 }
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
