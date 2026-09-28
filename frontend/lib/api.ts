@@ -191,3 +191,50 @@ export function loadCompileResult(): CompileResult | null {
     return null;
   }
 }
+
+// 백테스트 화면이 만든 실행 번호를 최종 확인 화면이 읽는다. 어느 전략서로 돌린 것인지
+// 함께 둔다 — 탭에서 새 전략서를 만들면 옛 실행 결과를 그 전략서 것으로 보이면 안 된다.
+// 새로고침해도 같은 전략서면 새로 돌리지 않고 이 번호를 다시 조회한다.
+
+export type SavedBacktest = { spec_id: string; run_id: number };
+
+const BACKTEST_KEY = "spec.backtest";
+
+export function saveBacktestRun(saved: SavedBacktest): void {
+  window.sessionStorage.setItem(BACKTEST_KEY, JSON.stringify(saved));
+}
+
+export function loadBacktestRun(specId: string): SavedBacktest | null {
+  try {
+    const raw = window.sessionStorage.getItem(BACKTEST_KEY);
+    const saved = raw ? (JSON.parse(raw) as SavedBacktest) : null;
+    return saved?.spec_id === specId ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /backtest/runs/{run_id} 응답 (backend/app/routers/backtest.py BacktestRunDetail).
+export type SeriesSummary = { total: number; cagr: number; mdd: number; sharpe: number; sortino: number };
+
+export type BacktestRun = {
+  run_id: number;
+  spec_id: string;
+  period_start: string | null;
+  period_end: string | null;
+  status: "queued" | "running" | "done" | "failed" | null;
+  data_snapshot_asof: string | null;
+  metrics: {
+    cagr: number | null;
+    mdd: number | null;
+    sharpe: number | null;
+    sortino: number | null;
+    win_rate: number | null;
+    benchmark_cagr: number | null;
+  } | null;
+  summary: { strategy: SeriesSummary; control: SeriesSummary; market: SeriesSummary } | null;
+  scorer_sources: Record<string, string> | null;
+  schedule: { note: string; skipped_rebalance_dates: string[] } | null;
+  weight_path: string | null;
+  reason: string | null;
+};

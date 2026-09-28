@@ -15,7 +15,7 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import text
 
-from app.repositories.price_daily import get_price_window, upsert_price_bars
+from app.repositories.price_daily import get_close_history, get_price_window, upsert_price_bars
 from app.views.market.features import PriceBar, _bar_from_mapping, compute_features
 
 START = date(2024, 1, 2)
@@ -175,3 +175,25 @@ def test_returned_keys_are_the_ones_features_accepts(engine, ticker) -> None:
     assert features["volume_ratio_20"] is not None
     # features 는 소수 6자리로 반올림해 내보낸다.
     assert features["ret_1"] == pytest.approx(bars[-1]["close"] / bars[-2]["close"] - 1, abs=1e-6)
+
+
+# ── 백테스트 입력용 여러 종목 종가 ───────────────────────────────────
+
+
+def test_close_history_as_of_is_keyword_only_and_has_no_default() -> None:
+    parameter = inspect.signature(get_close_history).parameters["as_of"]
+
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is inspect.Parameter.empty
+
+
+def test_close_history_includes_as_of_day_and_leaves_out_tickers_without_rows(engine, ticker) -> None:
+    bars = _bars(10)
+    upsert_price_bars(ticker, bars=bars)
+    as_of = bars[5]["trade_date"]
+    no_rows = f"TEST_{uuid.uuid4().hex[:8].upper()}"
+
+    history = get_close_history([ticker, no_rows], as_of=as_of)
+
+    assert set(history) == {ticker}  # 가격 없는 종목은 키가 없다
+    assert history[ticker] == [(bar["trade_date"], bar["close"]) for bar in bars[:6]]  # <=, 오래된 것부터

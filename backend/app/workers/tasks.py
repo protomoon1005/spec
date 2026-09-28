@@ -3,14 +3,24 @@
 compile_spec 은 M1 6단계에서 실제 컴파일로 교체됐다. 202 Accepted + job_id ->
 GET /jobs/{job_id}/stream 패턴은 그대로다 (app/routers/jobs.py, app/routers/spec.py).
 
-나머지 5개(run_backtest·daily_judge·ingest_market·train_model·
-update_view_weights)는 본체 구현이 이번 범위 밖이다(docs/infra-spec.md 9장:
-Validator·판단 계층·백테스트 러너·수집기 본체는 안 만든다). 이름만 미리
-등록해 다른 라인이 태스크 이름에 의존해 개발을 시작할 수 있게 한다.
+run_backtest 는 M4 가 만든 러너를 API 에 잇는 배선이다(2026-09-28). 상태는 job_id 가
+아니라 backtest_runs 에 남긴다 — GET /backtest/runs/{run_id} 가 거기서 읽는다.
+
+나머지 4개(daily_judge·ingest_market·train_model·update_view_weights)는 본체
+구현이 이번 범위 밖이다(docs/infra-spec.md 9장: Validator·판단 계층·수집기
+본체는 안 만든다). 이름만 미리 등록해 다른 라인이 태스크 이름에 의존해 개발을
+시작할 수 있게 한다.
 """
 from __future__ import annotations
 
+import logging
+
 from app.workers.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
+
+# 사용자에게 보여 줄 실패 이유. 예상 못 한 오류의 스택은 워커 로그에만 남긴다.
+UNEXPECTED_FAILURE = "백테스트 실행 중 예상하지 못한 오류가 났다. 워커 로그를 확인해야 한다."
 
 # 테스트에서 3초 대기를 0으로 줄이기 위한 monkeypatch 지점.
 
@@ -56,6 +66,40 @@ def compile_spec(job_payload: dict) -> dict:
     }
 
 
+@celery_app.task(name="run_backtest")
+def run_backtest(run_id: int) -> dict:
+    """queued 인 실행 기록 하나를 돌려 결과를 저장한다.
+
+    러너는 app/backtest/service.py 의 함수 하나로만 부른다 — 비중 계산 경로가
+    바뀌어도 이 태스크는 그대로다. 실패는 전부 failed 로 끝내고 이유를 남긴다.
+    """
+    from app.backtest import service
+    from app.repositories import backtests
+
+    run = backtests.get_run(run_id)
+    if run is None:
+        return {"status": backtests.FAILED, "reason": f"실행 기록이 없다: {run_id}"}
+
+    try:
+        backtests.mark_running(run_id, **service.run_conditions())
+        result = service.run_spec_backtest(
+            run["spec_id"],
+            period_start=run["period_start"],
+            period_end=run["period_end"],
+            seed_money=run["seed_money"],
+        )
+    except service.BacktestFailed as exc:
+        backtests.fail_run(run_id, reason=str(exc))
+        return {"status": backtests.FAILED, "reason": str(exc)}
+    except Exception:
+        logger.exception("run_backtest %s 실패", run_id)
+        backtests.fail_run(run_id, reason=UNEXPECTED_FAILURE)
+        return {"status": backtests.FAILED, "reason": UNEXPECTED_FAILURE}
+
+    backtests.finish_run(run_id, **result)
+    return {"status": backtests.DONE, "run_id": run_id}
+
+
 def _not_implemented(name: str):
     def _task(*args: object, **kwargs: object) -> None:
         raise NotImplementedError(f"{name} 본체는 이번 단계 범위 밖이다 (docs/infra-spec.md 9장)")
@@ -64,7 +108,6 @@ def _not_implemented(name: str):
     return _task
 
 
-run_backtest = celery_app.task(name="run_backtest")(_not_implemented("run_backtest"))
 daily_judge = celery_app.task(name="daily_judge")(_not_implemented("daily_judge"))
 ingest_market = celery_app.task(name="ingest_market")(_not_implemented("ingest_market"))
 train_model = celery_app.task(name="train_model")(_not_implemented("train_model"))
