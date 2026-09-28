@@ -147,6 +147,27 @@ def get_spec_universe(spec_id: str) -> list[dict]:
     return [dict(row._mapping) for row in rows]
 
 
+def get_spec_risk_level(spec_id: str) -> int | None:
+    """전략서가 만들어질 때 참조한 성향 등급. 사용자의 최신 성향이 아니다.
+
+    재진단하면 risk_profiles 에 새 행이 쌓이지만, 전략서는 생성 당시의
+    profile_id 를 들고 있으므로 그 행을 본다. 없는 전략서면 None.
+    """
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT p.risk_level
+                  FROM strategy_specs s
+                  JOIN risk_profiles p ON p.profile_id = s.profile_id
+                 WHERE s.spec_id = :spec_id
+                """
+            ),
+            {"spec_id": spec_id},
+        ).one_or_none()
+    return int(row.risk_level) if row is not None else None
+
+
 def list_specs(user_id: int) -> list[dict]:
     """사용자의 전략서 목록. 최근 것부터, 종목 수를 곁들인다."""
     with get_engine().connect() as conn:

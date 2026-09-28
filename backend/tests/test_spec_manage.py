@@ -126,3 +126,19 @@ def test_spec_with_backtest_record_is_not_deleted(engine, client, owner):
 
     assert resp.status_code == 409
     assert specs.get_spec(spec_id) is not None
+
+
+def test_spec_risk_level_is_the_one_at_creation(engine, owner):
+    # 재진단해 성향이 바뀌어도 전략서는 만들 때 참조한 성향을 본다.
+    _email, profile = owner
+    spec_id = _save_spec(profile)
+    profiles.insert_profile(
+        user_id=profile.user_id,
+        risk_level=2,
+        preset_version=profile.preset_version,
+        defaults=profiles.get_profile_defaults(profile.preset_version, 2),
+        provenance={},
+    )
+
+    assert specs.get_spec_risk_level(spec_id) == 5
+    assert specs.get_spec_risk_level("STR-없는전략서") is None

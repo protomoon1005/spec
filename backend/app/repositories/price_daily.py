@@ -65,6 +65,38 @@ def get_price_window(ticker: str, *, as_of: date, lookback_days: int) -> list[di
     ]
 
 
+def get_close_history(tickers: list[str], *, as_of: date) -> dict[str, list[tuple[date, float]]]:
+    """여러 종목의 as_of 시점까지 종가 전체. {종목: [(거래일, 종가), ...]} 오래된 것부터.
+
+    백테스트 입력용이다. 시작일을 자르지 않는 이유는 평가 구간 앞 이력이 지표
+    워밍업으로 쓰이기 때문이다(워밍업 절단은 app/views/bridge.py 가 한다).
+    가격이 한 행도 없는 종목은 결과에 키가 없다 — 호출부가 구분해야 한다.
+
+    as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (get_price_window 와 같다).
+    """
+    if not tickers:
+        return {}
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT ticker, trade_date, close
+                  FROM price_daily
+                 WHERE ticker = ANY(:tickers)
+                   AND trade_date <= :as_of
+                   AND close IS NOT NULL
+                 ORDER BY ticker, trade_date
+                """
+            ),
+            {"tickers": list(tickers), "as_of": as_of},
+        ).all()
+
+    out: dict[str, list[tuple[date, float]]] = {}
+    for row in rows:
+        out.setdefault(row.ticker, []).append((row.trade_date, float(row.close)))
+    return out
+
+
 def upsert_price_bars(ticker: str, *, bars: list[dict]) -> int:
     """일봉 여러 행을 한 트랜잭션으로 적재한다. 같은 (종목, 거래일)이면 덮어쓴다.
 

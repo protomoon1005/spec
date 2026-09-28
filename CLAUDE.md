@@ -45,8 +45,9 @@ docker compose logs -f                      # 로그
   DB 픽스처를 쓰는 테스트는 seed된 상태여야 한다.
   `test_hedge`·`test_views_base` 등 순수 함수 테스트는 DB 없이 돈다.
 - 마커: `requires_ollama` · `requires_ml` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외.
-  `requires_backtest`(두 러너 대조)는 `pip install -e "backend[backtest]"` 뒤
-  `pytest -m requires_backtest` 로 따로 돌린다. api 이미지는 `.[dev,ml]` 이 깔린다(backtest 없음).
+  `requires_backtest`(두 러너 대조·백테스트 입력·재현성)는
+  `docker compose exec -w /repo/backend api pytest -m requires_backtest -q` 로 따로 돌린다
+  (`-w` 가 없으면 루트 `data/` 를 못 찾아 CSV 대조가 건너뛰어진다). api·worker 이미지는 `.[dev,ml,backtest]` 이 깔린다.
 - ml extra 에는 torch 가 없다(2026-09-19 경량화). torch 를 되살리면 `--extra-index-url https://download.pytorch.org/whl/cpu` 가 다시 필요하다.
 - 프론트: `frontend/`에서 `npm run dev`.
 - TS 백테스트는 node 22 이상이 필요하다(`--experimental-strip-types`). frontend 컨테이너는 node 20이라 안 된다. 저장소 루트에서:
