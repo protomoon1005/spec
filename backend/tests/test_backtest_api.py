@@ -38,6 +38,14 @@ FAKE_RESULT = {
                      "skipped_rebalance_dates": []},
         "summary": {name: {"total": 0.5, "mdd": -0.1} for name in ("strategy", "control", "market")},
         "series": [{"date": "2023-01-06", "strategy": 1.0, "control": 1.0, "market": 1.0}],
+        "risk_level": 4,
+        "universe": [{"ticker": "069500", "name": "KODEX 200", "grade": "G3", "asset_group": "EQUITY",
+                      "sector_group": "SECTOR_OTHER", "country_group": "COUNTRY_KR",
+                      "weight_min_raw": 0.05, "weight_max_raw": 0.35}],
+        "decisions": [{"date": "2023-01-06", "signals": {"069500": 0.2}, "mapped": {"069500": 0.3},
+                       "target": {"069500": 0.3}, "cash": 0.7, "capApplications": []}],
+        "control_decisions": [{"date": "2023-01-06", "signals": {"069500": 0.0}, "mapped": {"069500": 0.2},
+                               "target": {"069500": 0.2}, "cash": 0.8, "capApplications": []}],
     },
 }
 
@@ -129,6 +137,12 @@ def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, f
     assert got["scorer_sources"] == {"market": "mock", "sentiment": "neutral", "regime": "mock"}
     assert got["data_snapshot_asof"] == "2025-12-30"
     assert got["reason"] is None
+    # 리포트 화면이 이 실행을 그대로 그리는 데 쓰는 값. 저장만 하고 내보내지 않던 것이다.
+    results = FAKE_RESULT["window_results"]
+    assert got["risk_level"] == 4
+    assert got["universe"] == results["universe"]
+    assert got["decisions"] == results["decisions"]
+    assert got["control_decisions"] == results["control_decisions"]
     # 재현 조건
     assert got["feature_set_version"] == "v0.1-ta9"
     assert (got["seed_money"], got["fee_rate"], got["tax_rate"], got["slippage_bp"]) == (
@@ -176,6 +190,8 @@ def test_input_failure_ends_failed_with_the_reason(client, owner, fake_runner, m
     assert got["status"] == "failed"
     assert got["reason"] == "러너가 지원하지 않는 리밸런싱 규칙: {...}"
     assert got["metrics"] is None and got["series"] is None
+    # 실패한 실행에는 그릴 것이 없다. 반쯤 채운 결정 기록을 내보내지 않는다.
+    assert got["universe"] is None and got["decisions"] is None and got["control_decisions"] is None
 
 
 def test_unexpected_error_does_not_leak_the_stack(client, owner, fake_runner, monkeypatch):
@@ -252,3 +268,15 @@ def test_task_runs_the_real_runner_to_done(owner):
     assert got["data_snapshot_asof"] == date(2025, 12, 30)
     assert got["win_rate"] is None
     assert len(got["window_results"]["series"]) == 158
+
+    # 실행 기록 안에 그때 쓴 종목·분류가 남는다. etf_master 가 나중에 바뀌어도
+    # 리포트가 이 실행의 비중 표를 그대로 다시 그릴 수 있어야 한다.
+    results = got["window_results"]
+    universe = results["universe"]
+    assert universe, "실행 기록에 universe 가 없다"
+    assert set(universe[0]) == {"ticker", "name", "grade", "asset_group", "sector_group",
+                                "country_group", "weight_min_raw", "weight_max_raw"}
+    tickers = {u["ticker"] for u in universe}
+    # 결정 기록의 목표 비중이 정확히 그 종목들로 되어 있어야 표가 맞게 그려진다.
+    assert results["decisions"] and set(results["decisions"][-1]["target"]) == tickers
+    assert len(results["decisions"]) == len(results["control_decisions"])

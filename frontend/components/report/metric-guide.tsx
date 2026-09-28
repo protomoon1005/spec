@@ -1,9 +1,11 @@
 "use client";
 
-import { METRIC_GUIDES } from "@/lib/data";
+import { useReport } from "./context";
 import { C, MONO, R, SANS } from "./tokens";
 
 export function MetricGuideCards({ highlight }: { highlight: string | null }) {
+  // 해설의 계산식에 들어가는 수치는 지금 그리는 결과에서 온다.
+  const { METRIC_GUIDES } = useReport();
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
       {METRIC_GUIDES.map((g) => (

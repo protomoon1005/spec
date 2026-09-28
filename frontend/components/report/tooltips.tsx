@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { monthlyReturns, SNAPSHOT, won } from "@/lib/data";
+import { won } from "@/lib/data";
+import { useReport } from "./context";
 import { C, MONO, R, SANS, sign } from "./tokens";
 
 export function TipShell({ label, children }: { label: string; children: ReactNode }) {
@@ -80,6 +81,8 @@ export function DdTip({ active, payload, label }: TipProps) {
 }
 
 export function MonthTip({ active, payload, label }: TipProps) {
+  // 훅은 조기 반환보다 먼저 부른다.
+  const { monthlyReturns, SNAPSHOT } = useReport();
   if (!active || !payload?.length) return null;
   const v = payload[0].value ?? 0;
   // 워크포워드 차트와 공유하는 툴팁이다. 거기 라벨은 "WF-1" 이라 찾히지 않는다.

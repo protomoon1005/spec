@@ -16,55 +16,23 @@ import {
   YAxis,
 } from "recharts";
 import {
-  bestMonth,
-  control,
-  market,
-  signalAlphaAnnual,
-  capApplicationCount,
-  rebalanceCount,
-  capLogs,
-  constraintResolved,
-  COST_MODEL,
-  drawdownSeries,
-  drawdownTicks,
-  equityTicks,
+  defaultReport,
   ETA,
   EVAL_WINDOW,
-  signalAlpha,
   FEATURESET,
-  folds,
-  GROUP_CAPS,
-  INITIAL,
-  integratedProb,
-  integratedSignal,
-  lastRebalance,
-  LAST_MONTH_PARTIAL,
-  METRIC_GUIDES,
-  monthlyReturns,
+  HARDCAP,
+  SEED,
+  VIEW_META,
+  W_FLOOR,
   num,
-  PERIOD_END,
-  PERIOD_START,
   pct,
   pctPlain,
   pp,
-  PROFILE,
-  rebalanceRows,
-  SEED,
-  series,
-  SNAPSHOT,
-  spec,
-  strategy,
-  targetCash,
-  VIEW_META,
-  viewWeightHistory,
-  viewWeightOf,
-  weightRows,
-  W_FLOOR,
   won,
-  worstMonth,
   ym,
-  HARDCAP,
+  type Report as ReportData,
 } from "@/lib/data";
+import { ReportProvider } from "./report/context";
 import type { Grade } from "@/lib/policy";
 import { C, MONO, R, SANS, sign } from "./report/tokens";
 import { BAR_DRAW_MS, CHART_DRAW_MS, CountUp, useReducedMotion } from "./report/motion";
@@ -85,7 +53,49 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 // --- 화면 --------------------------------------------------------------------
-export default function Report() {
+// report 를 넘기지 않으면 정적 데모 결과(data/backtest-result.json)를 그린다.
+// /report?run_id= 는 lib/report-from-run.ts 로 만든 실행 결과를 넘긴다.
+export default function Report({ report = defaultReport }: { report?: ReportData } = {}) {
+  const {
+    bestMonth,
+    control,
+    market,
+    signalAlphaAnnual,
+    capApplicationCount,
+    rebalanceCount,
+    capLogs,
+    constraintResolved,
+    COST_MODEL,
+    drawdownSeries,
+    drawdownTicks,
+    equityTicks,
+    signalAlpha,
+    folds,
+    GROUP_CAPS,
+    INITIAL,
+    integratedProb,
+    integratedSignal,
+    lastRebalance,
+    LAST_MONTH_PARTIAL,
+    METRIC_GUIDES,
+    monthlyReturns,
+    PERIOD_END,
+    PERIOD_START,
+    PROFILE,
+    rebalanceRows,
+    series,
+    SNAPSHOT,
+    spec,
+    strategy,
+    targetCash,
+    viewWeightHistory,
+    viewWeightOf,
+    weightRows,
+    worstMonth,
+    runId,
+    inputPrompt,
+    rebalanceLabel,
+  } = report;
   const [tab, setTab] = useState<TabId>("overview");
   const [note, setNote] = useState("");
   const [guideHighlight, setGuideHighlight] = useState<string | null>(null);
@@ -118,6 +128,7 @@ export default function Report() {
   const equitySource = `출처: KRX 일별시세 · 기준시점 ${SNAPSHOT} 종가 · 대조군: 동일 제약·신호 미사용 · 시장: 069500 KODEX 200 · ${provenance}`;
 
   return (
+    <ReportProvider value={report}>
     <div style={{ background: C.bg, fontFamily: SANS, color: C.text, minHeight: "100vh" }} className="flex flex-col">
       {/* 헤더 */}
       <header style={{ borderBottom: `1px solid ${C.border}`, background: C.bg }} className="sticky top-0 z-10">
@@ -130,11 +141,23 @@ export default function Report() {
                   {spec.name}
                 </span>
                 <Tag text={`${spec.spec_id} v${spec.spec_version}`} color={C.accent} />
+                {/* 지금 보는 것이 사용자의 실행인지 미리 저장된 데모인지. 둘을 헷갈리면
+                    "방금 만든 전략인데 왜 이 종목이 나오지" 가 된다. */}
+                {runId != null ? (
+                  <Tag text={`실행 #${runId}`} color={C.profit} />
+                ) : (
+                  <Tag text="데모 결과" color={C.muted} />
+                )}
                 <Tag text={`승인 대기`} color={C.warn} />
               </div>
               <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 5 }}>
-                {PERIOD_START} → {PERIOD_END} · 국내 상장 ETF {weightRows.length}종목 · 월간 리밸런싱 · {PROFILE.label}
+                {PERIOD_START} → {PERIOD_END} · 국내 상장 ETF {weightRows.length}종목 · {rebalanceLabel} · {PROFILE.label}
               </div>
+              {inputPrompt && (
+                <div style={{ fontFamily: SANS, fontSize: 12, color: C.text, marginTop: 6 }}>
+                  <span style={{ color: C.muted }}>요청 </span>“{inputPrompt}”
+                </div>
+              )}
             </div>
           </div>
 
@@ -717,11 +740,13 @@ export default function Report() {
               <Panel title="판단 기준" sub="승인 시점에 확정되며 이후 변경되지 않는다">
                 <KeyValue
                   rows={[
-                    ["시장 분석 지표", spec.signal_rules.market_analysis.indicators.join(", ")],
-                    ["감성 대상 섹터", spec.signal_rules.sentiment.target_sectors.join(", ")],
-                    ["감성 lookback", `${spec.signal_rules.sentiment.lookback_hours}시간`],
-                    ["추세 지수", `${spec.signal_rules.market_temperature.trend_index} ${spec.signal_rules.market_temperature.trend_ma_window}일선`],
-                    ["변동성 지수", spec.signal_rules.market_temperature.volatility_index],
+                    // 세 관점 규칙은 계약에서 전부 Optional 이다. 실제 전략서는 감성이 null 일
+                    // 수 있어서(감성 중립 고정 이후) 규칙이 없으면 "미사용" 으로 적는다.
+                    ["시장 분석 지표", spec.signal_rules.market_analysis?.indicators.join(", ") || "미사용"],
+                    ["감성 대상 섹터", spec.signal_rules.sentiment?.target_sectors.join(", ") || "미사용"],
+                    ["감성 lookback", spec.signal_rules.sentiment ? `${spec.signal_rules.sentiment.lookback_hours}시간` : "미사용"],
+                    ["추세 지수", spec.signal_rules.market_temperature ? `${spec.signal_rules.market_temperature.trend_index} ${spec.signal_rules.market_temperature.trend_ma_window}일선` : "미사용"],
+                    ["변동성 지수", spec.signal_rules.market_temperature?.volatility_index ?? "미사용"],
                   ]}
                 />
               </Panel>
@@ -853,5 +878,6 @@ export default function Report() {
         </footer>
       </main>
     </div>
+    </ReportProvider>
   );
 }
