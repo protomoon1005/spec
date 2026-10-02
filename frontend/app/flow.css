@@ -335,3 +335,14 @@
   font-size: 12px;
   padding: 4px 12px;
 }
+
+/* 보는 도중 로그인이 만료됐을 때. 이 뒤로 이 화면의 요청은 전부 401 이다. */
+.flow-root .flow-session .flow-expired {
+  color: var(--c-warn);
+  font-weight: 600;
+}
+
+.flow-root .flow-session .flow-expired a {
+  color: var(--c-warn);
+  border-bottom-color: color-mix(in srgb, var(--c-warn) 45%, transparent);
+}

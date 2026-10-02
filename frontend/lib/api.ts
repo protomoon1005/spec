@@ -54,6 +54,24 @@ export function loadRememberedToken(username: string): string | null {
   return loadTokens()[username] ?? null;
 }
 
+// JWT 가운데 조각의 exp(초)를 읽어 밀리초로 낸다. 서명은 서버가 본다 — 여기선 만료
+// 안내용일 뿐이다. 모양이 JWT 가 아니면 null(만료 판단은 서버에 맡긴다).
+// 로그인 화면에만 있던 것을 RequireLogin 도 쓰도록 여기로 옮겼다.
+export function tokenExpiry(token: string): number | null {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const { exp } = JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, "="))) as { exp?: number };
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isExpired(token: string): boolean {
+  const exp = tokenExpiry(token);
+  return exp !== null && exp <= Date.now();
+}
+
 export function clearSession(): void {
   try {
     window.localStorage.removeItem(SESSION_KEY);

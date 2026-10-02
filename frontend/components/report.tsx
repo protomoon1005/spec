@@ -35,7 +35,7 @@ import {
 import { ReportProvider } from "./report/context";
 import type { Grade } from "@/lib/policy";
 import { C, MONO, R, SANS, sign } from "./report/tokens";
-import { BAR_DRAW_MS, CHART_DRAW_MS, CountUp, useReducedMotion } from "./report/motion";
+import { BAR_DRAW_MS, CHART_DRAW_MS, CHART_SETTLE_MS, CountUp, useReducedMotion, useSettled } from "./report/motion";
 import { Cel, DataTable, ExplainButton, KeyValue, Kpi, Panel, Tag } from "./report/primitives";
 import { axisTick, DdTip, EquityTip, MonthTip, ViewTip } from "./report/tooltips";
 import { MetricGuideCards } from "./report/metric-guide";
@@ -100,10 +100,13 @@ export default function Report({ report = defaultReport }: { report?: ReportData
   const [note, setNote] = useState("");
   const [guideHighlight, setGuideHighlight] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
+  // 애니메이션 시간이 지나면 애니메이션을 끈다. 화면이 그려지지 않아 rAF 가 멈춰도
+  // 막대·곡선이 최종 모양으로 그려지게 하는 안전망이다(motion.tsx useSettled 참고).
+  const chartsSettled = useSettled(tab, CHART_SETTLE_MS);
 
   // 차트 공통 애니메이션 속성. 동작 최소화를 켠 사용자에게는 전부 끈다.
   const draw = (begin = 0, duration = CHART_DRAW_MS) => ({
-    isAnimationActive: !reduceMotion,
+    isAnimationActive: !reduceMotion && !chartsSettled,
     animationBegin: begin,
     animationDuration: duration,
     animationEasing: "ease-out" as const,
