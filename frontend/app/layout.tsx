@@ -1,3 +1,6 @@
+// 흐름 화면 스타일. 규칙이 전부 .flow-root 아래라 /report 에는 닿지 않는다.
+import "./flow.css";
+
 export const metadata = {
   title: "spec",
   description: "국내 ETF 모의운용 졸업작품 — 공통 인프라 프론트엔드 스캐폴드",

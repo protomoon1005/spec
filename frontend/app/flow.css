@@ -1,0 +1,337 @@
+/* 흐름 화면(가입 → 성향 → 전략 → 백테스트 → 확인)의 스타일.
+ *
+ * 재원의 화면들은 기본 HTML 요소만 쓴다(docs/frontend_milestone.md "디자인 요소를 넣지
+ * 않는다"). 그 구조를 그대로 두고 여기서 칠한다 — 화면마다 JSX 를 고치지 않아도
+ * 18개 화면이 한 번에 같은 모양이 된다.
+ *
+ * 전부 .flow-root 아래로 가둔다. Next 개발 모드는 라우트별 CSS 를 항상 나눠 주지
+ * 않아서(app/report/report.css 주석 참고), h1 {} 같은 전역 선택자를 쓰면 /report 로
+ * 새어 들어가 리포트가 깨진다. 반대 방향도 같다 — 리포트 스타일은 .report-root 아래다.
+ *
+ * 색·반경 값은 여기 적지 않는다. components/scaffold-shell.tsx 가 components/report/
+ * tokens.ts 의 값을 CSS 변수(--c-*, --r-*)로 내려 준다. 리포트와 흐름 화면이 같은
+ * 토큰 하나를 보게 하려는 것이다 — 값을 두 곳에 적으면 언젠가 갈라진다.
+ */
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css');
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@400;500;600&display=swap');
+
+.flow-root {
+  --flow-sans: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --flow-mono: 'Spline Sans Mono', 'Pretendard Variable', Pretendard, monospace;
+
+  min-height: 100vh;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--flow-sans);
+  font-size: 14px;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  /* 화면들이 서버 응답을 JSON 그대로 보여 준다({"cagr":0.0249401385542385,…}).
+     공백이 없는 한 덩어리라 좁은 화면에서 문서 폭을 1200px 넘게 늘렸다.
+     넘칠 때만 끊는다 — 한글은 아래 keep-all 로 단어째 유지된다. */
+  overflow-wrap: anywhere;
+  /* 좁은 폭으로 둔다. 입력과 선택이 대부분인 화면이라 넓으면 눈이 오래 움직인다. */
+  padding: 32px 20px 64px;
+}
+
+.flow-root *,
+.flow-root *::before,
+.flow-root *::after {
+  box-sizing: border-box;
+}
+
+.flow-root > main,
+.flow-root > .flow-body {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.flow-root ::selection {
+  background: color-mix(in srgb, var(--c-accent) 20%, transparent);
+}
+
+/* --- 글 --------------------------------------------------------------------- */
+
+.flow-root h1 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--c-bright);
+  margin: 8px 0 6px;
+}
+
+/* 모든 화면이 제목 바로 다음에 "이 화면에서 하는 일: …" 한 줄을 둔다. 부제로 낮춘다. */
+.flow-root h1 + p {
+  color: var(--c-muted);
+  font-size: 13px;
+  margin: 0 0 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.flow-root h2 {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--c-bright);
+  margin: 32px 0 12px;
+}
+
+/* h2 안의 소단락 (전략서 내용 > 담은 종목 · 리밸런싱 · 신호 규칙 · 제약). */
+.flow-root h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-bright);
+  margin: 20px 0 8px;
+}
+
+.flow-root p {
+  margin: 0 0 12px;
+}
+
+.flow-root code {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-bright);
+  background: var(--c-surface2);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.flow-root a {
+  color: var(--c-accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent);
+  transition: border-color 140ms ease-out;
+}
+
+.flow-root a:hover {
+  border-bottom-color: var(--c-accent);
+}
+
+.flow-root a:focus-visible,
+.flow-root button:focus-visible,
+.flow-root input:focus-visible,
+.flow-root textarea:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+/* --- 버튼 ------------------------------------------------------------------- */
+
+.flow-root button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 55%, transparent);
+  border-radius: var(--r-button);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 140ms ease-out, border-color 140ms ease-out;
+}
+
+.flow-root button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--c-accent) 22%, transparent);
+  border-color: var(--c-accent);
+}
+
+/* 눌리지 않는 버튼은 회색으로 확실히 구분한다. 설문은 전부 답할 때까지 제출이
+   막혀 있는데, 색이 같으면 왜 안 눌리는지 알 수 없다. */
+.flow-root button:disabled {
+  color: var(--c-dim);
+  background: transparent;
+  border-color: var(--c-border);
+  cursor: not-allowed;
+}
+
+/* --- 입력 ------------------------------------------------------------------- */
+
+.flow-root input[type='text'],
+.flow-root input:not([type]),
+.flow-root textarea {
+  font: inherit;
+  color: var(--c-bright);
+  background: #0e141b;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-button);
+  padding: 9px 12px;
+  width: 100%;
+  max-width: 420px;
+  transition: border-color 140ms ease-out;
+}
+
+/* 기본은 본문 글꼴이다 — 전략 요청처럼 사람이 문장을 쓰는 칸이 주된 쓰임이다. */
+.flow-root textarea {
+  max-width: 100%;
+  min-height: 96px;
+  resize: vertical;
+}
+
+/* 토큰처럼 기계가 읽는 문자열은 고정폭으로. 글자 하나가 틀려도 눈에 띄게.
+   CSS 로 추측해서 가르지 않고 칸에 직접 단다 — 새 입력창이 엉뚱하게 바뀌지 않게. */
+.flow-root .flow-mono {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.flow-root input:focus,
+.flow-root textarea:focus {
+  border-color: var(--c-accent);
+  outline: none;
+}
+
+.flow-root input[type='radio'],
+.flow-root input[type='checkbox'] {
+  accent-color: var(--c-accent);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* --- 목록 ------------------------------------------------------------------- */
+
+/* ul 은 로그·결과 항목이다. 한 줄씩 왼쪽 표시선을 단 패널로 그린다. */
+.flow-root ul {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 4px 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+}
+
+.flow-root ul > li {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--c-border);
+  word-break: keep-all;
+}
+
+.flow-root ul > li:last-child {
+  border-bottom: none;
+}
+
+/* ol 은 설문 문항처럼 번호가 뜻을 갖는 목록이다. 문항 하나를 카드 하나로. */
+.flow-root ol {
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  counter-reset: flow-q;
+  display: grid;
+  gap: 12px;
+}
+
+.flow-root ol > li {
+  counter-increment: flow-q;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 16px 18px;
+}
+
+.flow-root ol > li > p:first-child {
+  color: var(--c-bright);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.flow-root ol > li > p:first-child::before {
+  content: counter(flow-q) '. ';
+  font-family: var(--flow-mono);
+  color: var(--c-accent);
+}
+
+/* 선택지 한 줄. 줄 전체를 누를 수 있게 하고, 고른 줄은 강조한다. */
+.flow-root label:has(input[type='radio']),
+.flow-root label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-inner);
+  cursor: pointer;
+  transition: border-color 140ms ease-out, background 140ms ease-out;
+}
+
+.flow-root label:has(input[type='radio']):hover,
+.flow-root label:has(input[type='checkbox']):hover {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, transparent);
+}
+
+.flow-root label:has(input:checked) {
+  border-color: var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+  color: var(--c-bright);
+}
+
+.flow-root label:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* --- 표 --------------------------------------------------------------------- */
+
+/* 좁은 화면 대비는 .flow-root 의 overflow-wrap 이 칸 안의 긴 값까지 끊어서 한다.
+   표를 display:block 스크롤 상자로 만들면 넓은 화면에서 행이 패널 폭을 못 채운다
+   (375px 실측: 4열 표 320px 로 들어맞았다). */
+.flow-root table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.flow-root th,
+.flow-root td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.flow-root th {
+  font-family: var(--flow-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-muted);
+}
+
+/* --- 로그인 막대 (components/require-login.tsx) ----------------------------- */
+
+.flow-root .flow-session {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-muted);
+  margin: 0 0 24px;
+  padding: 10px 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+}
+
+.flow-root .flow-session strong {
+  color: var(--c-bright);
+  font-weight: 600;
+}
+
+.flow-root .flow-session .flow-session-spacer {
+  flex: 1;
+}
+
+.flow-root .flow-session button {
+  font-size: 12px;
+  padding: 4px 12px;
+}

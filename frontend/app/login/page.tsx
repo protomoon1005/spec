@@ -138,6 +138,7 @@ export default function LoginPage() {
             토큰
             <br />
             <textarea
+              className="flow-mono"
               value={token}
               onChange={(e) => edit(setToken, e.target.value)}
               rows={4}

@@ -30,9 +30,15 @@ export default function RequireLogin({ children }: { children: (session: Session
   if (!session) return <p>로그인 확인 중…</p>;
   return (
     <>
-      <p>
-        로그인: {session.username} <Link href="/home">홈</Link> <button onClick={logout}>로그아웃</button>
-      </p>
+      {/* 모양은 app/flow.css 의 .flow-session. 내용과 동작은 그대로다. */}
+      <div className="flow-session">
+        <span>
+          로그인 <strong>{session.username}</strong>
+        </span>
+        <span className="flow-session-spacer" />
+        <Link href="/home">홈</Link>
+        <button onClick={logout}>로그아웃</button>
+      </div>
       {children(session)}
     </>
   );

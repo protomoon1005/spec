@@ -1,22 +1,25 @@
-// 스캐폴드 페이지(/ 와 /health)의 여백과 기본 폰트. 원래 루트 레이아웃의
-// body 인라인 스타일이었는데, 인라인 스타일은 스타일시트를 이겨서 /report
-// 같은 전면 레이아웃 라우트가 여백을 되돌릴 수 없었다.
+// 흐름 화면(가입 · 로그인 · 성향 · 전략 · 백테스트 · 확인 …)의 바탕.
 //
-// 배경과 글자색을 명시하는 이유: 지정하지 않으면 body 가 투명이고 글자색이
-// 검정이라, 브라우저가 다크 모드일 때 검정 배경 위 검정 글자가 되어 읽을 수
-// 없다. color-scheme 을 light 로 고정해 폼 컨트롤도 같이 밝게 맞춘다.
+// 이 껍데기가 .flow-root 를 달고, app/flow.css 가 그 아래의 기본 HTML 요소를 칠한다.
+// 화면들은 기본 요소만 쓰므로(docs/frontend_milestone.md) 화면을 고치지 않아도 같은
+// 모양이 된다.
+//
+// 색·반경은 리포트와 같은 토큰(components/report/tokens.ts)을 CSS 변수로 내려 준다.
+// 리포트와 흐름 화면이 값을 따로 적으면 언젠가 색이 갈라진다 — 사용자는 한 앱으로 본다.
+//
+// 예전에는 흰 바탕에 검정 글자를 고정했다. 그때 이유(다크 모드 브라우저에서 투명 바탕
+// 위 검정 글자가 안 보임)는 지금도 같아서, 바탕과 글자색은 계속 명시한다.
+import type { CSSProperties } from "react";
+import { C, R } from "@/components/report/tokens";
+
+const TOKEN_VARS = {
+  ...Object.fromEntries(Object.entries(C).map(([k, v]) => [`--c-${k}`, v])),
+  ...Object.fromEntries(Object.entries(R).map(([k, v]) => [`--r-${k}`, `${v}px`])),
+} as CSSProperties;
+
 export default function ScaffoldShell({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: "2rem",
-        minHeight: "100vh",
-        colorScheme: "light",
-        background: "#ffffff",
-        color: "#111827",
-      }}
-    >
+    <div className="flow-root" style={TOKEN_VARS}>
       {children}
     </div>
   );

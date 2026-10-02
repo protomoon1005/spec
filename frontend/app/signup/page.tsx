@@ -75,7 +75,7 @@ export default function SignupPage() {
             <p>가입이 완료되었습니다. 아이디: {username.trim()}</p>
             <p>아래 토큰을 복사해 두세요. 로그인할 때 아이디와 함께 입력합니다.</p>
             <p>
-              <textarea readOnly value={token} rows={4} cols={60} />
+              <textarea className="flow-mono" readOnly value={token} rows={4} cols={60} />
             </p>
             <p>
               <button onClick={copy}>토큰 복사</button> {copied && <span>복사되었습니다.</span>}
