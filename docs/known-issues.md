@@ -69,22 +69,37 @@
   - 페이징·부분 수정·오류 형식 같은 건 각자 만들 때 정함
   - **전략서(Spec) 형식만은 예외.** 전원 합의가 필요한 고정 계약
 
-- **백테스트 API 의 비중 계산은 M4 러너의 임시 경로다**
-  - RiskSizer 가 없고, M2 WeightMapper 가 들어오면 `app/backtest/service.py` 한 곳을 바꾼다
-  - 자산곡선·결정 목록·실패 이유는 칸이 없어 `backtest_metrics.window_results` 에 담는다. 칸 이름(워크포워드 창별 결과)과 뜻이 어긋난다 (2026-09-28 결정 D2-a)
+- **백테스트 결과는 `backtest_metrics.window_results` 에 담는다**
+  - 자산곡선·결정 목록·실패 이유는 칸이 없어서다. 칸 이름(워크포워드 창별 결과)과 뜻이 어긋난다 (2026-09-28 결정 D2-a)
+  - 2026-10-04 부터 비중은 M2 체인(`app/m2/weights.py`, `app/backtest/m2_chain.py`)이 낸다.
+    그룹캡 적용 내역도 `group_cap_applications` 표가 아니라 여기 `decisions[].m2` 에 있다 — 표는 `decision_id` 가 필요한데
+    백테스트 결정은 DB 행이 아니다. decision_records 연결은 데모 후
 
-- **백테스트가 Validator 결과를 쓰지 않음** (2026-10-04, M2 Validator 구현 때 확인)
-  - 비중 범위 — `spec_universe` 를 읽긴 하지만 확정값(`weight_min`/`weight_max`)이 아니라
-    `weight_min_raw`/`weight_max_raw` 를 읽고(`app/backtest/inputs.py`), 프리셋·하드캡을
-    `policy.resolve_bounds` 로 다시 씌운다. 범위 보정(case B 로 늘린 상한)은 반영되지 않는다
-  - 현금 — Validator 의 현금 목표(`cash_target`) 대신 성향별 기본값 `policy.CASH_MIN` 을 쓴다
-  - 클램프된 제약값(낙폭 · 1회 손실 · 종목당 상한) — `validation_logs` 4단 행에만 있고 백테스트는 읽지 않는다.
-    리밸런싱 간격도 요청값 그대로 쓴다(하드캡으로 올린 값이 아니라)
+- **백테스트가 Validator 결과를 쓰게 됨** (2026-10-04 해소. 남은 것만)
+  - `service.run_spec_backtest` 경로만 해당한다. `scripts/run_backtest_vbt.py`·TS 대조는 두 러너 일치를 보려고
+    지금도 `_raw` + `policy.resolve_bounds` + `policy.CASH_MIN` 을 쓴다
+  - draft 는 매 실행마다 Validator 를 메모리에서 다시 돌린다(기록 안 함). approved 이후는 저장된 확정값을 읽는데,
+    **승인 API 가 아직 없어** 그 경로는 DB 를 직접 고친 전략서로만 돈다
+  - 낙폭 상한(`max_drawdown`)은 확정값을 읽기만 하고 체인에서 쓰지 않는다. 운용 중 낙폭 통제는 데모 범위 밖
+
+- **러너 기본 경로(`runner.map_signals_to_weights`)도 3회 반복 후 현금이 cash_min 아래로 내려갈 수 있음** (2026-10-04 확인)
+  - 정규화·클램프를 3회로 끊는데, 클램프가 종목을 weight_min 으로 끌어올리면 합이 다시 1 − cash_min 을 넘은 채 끝난다
+    (무작위 범위 500건 중 85건에서 발생, M2 체인 구현 때 측정)
+  - M2 체인은 3회 뒤 최종 보정(docs/m2-algorithms.md 2장 "2~4단계 해석과 보완")으로 막지만,
+    기본 경로(`scripts/run_backtest_vbt.py` · TS 대조)는 그대로다. 하늘 러너는 고치지 않기로 했고(2026-10-04 팀 결정),
+    고치면 TS 쪽(`lib/backtest.ts`)도 같이 바꿔야 두 러너 대조가 유지된다
+
+- **OrderBuilder 의 최소 거래 폭 수치가 없음**
+  - FN-504 는 "최소 거래 폭 미달은 생략"만 적고 값을 안 준다. 지금은 0.0(차이가 있으면 전부 주문)
+  - 주문은 비중 단위다. 수량 환산·단수 잔여 처리는 vectorbt 가상 체결이 대신한다 — 실운용 연결 때 정한다
+
+- **가격 표에 종가가 고가·저가를 1~4원 벗어나는 행이 828건** (2026-10-04 확인)
+  - 290130 · 102780 · 305540 등 13종목, 2019~2022 에 몰려 있다. 수정주가 반올림으로 보인다
+  - atr_14_pct 는 전일 종가와의 차이까지 보는 True Range 라 계산은 깨지지 않는다. 원천 정정 여부는 확인 안 함
+
 - **범위 보정 case A 가 실제 흐름에서는 일어나지 않음**
   - M1 `_check_feasible`(`app/m1/postprocess.py`)이 Σmin + cash_min > 1 을 컴파일 단계에서 실패시킨다
   - 그래서 저장된 전략서에는 case B 만 나온다. case A 는 무작위 범위 테스트(`tests/test_m2_feasibility.py`)에서만 돈다
-- 위 둘은 **비중 산출 체인(RiskSizer → WeightMapper → GroupCapEnforcer)을 `app/backtest/service.py` 에
-  연결할 때 함께 정한다**
 
 ### 뉴스와 AI 모델
 

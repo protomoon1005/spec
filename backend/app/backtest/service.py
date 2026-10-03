@@ -35,10 +35,10 @@ def run_conditions() -> dict:
     return {"fee_rate": FEE, "tax_rate": TAX, "slippage_bp": round(SLIPPAGE * 10_000, 6)}
 
 
-# M2 WeightMapper 대기 중인 임시 경로, RiskSizer 없음.
-# 비중은 M4 러너의 map_signals_to_weights·resolve_bounds 가 낸다. 설계상 이 자리는
-# RiskSizer → WeightMapper → GroupCapEnforcer(docs/m2-algorithms.md 2장)이고,
-# 그 구현이 들어오면 이 함수 안만 바뀐다.
+# 비중은 M2 체인 RiskSizer → WeightMapper → GroupCapEnforcer → OrderBuilder
+# (docs/m2-algorithms.md 2장, app/m2/weights.py)가 낸다. 범위·현금·손실 한도는 Validator
+# 확정값이다(app/backtest/m2_chain.py). 러너에는 weigh 콜러블로 끼운다 — 러너의 기본 경로
+# (map_signals_to_weights)는 스크립트·TS 대조가 계속 쓴다.
 def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, seed_money: float) -> dict:
     """전략서 하나를 전략·대조군·시장 세 계열로 돌린다.
 
@@ -46,19 +46,49 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
     입력을 만들 수 없으면 BacktestFailed.
     """
     from app.contracts.view_weights import VIEW_TYPES
+    from app.m2.weights import ATR_MULTIPLE, WeightChainError, horizon_for
     from app.views.bridge import SCORERS, scorer_source
 
     from .inputs import MARKET_TICKER, InputError, build_inputs
+    from .m2_chain import AtrSource, ChainError, M2Weigher, load_bars, load_confirmed
+    from .policy import CAP_EXEMPT_GROUPS, caps_for
     from .runner import run, run_buy_and_hold
 
     try:
-        inp = build_inputs(spec_id, period_start=period_start, period_end=period_end)
-    except InputError as exc:
+        confirmed = load_confirmed(spec_id, as_of=period_end)
+        inp = build_inputs(
+            spec_id,
+            period_start=period_start,
+            period_end=period_end,
+            min_interval_days=confirmed.min_interval_days,
+        )
+        horizon = horizon_for(inp.rebalance_rule)
+    except (InputError, ChainError, WeightChainError) as exc:
         raise BacktestFailed(str(exc)) from exc
 
+    atr = AtrSource(load_bars([h["ticker"] for h in inp.holdings], as_of=period_end))
+
+    def weigher() -> M2Weigher:
+        # 계열마다 새로 만든다 — 주문은 그 계열의 직전 목표 비중에서 나온다.
+        return M2Weigher(
+            inp.holdings,
+            confirmed,
+            caps=caps_for(inp.risk_level),
+            exempt=CAP_EXEMPT_GROUPS,
+            horizon_days=horizon,
+            atr=atr,
+        )
+
     args = (inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates)
-    strategy = run(*args, seed_money, use_signals=True)
-    control = run(*args, seed_money, use_signals=False)
+    strategy_w, control_w = weigher(), weigher()
+    try:
+        strategy = run(*args, seed_money, use_signals=True, weigh=strategy_w)
+        control = run(*args, seed_money, use_signals=False, weigh=control_w)
+    except WeightChainError as exc:
+        raise BacktestFailed(f"비중 산출 사후 검증 실패: {exc}") from exc
+    for series, w in ((strategy, strategy_w), (control, control_w)):
+        for decision in series["decisions"]:
+            decision["m2"] = w.records[decision["date"]]
     market = run_buy_and_hold(inp.prices_wide[MARKET_TICKER], inp.valuation_dates, seed_money)
 
     dates = inp.valuation_dates
@@ -79,7 +109,13 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
         },
         "window_results": {
             "risk_level": inp.risk_level,
-            "weight_path": "M4 러너 임시 경로 (RiskSizer 없음, M2 WeightMapper 대기)",
+            "weight_path": "M2 체인 (RiskSizer v0.1 → WeightMapper → GroupCapEnforcer → OrderBuilder)",
+            "m2": {
+                **confirmed.as_dict(),
+                # Validator 확정 범위. universe 의 키는 프론트 결과 파일과 맞춰 두므로 여기 따로 둔다.
+                "bounds": {t: list(b) for t, b in confirmed.bounds.items()},
+                "risk_sizer": {"version": "v0.1", "atr_multiple": ATR_MULTIPLE, "horizon_days": horizon},
+            },
             "scorer_sources": {vt: scorer_source(SCORERS[vt]) for vt in VIEW_TYPES},
             "schedule": {
                 "rule": inp.rebalance_rule,
