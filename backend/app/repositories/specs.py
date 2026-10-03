@@ -168,6 +168,75 @@ def get_spec_risk_level(spec_id: str) -> int | None:
     return int(row.risk_level) if row is not None else None
 
 
+def get_spec_profile(spec_id: str) -> tuple[int, str] | None:
+    """전략서가 만들어질 때의 (성향 등급, 기준표 버전). 없는 전략서면 None.
+
+    get_spec_risk_level 과 같은 행을 보되 기준표 버전까지 준다 — Validator 는
+    성향 확정 때 박아 둔 기준표로 허용범위를 따져야 한다.
+    """
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT p.risk_level, p.preset_version
+                  FROM strategy_specs s
+                  JOIN risk_profiles p ON p.profile_id = s.profile_id
+                 WHERE s.spec_id = :spec_id
+                """
+            ),
+            {"spec_id": spec_id},
+        ).one_or_none()
+    return (int(row.risk_level), row.preset_version) if row is not None else None
+
+
+def record_validation(spec_id: str, *, bounds: list[dict] | None, logs: list[dict]) -> None:
+    """Validator 결과를 한 트랜잭션으로 남긴다. draft 가 아니면 ValueError.
+
+    bounds: ticker · weight_min · weight_max · was_adjusted. None 이면 범위를 건드리지
+    않는다(1~3단에서 막혀 확정값이 없다). **_raw 칸은 이 함수가 아예 다루지 않는다.**
+    logs: stage · passed · violations · adjusted_bounds · clamped_fields. 단계마다 한 행.
+    """
+    with get_engine().begin() as conn:
+        status = conn.execute(
+            text("SELECT status FROM strategy_specs WHERE spec_id = :s FOR UPDATE"), {"s": spec_id}
+        ).scalar()
+        if status != DRAFT:
+            raise ValueError(f"draft 전략서만 검증 결과를 남길 수 있다: {spec_id} ({status})")
+        if bounds:
+            conn.execute(
+                text(
+                    """
+                    UPDATE spec_universe
+                       SET weight_min = :weight_min, weight_max = :weight_max, was_adjusted = :was_adjusted
+                     WHERE spec_id = :spec_id AND ticker = :ticker
+                    """
+                ),
+                [{"spec_id": spec_id, **row} for row in bounds],
+            )
+        if logs:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO validation_logs
+                        (spec_id, stage, passed, violations, adjusted_bounds, clamped_fields)
+                    VALUES (:spec_id, :stage, :passed, CAST(:violations AS jsonb),
+                            CAST(:adjusted_bounds AS jsonb), CAST(:clamped_fields AS jsonb))
+                    """
+                ),
+                [
+                    {
+                        "spec_id": spec_id,
+                        "stage": row["stage"],
+                        "passed": row["passed"],
+                        "violations": _dump(row["violations"]),
+                        "adjusted_bounds": _dump_or_none(row.get("adjusted_bounds")),
+                        "clamped_fields": _dump_or_none(row.get("clamped_fields")),
+                    }
+                    for row in logs
+                ],
+            )
+
+
 def list_specs(user_id: int) -> list[dict]:
     """사용자의 전략서 목록. 최근 것부터, 종목 수를 곁들인다."""
     with get_engine().connect() as conn:
@@ -217,5 +286,9 @@ def delete_draft_spec(spec_id: str, user_id: int) -> str:
     return "deleted"
 
 
-def _dump(value: dict) -> str:
+def _dump(value) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _dump_or_none(value) -> str | None:
+    return None if value is None else _dump(value)
