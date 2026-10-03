@@ -62,7 +62,11 @@ class BacktestInputs:
         return self.valuation_dates[-1]
 
 
-def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> BacktestInputs:
+def build_inputs(
+    spec_id: str, *, period_start: date, period_end: date, min_interval_days: int | None = None
+) -> BacktestInputs:
+    """min_interval_days 를 주면 전략서 요청값 대신 그 값으로 간격을 건너뛴다(Validator 확정값).
+    None 이면 요청값 그대로다."""
     if period_start > period_end:
         raise InputError(f"기간이 거꾸로다: {period_start} ~ {period_end}")
 
@@ -85,7 +89,8 @@ def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> Backt
     if not all_dates:
         raise InputError(f"기간 안에 거래일이 없다: {period_start} ~ {period_end}")
     weekly = weekly_dates(all_dates)
-    rebalance, skipped = _apply_min_interval(schedule(weekly), rule["min_interval_days"])
+    interval = rule["min_interval_days"] if min_interval_days is None else min_interval_days
+    rebalance, skipped = _apply_min_interval(schedule(weekly), interval)
 
     return BacktestInputs(
         spec_id=spec_id,
