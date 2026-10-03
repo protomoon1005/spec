@@ -17,6 +17,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 피처 / 거시지표 / 관점 가중치는 app/repositories/ 밖에서 직접 SELECT 하지 않는다.
 - 스키마 설계 판단이 필요하면 임의 결정하지 말고 선택지를 제시하고 멈춘다.
 - 사용자가 지정한 단계만 수행한다. 다음 단계로 넘어가지 않는다.
+- 문서(markdown 파일 형식)
+  - 테이블 구조 금지
+  - 화살표 흐름도 표현 금지
+  - 이모티콘(①같은 번호기호는 그냥 1같은 숫자로 표현) 금지
+  - 개조식 표현
+  - **말로** 같은 강조(볼드체) 표현 제거
 
 ## 환경
 
