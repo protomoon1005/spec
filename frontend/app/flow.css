@@ -346,3 +346,179 @@
   color: var(--c-warn);
   border-bottom-color: color-mix(in srgb, var(--c-warn) 45%, transparent);
 }
+
+/* --- 한 문항씩 넘기는 설문 (app/survey/page.tsx) ------------------------------ */
+
+.flow-root .flow-progress {
+  height: 4px;
+  background: var(--c-surface2);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin: 0 0 10px;
+}
+
+.flow-root .flow-progress > div {
+  height: 100%;
+  background: var(--c-accent);
+  border-radius: var(--r-pill);
+  transition: width 260ms ease-out;
+}
+
+.flow-root .flow-step-count {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-muted);
+  margin: 0 0 14px;
+}
+
+/* 문항이 바뀔 때 아래에서 살짝 올라오며 나타난다. 시작 불투명도를 0 으로 두지 않는다 —
+   화면이 그려지지 않는 동안(창이 뒤에 있음·캡처) 애니메이션이 멈추면 문항이 안 보인다. */
+.flow-root .flow-step {
+  animation: flow-step-in 240ms ease-out;
+}
+
+@keyframes flow-step-in {
+  from {
+    opacity: 0.35;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-root .flow-step {
+    animation: none;
+  }
+  .flow-root .flow-progress > div {
+    transition: none;
+  }
+}
+
+.flow-root .flow-question {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 22px 20px;
+  margin: 0 0 16px;
+}
+
+.flow-root .flow-question-text {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--c-bright);
+  word-break: keep-all;
+  margin: 0 0 18px;
+}
+
+.flow-root .flow-choices {
+  display: grid;
+  gap: 8px;
+}
+
+/* 선택지 한 줄. 버튼 기본 모양(강조색 알약)이 아니라 고르기 전엔 차분한 줄로. */
+.flow-root button.flow-choice {
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-inner);
+  padding: 13px 16px;
+  word-break: keep-all;
+}
+
+/* 터치 화면은 누른 뒤에도 :hover 가 남는다. 다음 문항의 같은 자리 선택지가 골라진
+   것처럼 보이지 않게, 실제로 마우스를 올릴 수 있는 기기에서만 칠한다. 바로 아래 줄은
+   위 .flow-root button 의 공통 hover 색을 선택지에서 걷어 낸다. */
+.flow-root button.flow-choice:hover:not(:disabled) {
+  background: var(--c-bg);
+  border-color: var(--c-border);
+}
+
+@media (hover: hover) {
+  .flow-root button.flow-choice:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--c-accent) 6%, var(--c-bg));
+    border-color: color-mix(in srgb, var(--c-accent) 55%, transparent);
+  }
+}
+
+/* 고른 줄은 마우스가 올라가 있어도 고른 색. */
+.flow-root button.flow-choice[aria-pressed='true'],
+.flow-root button.flow-choice[aria-pressed='true']:hover:not(:disabled) {
+  color: var(--c-bright);
+  background: color-mix(in srgb, var(--c-accent) 14%, var(--c-bg));
+  border-color: var(--c-accent);
+}
+
+/* 이전 · 다음처럼 글자만 있는 버튼. */
+.flow-root button.flow-link {
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  font-weight: 500;
+  color: var(--c-muted);
+}
+
+.flow-root button.flow-link:hover:not(:disabled) {
+  background: none;
+  color: var(--c-accent);
+}
+
+.flow-root button.flow-link:disabled {
+  visibility: hidden;
+}
+
+.flow-root .flow-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+/* 확인 단계: 문항 한 줄 = 누르면 그 문항으로 돌아가는 버튼. */
+.flow-root ul.flow-review > li {
+  padding: 0;
+}
+
+.flow-root button.flow-review-row {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 10px 16px;
+  font-weight: 400;
+}
+
+.flow-root button.flow-review-row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--c-accent) 6%, transparent);
+}
+
+.flow-root .flow-review-q {
+  font-size: 12px;
+  color: var(--c-muted);
+  word-break: keep-all;
+}
+
+.flow-root .flow-review-a {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-bright);
+  word-break: keep-all;
+}
+
+.flow-root .flow-footnote {
+  font-family: var(--flow-mono);
+  font-size: 11px;
+  color: var(--c-dim);
+  margin-top: 28px;
+}
