@@ -1122,3 +1122,115 @@
   color: var(--c-warn);
   margin-top: 2px;
 }
+
+/* --- 하드캡 확인 (app/hardcap/page.tsx) --------------------------------------- */
+
+.flow-root .flow-fail-title > span {
+  color: var(--c-loss);
+  margin-right: 4px;
+}
+
+/* 검사 4단계. 번호 | 이름 | 결과 | 설명, 위반은 그 아래 줄. */
+.flow-root .flow-checks {
+  display: grid;
+  margin: 8px 0 24px;
+  border-top: 1px solid var(--c-border);
+}
+
+.flow-root .flow-check {
+  display: grid;
+  grid-template-columns: 14px 88px 64px 1fr;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 14px;
+}
+
+.flow-root .flow-check-name {
+  color: var(--c-bright);
+  font-weight: 600;
+}
+
+.flow-root .flow-check-status {
+  font-size: 13px;
+}
+
+.flow-root .flow-check-passed .flow-check-status {
+  color: var(--c-profit);
+}
+
+.flow-root .flow-check-failed .flow-check-status {
+  color: var(--c-loss);
+  font-weight: 600;
+}
+
+.flow-root .flow-check-not_run {
+  color: var(--c-dim);
+}
+
+.flow-root .flow-check-not_run .flow-check-name,
+.flow-root .flow-check-not_run .flow-check-status {
+  color: var(--c-dim);
+}
+
+.flow-root .flow-check-detail {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-root ul.flow-violations {
+  grid-column: 2 / -1;
+  margin: 4px 0 0;
+  border-color: color-mix(in srgb, var(--c-loss) 40%, transparent);
+}
+
+.flow-root ul.flow-violations > li {
+  font-size: 13px;
+  color: var(--c-bright);
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-check {
+    grid-template-columns: 14px 1fr auto;
+  }
+  .flow-root .flow-check-detail {
+    grid-column: 2 / -1;
+  }
+}
+
+.flow-root .flow-confirmed {
+  margin: 0 0 24px;
+}
+
+.flow-root .flow-confirmed-note {
+  font-size: 13px;
+  color: var(--c-text);
+  margin: 0 0 6px;
+}
+
+/* 보정 · 클램프 전후. 원래 값은 취소선, 바뀐 값은 밝게. */
+.flow-root .flow-changes {
+  display: grid;
+  margin: 0 0 10px;
+}
+
+.flow-root .flow-changes > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 13px;
+}
+
+.flow-root .flow-change {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-bright);
+}
+
+.flow-root .flow-change s {
+  color: var(--c-dim);
+}
