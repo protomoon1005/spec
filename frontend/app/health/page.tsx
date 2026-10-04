@@ -16,7 +16,10 @@ type HealthResponse = {
 // 서버 전용 API_INTERNAL_BASE_URL을 둔다.
 import ScaffoldShell from "@/components/scaffold-shell";
 
-const API_INTERNAL_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? "http://localhost:8000";
+// 서버는 항목마다 "ok" 또는 "down" 을 준다. 그 밖의 값은 정상으로 치지 않는다.
+const HEALTHY = new Set(["ok"]);
+
+const API_INTERNAL_BASE_URL =process.env.API_INTERNAL_BASE_URL ?? "http://localhost:8000";
 
 export default async function HealthPage() {
   let body: HealthResponse | null = null;
@@ -38,15 +41,29 @@ export default async function HealthPage() {
           <code>{API_INTERNAL_BASE_URL}/health</code> 를 서버에서 호출한 결과다.
         </p>
 
-        {error && <p style={{ color: "#dc2626" }}>API 연결 실패: {error}</p>}
+        {error && (
+          <p className="flow-msg err" role="alert">
+            API 연결 실패: {error}
+          </p>
+        )}
 
         {body && (
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            <li>전체: {body.status}</li>
-            <li>데이터베이스: {body.database}</li>
-            <li>Redis: {body.redis}</li>
-            <li>MinIO: {body.minio}</li>
-            <li>LLM 백엔드: {body.llm_backend}</li>
+          <ul>
+            {(
+              [
+                ["전체", body.status],
+                ["데이터베이스", body.database],
+                ["Redis", body.redis],
+                ["MinIO", body.minio],
+                ["LLM 백엔드", body.llm_backend],
+              ] as const
+            ).map(([label, value]) => (
+              <li key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                {/* curl 로 받아도 "항목: 값" 으로 읽히게 콜론을 남긴다 */}
+                <span>{label}:</span>
+                <span className={`flow-badge ${HEALTHY.has(value) ? "ok" : "err"}`}>{value}</span>
+              </li>
+            ))}
           </ul>
         )}
       </main>

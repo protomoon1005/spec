@@ -58,13 +58,23 @@ function Survey() {
     }
   }
 
-  if (!form) return <p>{message ?? "문항을 불러오는 중…"}</p>;
+  if (!form) {
+    return message ? (
+      <p className="flow-msg err" role="alert">
+        {message}
+      </p>
+    ) : (
+      <p className="flow-state">문항을 불러오는 중…</p>
+    );
+  }
 
   const answered = form.questions.filter((q) => answers[q.question_code]).length;
 
   return (
     <>
-      <p>설문 버전: {form.survey_version}</p>
+      <p className="flow-hint" style={{ marginBottom: 14 }}>
+        설문 버전 <span className="mono">{form.survey_version}</span>
+      </p>
       <ol>
         {form.questions.map((q) => (
           <li key={q.question_code}>
@@ -80,21 +90,33 @@ function Survey() {
                     onChange={() => setAnswers({ ...answers, [q.question_code]: c.answer_code })}
                     disabled={busy}
                   />{" "}
-                  {c.answer_code} {c.text}
+                  <span className="mono" style={{ color: "var(--c-muted)", marginRight: 8 }}>
+                    {c.answer_code}
+                  </span>
+                  {c.text}
                 </label>
               </div>
             ))}
           </li>
         ))}
       </ol>
-      <p>
-        <button onClick={submit} disabled={busy || answered < form.questions.length}>
+      <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <span className="flow-hint">
+          <b className="mono" style={{ color: "var(--c-bright)" }}>
+            {answered}/{form.questions.length}
+          </b>{" "}
+          문항 답함. 전부 답해야 제출할 수 있습니다.
+        </span>
+        <button className="primary" onClick={submit} disabled={busy || answered < form.questions.length}>
           제출
-        </button>{" "}
-        {answered}/{form.questions.length} 문항 답함. 전부 답해야 제출할 수 있습니다.
-      </p>
-      {busy && <p>제출 중…</p>}
-      {message && <p>{message}</p>}
+        </button>
+      </div>
+      {busy && <p className="flow-state">제출 중…</p>}
+      {message && (
+        <p className="flow-msg err" role="alert">
+          {message}
+        </p>
+      )}
     </>
   );
 }

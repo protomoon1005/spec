@@ -23,7 +23,7 @@ export default function ProgressPage() {
         <RequireLogin>
           {() => (
             // useSearchParams 는 Suspense 안에서만 쓸 수 있다 (Next.js 규칙).
-            <Suspense fallback={<p>불러오는 중…</p>}>
+            <Suspense fallback={<p className="flow-state">불러오는 중…</p>}>
               <Progress />
             </Suspense>
           )}
@@ -90,28 +90,40 @@ function Progress() {
 
   if (!jobId) {
     return (
-      <p>
-        작업 번호가 없습니다. <Link href="/compile">다시 요청</Link>
-      </p>
+      <div className="flow-empty">
+        <strong>작업 번호가 없습니다.</strong>
+        <Link href="/compile">다시 요청</Link>
+      </div>
     );
   }
 
   return (
     <>
-      <ul>
+      {!ended && (
+        <div className="flow-card" style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
+          <span className="mono" style={{ fontSize: 32, fontWeight: 600, color: "var(--c-bright)", lineHeight: 1 }}>
+            {elapsed}
+            <span style={{ fontSize: 14, color: "var(--c-muted)", marginLeft: 4 }}>초</span>
+          </span>
+          <span className="flow-state" style={{ padding: 0 }}>
+            진행 중… 2분 이상 걸립니다. 이 화면을 닫지 마세요.
+          </span>
+        </div>
+      )}
+      <ul className="flow-log" aria-live="polite">
         {lines.map((line, i) => (
           <li key={i}>{line}</li>
         ))}
       </ul>
-      {ended ? (
+      {ended && (
         <>
-          <p>{ended}</p>
-          <p>
-            <Link href="/compile">다시 요청</Link>
+          <p className="flow-msg err" role="alert">
+            {ended}
           </p>
+          <div className="flow-next">
+            <Link href="/compile">다시 요청</Link>
+          </div>
         </>
-      ) : (
-        <p>진행 중… 경과 {elapsed}초. 2분 이상 걸립니다. 이 화면을 닫지 마세요.</p>
       )}
     </>
   );

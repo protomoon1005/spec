@@ -45,15 +45,15 @@ export default function HomePage() {
       <main>
         <h1>spec</h1>
         <p>이 화면에서 하는 일: 로그인 여부에 따라 로그인 화면이나 홈으로 보낸다.</p>
-        <p>{message}</p>
+        <p className={message.startsWith("로그인 확인 실패") ? "flow-msg err" : "flow-state"}>{message}</p>
 
         <h2>개발용</h2>
         <ul>
           <li>
-            <Link href="/health">/health</Link> — 인프라 상태 확인
+            <Link href="/health">/health</Link> <span className="flow-hint">인프라 상태 확인</span>
           </li>
           <li>
-            <Link href="/report">/report</Link> — 백테스트 결과 리포트 (M4)
+            <Link href="/report">/report</Link> <span className="flow-hint">백테스트 결과 리포트 (M4)</span>
           </li>
         </ul>
       </main>

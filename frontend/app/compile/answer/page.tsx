@@ -56,48 +56,53 @@ function Answer() {
     }
   }
 
-  if (pending === undefined) return <p>불러오는 중…</p>;
+  if (pending === undefined) return <p className="flow-state">불러오는 중…</p>;
   if (pending === null) {
     return (
-      <p>
-        답할 질문이 없습니다. <Link href="/compile">전략 요청으로</Link>
-      </p>
+      <div className="flow-empty">
+        <strong>답할 질문이 없습니다.</strong>
+        <Link href="/compile">전략 요청으로</Link>
+      </div>
     );
   }
 
   return (
-    <>
-      <p>질문: {pending.question}</p>
+    <section className="flow-card">
+      <p style={{ fontSize: 16, color: "var(--c-bright)", fontWeight: 500, borderLeft: "3px solid var(--c-warn)", paddingLeft: 14 }}>
+        {pending.question}
+      </p>
       {pending.choices.length > 0 && (
         <>
-          <p>선택지 (누르면 그대로 답으로 보냅니다)</p>
-          <ul>
+          <p className="flow-hint" style={{ marginTop: 18, marginBottom: 8 }}>
+            선택지 (누르면 그대로 답으로 보냅니다)
+          </p>
+          <div className="flow-actions">
             {pending.choices.map((c) => (
-              <li key={c}>
-                <button onClick={() => send(c)} disabled={busy}>
-                  {c}
-                </button>
-              </li>
+              <button key={c} onClick={() => send(c)} disabled={busy} style={{ textAlign: "left" }}>
+                {c}
+              </button>
             ))}
-          </ul>
+          </div>
         </>
       )}
-      <p>
+      <div className="flow-field" style={{ marginTop: 18 }}>
         <label>
-          직접 입력{" "}
+          직접 입력
           <input value={text} onChange={(e) => setText(e.target.value)} size={50} disabled={busy} />
-        </label>{" "}
-        <button onClick={() => send(text.trim())} disabled={busy || !text.trim()}>
+        </label>
+        <button className="primary" onClick={() => send(text.trim())} disabled={busy || !text.trim()}>
           답 보내기
         </button>
+      </div>
+      <p className="flow-hint" style={{ marginTop: 12 }}>
+        30분이 지나면 대화가 만료되어 처음부터 다시 요청해야 합니다.
       </p>
-      <p>30분이 지나면 대화가 만료되어 처음부터 다시 요청해야 합니다.</p>
-      {busy && <p>보내는 중…</p>}
+      {busy && <p className="flow-state">보내는 중…</p>}
       {message && (
-        <p>
+        <p className="flow-msg err" role="alert">
           {message} <Link href="/compile">처음부터 다시 요청</Link>
         </p>
       )}
-    </>
+    </section>
   );
 }

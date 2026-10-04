@@ -48,16 +48,18 @@ export default function BacktestPage() {
           {() => <Body specId={specId} />}
         </RequireLogin>
 
-        <p>
-          <button onClick={() => router.push("/confirm")}>다음 — 최종 확인</button>
-        </p>
+        <div className="flow-next">
+          <button className="primary" onClick={() => router.push("/confirm")}>
+            다음 — 최종 확인
+          </button>
+        </div>
       </main>
     </ScaffoldShell>
   );
 }
 
 function Body({ specId }: { specId: string | null | undefined }) {
-  if (specId === undefined) return <p>불러오는 중…</p>;
+  if (specId === undefined) return <p className="flow-state">불러오는 중…</p>;
   return specId ? <LiveRun specId={specId} /> : <Stored />;
 }
 
@@ -122,40 +124,91 @@ function LiveRun({ specId }: { specId: string }) {
 
   return (
     <>
-      <p>전략서 {specId} 로 백테스트를 돌립니다.</p>
-      <ul>
+      <p className="flow-hint" style={{ marginBottom: 10 }}>
+        전략서 <span className="mono">{specId}</span> 로 백테스트를 돌립니다.
+      </p>
+      {run && run.status !== "done" && run.status !== "failed" && (
+        <p className="flow-state">돌리는 중… 상태 {run.status}</p>
+      )}
+      <ul className="flow-log" aria-live="polite">
         {log.map((line, i) => (
           <li key={i}>{line}</li>
         ))}
       </ul>
       {run?.status === "done" && <Result run={run} />}
-      {run?.status === "failed" && <p>실패 이유: {run.reason}</p>}
+      {run?.status === "failed" && (
+        <p className="flow-msg err" role="alert">
+          실패 이유: {run.reason}
+        </p>
+      )}
     </>
   );
 }
+
+// 관점 출처 배지. real 은 실제 모델, mock 은 고정 가짜 점수, neutral 은 항상 중립.
+const SOURCE_BADGE: Record<string, { label: string; tone: string }> = {
+  real: { label: "실모델", tone: "ok" },
+  mock: { label: "목업", tone: "warn" },
+  neutral: { label: "중립 고정", tone: "muted" },
+};
+const VIEW_LABEL: Record<string, string> = { market: "시장분석", sentiment: "뉴스 감성", regime: "시장온도" };
 
 function Result({ run }: { run: BacktestRun }) {
   return (
     <>
       <h2>결과 (실행 번호 {run.run_id})</h2>
-      <p>시장분석·온도는 목업 신호입니다. 감성은 중립 고정입니다. 결과를 실력으로 읽으면 안 됩니다.</p>
-      <ul>
-        <li>
-          기간: {run.period_start} ~ {run.period_end} (실제로 쓴 마지막 거래일 {run.data_snapshot_asof})
-        </li>
-        {run.summary && <SeriesRows totals={run.summary} />}
-        <li>관점 출처: {JSON.stringify(run.scorer_sources)}</li>
-        <li>리밸런싱 일정: {run.schedule?.note}</li>
-        <li>비중 계산: {run.weight_path}</li>
-        <li>서버 지표 (전략 기준, benchmark_cagr 은 시장): {JSON.stringify(run.metrics)}</li>
-      </ul>
+      {/* 목업 관점이 하나라도 섞였으면 경고한다. 출처 기록이 없는 옛 실행은 전부 목업이었다. */}
+      {(!run.scorer_sources || Object.values(run.scorer_sources).includes("mock")) && (
+        <p className="flow-msg warn" style={{ marginTop: 0, marginBottom: 16 }}>
+          목업 신호가 섞인 실행입니다(관점 출처 참고). 감성은 중립 고정입니다. 결과를 실력으로 읽으면 안 됩니다.
+        </p>
+      )}
+      {run.summary && <SeriesTable totals={run.summary} />}
+      <dl className="flow-kv" style={{ marginTop: 16 }}>
+        <dt>기간</dt>
+        <dd>
+          {run.period_start} ~ {run.period_end} (실제로 쓴 마지막 거래일 {run.data_snapshot_asof})
+        </dd>
+        <dt>관점 출처</dt>
+        <dd>
+          {run.scorer_sources ? (
+            <span className="flow-actions" style={{ gap: 8 }}>
+              {Object.entries(run.scorer_sources).map(([view, source]) => {
+                const b = SOURCE_BADGE[source] ?? { label: source, tone: "muted" };
+                return (
+                  <span key={view} style={{ fontFamily: "var(--f-sans)" }}>
+                    {VIEW_LABEL[view] ?? view} <span className={`flow-badge ${b.tone}`}>{b.label}</span>
+                  </span>
+                );
+              })}
+            </span>
+          ) : (
+            "기록 없음"
+          )}
+        </dd>
+        <dt>리밸런싱 일정</dt>
+        <dd className="prose">{run.schedule?.note}</dd>
+        <dt>비중 계산</dt>
+        <dd>{run.weight_path}</dd>
+        <dt>서버 지표</dt>
+        <dd style={{ wordBreak: "break-all" }}>
+          <span className="flow-hint">전략 기준, benchmark_cagr 은 시장 </span>
+          {JSON.stringify(run.metrics)}
+        </dd>
+      </dl>
       {/* 리포트는 이 실행 번호로 같은 결과를 받아 그린다. 예전에는 /report 가 늘 데모 결과를
           보여 줘서 "이번 전략서 결과가 아닙니다" 라고 적어 둬야 했다. */}
       {run.status === "done" && (
-        <p>
-          <Link href={`/report?run_id=${run.run_id}`}>이 실행의 자세한 리포트 보기</Link> — 차트, 종목별 비중,
-          그룹캡 적용, 전략서 내용
-        </p>
+        <nav className="flow-menu" style={{ marginTop: 20 }} aria-label="결과 자세히 보기">
+          <Link href={`/report?run_id=${run.run_id}`}>
+            <b>이 실행의 자세한 리포트 보기</b>
+            <span>차트, 종목별 비중, 그룹캡 적용, 전략서 내용</span>
+          </Link>
+          <Link href={`/views?run_id=${run.run_id}`}>
+            <b>관점 브리핑 보기</b>
+            <span>세 관점의 가중치가 리밸런싱마다 어떻게 바뀌었는지, 종목별 확률</span>
+          </Link>
+        </nav>
       )}
     </>
   );
@@ -164,31 +217,54 @@ function Result({ run }: { run: BacktestRun }) {
 function Stored() {
   return (
     <>
-      <p>이번 탭에서 완료한 전략서가 없어, 미리 저장된 백테스트 결과를 보여 줍니다.</p>
-      <p>
-        출처: data/backtest-result.json ({DATA_SOURCE} 실제 종가, 성향 {PROFILE_LABEL} 기준, 데모 Spec)
+      <p className="flow-msg" style={{ marginTop: 0 }}>
+        이번 탭에서 완료한 전략서가 없어, 미리 저장된 백테스트 결과를 보여 줍니다.
       </p>
-      <ul>
-        <li>
-          기간: {PERIOD_START} ~ {PERIOD_END}
-        </li>
-        <SeriesRows totals={{ strategy, control, market }} />
-      </ul>
-      <p>
-        <Link href="/report">데모 리포트 보기</Link> — 위와 같은 데모 결과입니다
+      <dl className="flow-kv" style={{ margin: "16px 0" }}>
+        <dt>출처</dt>
+        <dd>
+          data/backtest-result.json ({DATA_SOURCE} 실제 종가, 성향 {PROFILE_LABEL} 기준, 데모 Spec)
+        </dd>
+        <dt>기간</dt>
+        <dd>
+          {PERIOD_START} ~ {PERIOD_END}
+        </dd>
+      </dl>
+      <SeriesTable totals={{ strategy, control, market }} />
+      <p style={{ marginTop: 16 }}>
+        <Link href="/report">데모 리포트 보기</Link> <span className="flow-hint">위와 같은 데모 결과입니다</span>
       </p>
     </>
   );
 }
 
-function SeriesRows({ totals }: { totals: SeriesTotals }) {
+const tone = (v: number) => (v >= 0 ? "var(--c-profit)" : "var(--c-loss)");
+
+function SeriesTable({ totals }: { totals: SeriesTotals }) {
   return (
-    <>
-      {SERIES.map(({ key, label }) => (
-        <li key={key}>
-          {label}: 최종 수익률 {pct(totals[key].total)}, 최대 낙폭 {pct(totals[key].mdd)}
-        </li>
-      ))}
-    </>
+    <div className="flow-table">
+      <table style={{ minWidth: 440 }}>
+        <thead>
+          <tr>
+            <th>계열</th>
+            <th className="num">최종 수익률</th>
+            <th className="num">최대 낙폭</th>
+          </tr>
+        </thead>
+        <tbody>
+          {SERIES.map(({ key, label }) => (
+            <tr key={key}>
+              <td style={key === "strategy" ? { color: "var(--c-bright)", fontWeight: 600 } : undefined}>{label}</td>
+              <td className="num" style={{ color: tone(totals[key].total) }}>
+                {pct(totals[key].total)}
+              </td>
+              <td className="num" style={{ color: "var(--c-loss)" }}>
+                {pct(totals[key].mdd)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

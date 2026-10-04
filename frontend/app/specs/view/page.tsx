@@ -19,14 +19,14 @@ export default function SpecViewPage() {
         <RequireLogin>
           {() => (
             // useSearchParams 는 Suspense 안에서만 쓸 수 있다 (Next.js 규칙).
-            <Suspense fallback={<p>불러오는 중…</p>}>
+            <Suspense fallback={<p className="flow-state">불러오는 중…</p>}>
               <View />
             </Suspense>
           )}
         </RequireLogin>
-        <p>
+        <div className="flow-next" style={{ justifyContent: "flex-start" }}>
           <Link href="/specs">목록으로</Link>
-        </p>
+        </div>
       </main>
     </ScaffoldShell>
   );
@@ -34,10 +34,19 @@ export default function SpecViewPage() {
 
 function View() {
   const specId = useSearchParams().get("id");
-  if (!specId) return <p>전략서 번호가 없습니다.</p>;
+  if (!specId) {
+    return (
+      <div className="flow-empty">
+        <strong>전략서 번호가 없습니다.</strong>
+        <Link href="/specs">목록에서 고르기</Link>
+      </div>
+    );
+  }
   return (
     <>
-      <p>전략서 번호: {specId}</p>
+      <p className="flow-hint" style={{ marginBottom: 12 }}>
+        전략서 번호 <span className="mono">{specId}</span>
+      </p>
       <SpecContents specId={specId} />
     </>
   );
