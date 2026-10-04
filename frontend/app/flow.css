@@ -1343,3 +1343,49 @@
   font-size: 11px;
   color: var(--c-muted);
 }
+
+/* --- 최종 확인 (app/confirm/page.tsx) ----------------------------------------- */
+
+/* 하드캡 검사 줄(.flow-check)을 체크리스트로. 표시 | 이름 | 내용 | 링크. */
+.flow-root .flow-checklist .flow-check {
+  grid-template-columns: 16px 88px 1fr auto;
+  align-items: center;
+  padding: 12px 4px;
+}
+
+.flow-root .flow-checklist .flow-check-detail {
+  font-size: 13px;
+  color: var(--c-bright);
+  word-break: keep-all;
+}
+
+.flow-root .flow-checklist .flow-check-not_run .flow-check-detail {
+  color: var(--c-muted);
+}
+
+.flow-root .flow-check-mark {
+  font-weight: 700;
+}
+
+.flow-root .flow-check-passed .flow-check-mark {
+  color: var(--c-profit);
+}
+
+.flow-root .flow-check-failed .flow-check-mark {
+  color: var(--c-loss);
+}
+
+.flow-root .flow-check-link {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-checklist .flow-check {
+    grid-template-columns: 16px 1fr auto;
+  }
+  .flow-root .flow-checklist .flow-check-detail {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+}

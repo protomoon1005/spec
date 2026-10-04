@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import { api, loadCompileResult } from "@/lib/api";
+import { api, loadCompileResult, saveValidation } from "@/lib/api";
 
 type Violation = { code: string; message: string; ticker: string | null; field: string | null };
 
@@ -88,7 +88,10 @@ function Check() {
   useEffect(() => {
     if (!specId) return;
     api<Validation>(`/specs/${specId}/validate`, { method: "POST" })
-      .then(setResult)
+      .then((r) => {
+        setResult(r);
+        saveValidation({ spec_id: r.spec_id, passed: r.passed, blocked_at: r.blocked_at });
+      })
       .catch((err) => setMessage(`검사를 돌리지 못했습니다: ${err instanceof Error ? err.message : String(err)}`));
     // 검증 응답에는 종목명이 없다. 보정 · 클램프 줄에 이름을 붙이려고 전략서에서 읽는다.
     api<{ universe: { ticker: string; name: string }[] }>(`/specs/${specId}`)

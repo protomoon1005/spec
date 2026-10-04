@@ -253,6 +253,31 @@ export function loadBacktestRun(specId: string): SavedBacktest | null {
   }
 }
 
+// 하드캡 화면의 검사 결과. 최종 확인 화면이 체크리스트에 쓴다. 검사 API 는 전략서를
+// 저장하는 요청이라 확인 화면에서 다시 부르지 않고 이것만 읽는다.
+
+export type SavedValidation = { spec_id: string; passed: boolean; blocked_at: number | null };
+
+const VALIDATION_KEY = "spec.validation";
+
+export function saveValidation(saved: SavedValidation): void {
+  try {
+    window.sessionStorage.setItem(VALIDATION_KEY, JSON.stringify(saved));
+  } catch {
+    // 저장소가 막힌 브라우저 — 확인 화면에 "아직 확인 안 함" 으로 나올 뿐이다.
+  }
+}
+
+export function loadValidation(specId: string): SavedValidation | null {
+  try {
+    const raw = window.sessionStorage.getItem(VALIDATION_KEY);
+    const saved = raw ? (JSON.parse(raw) as SavedValidation) : null;
+    return saved?.spec_id === specId ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
 // GET /backtest/runs/{run_id} 응답 (backend/app/routers/backtest.py BacktestRunDetail).
 export type SeriesSummary = { total: number; cagr: number; mdd: number; sharpe: number; sortino: number };
 
