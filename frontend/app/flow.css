@@ -1234,3 +1234,112 @@
 .flow-root .flow-change s {
   color: var(--c-dim);
 }
+
+/* --- 백테스트 (app/backtest/page.tsx) ----------------------------------------- */
+
+/* 링크를 주 버튼 모양으로. (.flow-root a 의 밑줄을 걷는다) */
+.flow-root a.flow-button {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 55%, transparent);
+  border-radius: var(--r-button);
+  padding: 8px 16px;
+}
+
+.flow-root a.flow-button:hover {
+  background: color-mix(in srgb, var(--c-accent) 22%, transparent);
+  border-color: var(--c-accent);
+}
+
+/* 전략 · 대조군 · 시장 세 칸. 좁으면 한 줄에 하나. */
+.flow-root .flow-series {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0 12px;
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-series {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flow-root .flow-series > div {
+  display: grid;
+  gap: 2px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+}
+
+.flow-root .flow-series > div.flow-series-main {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, transparent);
+}
+
+.flow-root .flow-series-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-bright);
+}
+
+.flow-root .flow-series-sub {
+  font-size: 11px;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+
+.flow-root .flow-series-total {
+  font-family: var(--flow-mono);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.flow-root .up {
+  color: var(--c-profit);
+}
+
+.flow-root .down {
+  color: var(--c-loss);
+}
+
+.flow-root .flow-series-meta {
+  font-family: var(--flow-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.flow-root .flow-edge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--c-bright);
+  margin: 0 0 12px;
+}
+
+.flow-root .flow-edge > span {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-root .flow-edge strong {
+  font-family: var(--flow-mono);
+  font-size: 18px;
+}
+
+.flow-root .flow-note {
+  font-size: 12px;
+  color: var(--c-muted);
+  margin: 0 0 20px;
+}
+
+.flow-root .flow-alert p.flow-alert-raw {
+  font-family: var(--flow-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+}
