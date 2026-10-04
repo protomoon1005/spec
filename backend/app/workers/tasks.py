@@ -6,14 +6,16 @@ GET /jobs/{job_id}/stream 패턴은 그대로다 (app/routers/jobs.py, app/route
 run_backtest 는 M4 가 만든 러너를 API 에 잇는 배선이다(2026-09-28). 상태는 job_id 가
 아니라 backtest_runs 에 남긴다 — GET /backtest/runs/{run_id} 가 거기서 읽는다.
 
-나머지 4개(daily_judge·ingest_market·train_model·update_view_weights)는 본체
-구현이 이번 범위 밖이다(docs/infra-spec.md 9장: Validator·판단 계층·수집기
-본체는 안 만든다). 이름만 미리 등록해 다른 라인이 태스크 이름에 의존해 개발을
-시작할 수 있게 한다.
+daily_judge · train_model · update_view_weights 는 M3 판단 계층 본체다(2026-10-05,
+app/scoring/). 판단은 IntegratedSignal 에서 멈추고 RiskSizer 는 부르지 않는다.
+
+ingest_market 만 이름뿐이다(docs/infra-spec.md 9장: 수집기 본체는 안 만든다).
+가격은 scripts/ingest_prices.py 로 적재한다.
 """
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 from app.workers.celery_app import celery_app
 
@@ -108,7 +110,52 @@ def _not_implemented(name: str):
     return _task
 
 
-daily_judge = celery_app.task(name="daily_judge")(_not_implemented("daily_judge"))
+@celery_app.task(name="daily_judge")
+def daily_judge(portfolio_id: int, as_of: str) -> dict:
+    """라이브 판단 한 회. IntegratedSignal 에서 멈춘다 (RiskSizer 는 M2 몫)."""
+    from app.scoring import live
+
+    return live.daily_judge(portfolio_id, as_of=date.fromisoformat(as_of))
+
+
 ingest_market = celery_app.task(name="ingest_market")(_not_implemented("ingest_market"))
-train_model = celery_app.task(name="train_model")(_not_implemented("train_model"))
-update_view_weights = celery_app.task(name="update_view_weights")(_not_implemented("update_view_weights"))
+
+
+@celery_app.task(name="train_model")
+def train_model(as_of: str) -> dict:
+    """as_of 의 cutoff 시장분석 모델을 학습해 MinIO 에 올리고 ml_models 에 활성으로 등록한다."""
+    from app.repositories import ml_models
+    from app.scoring import market, model_store, schedule
+    from app.scoring.market_model import model_version
+    from app.views.calibration import CALIBRATION_METHOD
+
+    cutoff = schedule.cutoff_for(date.fromisoformat(as_of))
+    skipped = {"status": "skipped", "reason": "학습 표본이 모자란다", "cutoff": str(cutoff)}
+    if cutoff is None:
+        return skipped
+    if ml_models.get_model(model_version(cutoff)) is not None:
+        # 같은 cutoff 는 같은 모델이다. 다시 학습해 PK 충돌을 내지 않는다.
+        return {"status": "exists", "model_version": model_version(cutoff)}
+    model = market.train_for(cutoff)
+    if model is None:
+        return skipped
+    uri = model_store.upload(f"market/{model.version}.json", model.dumps())
+    ml_models.register_model(
+        model_version=model.version,
+        view_type="market",
+        train_start=model.train_start,
+        train_end=model.train_end,
+        accuracy=model.metrics["accuracy"],
+        brier_score=model.metrics["brier_score"],
+        calibration_method=CALIBRATION_METHOD,
+        artifact_uri=uri,
+    )
+    return {"status": "registered", "model_version": model.version, "artifact_uri": uri, **model.metrics}
+
+
+@celery_app.task(name="update_view_weights")
+def update_view_weights(portfolio_id: int, as_of: str) -> dict:
+    """전날까지 확정된 판단을 채점하고 as_of 시점 관점 가중치를 남긴다."""
+    from app.scoring import live
+
+    return live.update_view_weights(portfolio_id, as_of=date.fromisoformat(as_of))
