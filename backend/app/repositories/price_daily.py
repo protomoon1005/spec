@@ -97,6 +97,38 @@ def get_close_history(tickers: list[str], *, as_of: date) -> dict[str, list[tupl
     return out
 
 
+def get_latest_trade_date() -> date | None:
+    """적재된 가장 늦은 거래일. 없으면 None.
+
+    Validator 가 백테스트 구간의 끝(as_of)을 정할 때 쓴다(2026-10-04 결정 3). 오늘
+    날짜로 잡으면 가격이 그보다 앞에서 끝나 모든 종목이 "데이터 없음" 이 된다.
+    이 값은 as_of 를 정하는 쪽이라 as_of 인자가 없다.
+    """
+    with get_engine().connect() as conn:
+        return conn.execute(text("SELECT max(trade_date) FROM price_daily")).scalar()
+
+
+def get_trade_dates(*, start: date, as_of: date) -> list[date]:
+    """구간 [start, as_of] 의 거래일 달력. 어느 종목이든 한 행이라도 있는 날. 오름차순.
+
+    as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=`.
+    """
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT DISTINCT trade_date
+                  FROM price_daily
+                 WHERE trade_date >= :start
+                   AND trade_date <= :as_of
+                 ORDER BY trade_date
+                """
+            ),
+            {"start": start, "as_of": as_of},
+        ).all()
+    return [row.trade_date for row in rows]
+
+
 def upsert_price_bars(ticker: str, *, bars: list[dict]) -> int:
     """일봉 여러 행을 한 트랜잭션으로 적재한다. 같은 (종목, 거래일)이면 덮어쓴다.
 

@@ -73,6 +73,19 @@
   - RiskSizer 가 없고, M2 WeightMapper 가 들어오면 `app/backtest/service.py` 한 곳을 바꾼다
   - 자산곡선·결정 목록·실패 이유는 칸이 없어 `backtest_metrics.window_results` 에 담는다. 칸 이름(워크포워드 창별 결과)과 뜻이 어긋난다 (2026-09-28 결정 D2-a)
 
+- **백테스트가 Validator 결과를 쓰지 않음** (2026-10-04, M2 Validator 구현 때 확인)
+  - 비중 범위 — `spec_universe` 를 읽긴 하지만 확정값(`weight_min`/`weight_max`)이 아니라
+    `weight_min_raw`/`weight_max_raw` 를 읽고(`app/backtest/inputs.py`), 프리셋·하드캡을
+    `policy.resolve_bounds` 로 다시 씌운다. 범위 보정(case B 로 늘린 상한)은 반영되지 않는다
+  - 현금 — Validator 의 현금 목표(`cash_target`) 대신 성향별 기본값 `policy.CASH_MIN` 을 쓴다
+  - 클램프된 제약값(낙폭 · 1회 손실 · 종목당 상한) — `validation_logs` 4단 행에만 있고 백테스트는 읽지 않는다.
+    리밸런싱 간격도 요청값 그대로 쓴다(하드캡으로 올린 값이 아니라)
+- **범위 보정 case A 가 실제 흐름에서는 일어나지 않음**
+  - M1 `_check_feasible`(`app/m1/postprocess.py`)이 Σmin + cash_min > 1 을 컴파일 단계에서 실패시킨다
+  - 그래서 저장된 전략서에는 case B 만 나온다. case A 는 무작위 범위 테스트(`tests/test_m2_feasibility.py`)에서만 돈다
+- 위 둘은 **비중 산출 체인(RiskSizer → WeightMapper → GroupCapEnforcer)을 `app/backtest/service.py` 에
+  연결할 때 함께 정한다**
+
 ### 뉴스와 AI 모델
 
 - **뉴스 수집 파이프라인이 제거됐는데 표는 남아 있음**
