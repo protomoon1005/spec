@@ -118,10 +118,13 @@ def run(
     rebalance_dates: list[str],
     initial_cash: float,
     use_signals: bool = True,
+    weigh=None,
 ) -> dict:
     """vectorbt 로 한 계열을 돌린다.
 
     use_signals=False 면 s=0 (허용범위 정중앙) — 신호만 뺀 대조군이다.
+    weigh 를 주면 비중 계산을 weigh(date, signals) 로 바꿔 끼운다(M2 체인, service 경로).
+    반환은 map_signals_to_weights 와 같은 4-튜플이어야 한다. None 이면 지금 동작 그대로.
     """
     import vectorbt as vbt  # import 에 10초 넘게 걸려서 호출 시점으로 미룬다
 
@@ -151,7 +154,12 @@ def run(
             signals = dict(judge.judge(prices_wide, as_of=d).signals)
         else:
             signals = {t: 0.0 for t in tickers}
-        mapped, tgt, cash, apps = map_signals_to_weights(holdings, bounds, signals, profile["cash_min"], caps)
+        if weigh is None:
+            mapped, tgt, cash, apps = map_signals_to_weights(
+                holdings, bounds, signals, profile["cash_min"], caps
+            )
+        else:
+            mapped, tgt, cash, apps = weigh(d, signals)
         target.loc[d] = [tgt[t] for t in tickers]
         decisions.append(
             {
