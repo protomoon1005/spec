@@ -1389,3 +1389,150 @@
     grid-row: 2;
   }
 }
+
+/* --- 관점 판단 (app/views/page.tsx) ------------------------------------------- */
+
+.flow-root .flow-views {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0 12px;
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-views {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flow-root .flow-views > div {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+}
+
+.flow-root .flow-source {
+  justify-self: start;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  border-radius: var(--r-pill);
+  padding: 1px 9px;
+  margin-top: 4px;
+}
+
+.flow-root .flow-source-mock {
+  color: var(--c-warn);
+}
+
+.flow-root .flow-source-neutral {
+  color: var(--c-muted);
+}
+
+.flow-root .flow-source-real {
+  color: var(--c-profit);
+}
+
+.flow-root .flow-merge {
+  font-size: 12px;
+  color: var(--c-text);
+  word-break: keep-all;
+  margin: 0 0 28px;
+}
+
+.flow-root .flow-merge > span {
+  color: var(--c-muted);
+  margin-right: 6px;
+}
+
+.flow-root .flow-decision {
+  margin: 0 0 20px;
+}
+
+/* 종목 | 가운데 0 신호 막대 | 신호 | 목표 비중 */
+.flow-root .flow-signals {
+  display: grid;
+  margin: 4px 0 12px;
+}
+
+.flow-root .flow-signals > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 56px 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 13px;
+}
+
+.flow-root .flow-signals > .flow-signals-head {
+  font-size: 11px;
+  color: var(--c-dim);
+  padding-top: 0;
+}
+
+.flow-root .flow-signals-head > span:nth-child(2) {
+  display: flex;
+  justify-content: space-between;
+}
+
+.flow-root .flow-signals-head > span:nth-child(n + 3) {
+  text-align: right;
+}
+
+.flow-root .flow-signal-bar {
+  position: relative;
+  height: 8px;
+  background: var(--c-surface2);
+  border-radius: var(--r-pill);
+}
+
+/* 0 기준선 */
+.flow-root .flow-signal-bar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--c-muted);
+}
+
+.flow-root .flow-signal-bar > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-pill);
+}
+
+.flow-root .flow-signal-bar > span.up {
+  background: var(--c-profit);
+}
+
+.flow-root .flow-signal-bar > span.down {
+  background: var(--c-loss);
+}
+
+.flow-root .flow-signal-value {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-signals > div {
+    grid-template-columns: 1fr 56px 56px;
+    gap: 6px 10px;
+  }
+  .flow-root .flow-signal-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .flow-root .flow-signals > .flow-signals-head {
+    display: none;
+  }
+}
