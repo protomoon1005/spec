@@ -901,3 +901,66 @@
   font-size: 12px;
   color: var(--c-muted);
 }
+
+/* --- 되묻기 (app/compile/answer/page.tsx) ------------------------------------- */
+
+/* 누르면 바로 답으로 가는 선택지. 설문 선택지 줄(.flow-choice)에 오른쪽 화살표를 단다. */
+.flow-root button.flow-choice-go {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-root button.flow-choice-go > span[aria-hidden] {
+  color: var(--c-dim);
+}
+
+@media (hover: hover) {
+  .flow-root button.flow-choice-go:hover:not(:disabled) > span[aria-hidden] {
+    color: var(--c-accent);
+  }
+}
+
+.flow-root .flow-choice-code {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--c-muted);
+  margin-left: 6px;
+}
+
+/* 담을 수 없는 이유. 답이 아니므로 누를 수 없는 경고 목록으로. */
+.flow-root .flow-reasons {
+  margin: 0 0 20px;
+}
+
+.flow-root .flow-reasons > p {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-warn);
+  margin: 0 0 6px;
+}
+
+.flow-root .flow-reasons ul {
+  border-color: color-mix(in srgb, var(--c-warn) 40%, transparent);
+}
+
+.flow-root .flow-field-label-sm {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 24px;
+}
+
+/* 입력칸 + 버튼 한 줄. 좁으면 버튼이 아래로. */
+.flow-root .flow-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.flow-root .flow-inline input {
+  flex: 1 1 240px;
+  max-width: none;
+}

@@ -27,13 +27,8 @@ import { useEffect, useState } from "react";
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
 import { api, ApiError, loadCompileRequest, saveCompileRequest } from "@/lib/api";
+import { COMPILE_EXAMPLES } from "@/lib/compile-hints";
 import { ASSET_CAP, CASH_MIN, GROUP_LABEL, PROFILE_LABEL, SECTOR_GROUPS } from "@/lib/policy";
-
-const EXAMPLES = [
-  "안전하게 채권 위주로 굴리고 매주 비중을 맞춰줘",
-  "반도체랑 2차전지에 집중하고 매달 초에 정리해줘",
-  "배당 나오는 ETF 위주로 담아줘",
-];
 
 const VOCAB: { name: string; words: string[] }[] = [
   { name: "업종", words: SECTOR_GROUPS.map((g) => GROUP_LABEL[g]) },
@@ -116,7 +111,7 @@ function Request() {
 
       <div className="flow-examples">
         <span className="flow-examples-title">예시로 시작</span>
-        {EXAMPLES.map((ex) => (
+        {COMPILE_EXAMPLES.map((ex) => (
           <button key={ex} className="flow-example" onClick={() => setText(ex)} disabled={busy}>
             {ex}
           </button>
