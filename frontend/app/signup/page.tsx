@@ -74,6 +74,7 @@ export default function SignupPage() {
           <section>
             <p>가입이 완료되었습니다. 아이디: {username.trim()}</p>
             <p>아래 토큰을 복사해 두세요. 로그인할 때 아이디와 함께 입력합니다.</p>
+            <p>첫 로그인을 하면 바로 성향 설문으로 이동합니다.</p>
             <p>
               <textarea className="flow-mono" readOnly value={token} rows={4} cols={60} />
             </p>
