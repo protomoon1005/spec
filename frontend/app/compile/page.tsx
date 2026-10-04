@@ -16,6 +16,9 @@
 // 리밸런싱은 "매주" · "매달 초" 만 보여 준다. 백테스트 러너가 돌리는 리밸런싱 블록이
 // RB_WEEKLY · RB_MONTHLY_FIRST 둘뿐이라, 분기 · 비중유지 · 신호 같은 말을 쓰면 전략서는
 // 만들어져도 백테스트가 실패한다. 러너가 늘면 여기도 늘린다.
+// 그런데 이 둘도 보장되지 않는다. 전략서 양식이 trigger 의 day · min_interval_days 를
+// 블록 값으로 묶지 않아서 AI 가 다른 값을 채울 수 있다(2026-10-05 실측: "매주" →
+// day null · 간격 7일 → 러너 거부). 그래서 안내 문구를 "실패할 수 있다" 로 둔다.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,7 +26,7 @@ import { useEffect, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, loadCompileRequest, saveCompileRequest } from "@/lib/api";
 import { ASSET_CAP, CASH_MIN, GROUP_LABEL, PROFILE_LABEL, SECTOR_GROUPS } from "@/lib/policy";
 
 const EXAMPLES = [
@@ -60,6 +63,14 @@ function Request() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 진행 상황 화면에서 실패해 "다시 요청" 으로 돌아온 경우(?retry=1) 방금 쓴 문장을 되채운다.
+  // useSearchParams 대신 window.location 을 읽는다: 앞의 것은 Suspense 경계가 필요하다.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("retry") !== "1") return;
+    const last = loadCompileRequest();
+    if (last) setText(last);
+  }, []);
+
   useEffect(() => {
     api<{ risk_level: number }>("/profile/me")
       .then((p) => setLevel(p.risk_level))
@@ -72,6 +83,7 @@ function Request() {
     setMessage(null);
     try {
       const { job_id } = await api<{ job_id: string }>("/specs/compile", { body: { input_prompt: text.trim() } });
+      saveCompileRequest(text.trim());
       router.push(`/compile/progress?job=${encodeURIComponent(job_id)}`);
     } catch (err) {
       setMessage(`요청 실패: ${err instanceof Error ? err.message : String(err)}`);
@@ -131,7 +143,7 @@ function Request() {
         </dl>
         <p className="flow-vocab-note">
           리밸런싱은 지금 매주 · 매달 초만 백테스트할 수 있어요. 분기 · 비중 이탈 · 신호 기준은 전략서는
-          만들어지지만 백테스트가 실패합니다.
+          만들어지지만 백테스트가 실패합니다. 매주 · 매달 초도 아직은 실패할 때가 있어요.
         </p>
       </section>
     </>

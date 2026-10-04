@@ -210,6 +210,27 @@ export function loadCompileResult(): CompileResult | null {
   }
 }
 
+// 전략 요청 화면이 보낸 문장. 진행 상황 화면이 "무엇을 만들고 있는지" 보여 주고,
+// 실패해서 다시 요청할 때 입력칸에 되채운다. 같은 탭 안에서만 쓰므로 탭 저장소에 둔다.
+
+const REQUEST_KEY = "spec.compileRequest";
+
+export function saveCompileRequest(text: string): void {
+  try {
+    window.sessionStorage.setItem(REQUEST_KEY, text);
+  } catch {
+    // 저장소가 막힌 브라우저 — 화면에 문장이 안 보일 뿐 흐름은 그대로다.
+  }
+}
+
+export function loadCompileRequest(): string | null {
+  try {
+    return window.sessionStorage.getItem(REQUEST_KEY);
+  } catch {
+    return null;
+  }
+}
+
 // 백테스트 화면이 만든 실행 번호를 최종 확인 화면이 읽는다. 어느 전략서로 돌린 것인지
 // 함께 둔다 — 탭에서 새 전략서를 만들면 옛 실행 결과를 그 전략서 것으로 보이면 안 된다.
 // 새로고침해도 같은 전략서면 새로 돌리지 않고 이 번호를 다시 조회한다.

@@ -751,3 +751,153 @@
   color: var(--c-dim);
   margin: 0;
 }
+
+/* --- 전략 진행 상황 (app/compile/progress/page.tsx) --------------------------- */
+
+.flow-root .flow-run-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 12px;
+}
+
+.flow-root .flow-run-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--c-bright);
+  margin: 0;
+}
+
+.flow-root .flow-run-clock {
+  font-family: var(--flow-mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+/* 끝을 모르는 진행 막대. 진행률을 지어내지 않고 "돌고 있다" 만 보여 준다. */
+.flow-root .flow-indeterminate {
+  position: relative;
+  height: 4px;
+  background: var(--c-surface2);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin: 0 0 20px;
+}
+
+.flow-root .flow-indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: var(--c-accent);
+  border-radius: var(--r-pill);
+  animation: flow-indeterminate 1.6s ease-in-out infinite;
+}
+
+@keyframes flow-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-root .flow-indeterminate::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+.flow-root .flow-run-request {
+  font-size: 14px;
+  color: var(--c-bright);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 12px 16px;
+  margin: 0 0 24px;
+  word-break: keep-all;
+}
+
+.flow-root .flow-run-request > span {
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-right: 8px;
+}
+
+.flow-root .flow-steps-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-bright);
+  margin: 0 0 8px;
+}
+
+.flow-root .flow-steps {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 16px;
+}
+
+.flow-root .flow-steps > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 4px;
+  font-size: 14px;
+}
+
+.flow-root .flow-steps-num {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-muted);
+  width: 14px;
+  text-align: right;
+}
+
+.flow-root .flow-tag {
+  font-family: var(--flow-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c-accent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 45%, transparent);
+  border-radius: var(--r-pill);
+  padding: 1px 7px;
+}
+
+/* 실패 · 시간 초과. */
+.flow-root .flow-alert {
+  background: color-mix(in srgb, var(--c-warn) 8%, var(--c-surface));
+  border: 1px solid color-mix(in srgb, var(--c-warn) 45%, transparent);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+  margin: 0 0 20px;
+}
+
+.flow-root .flow-alert p {
+  color: var(--c-bright);
+  margin: 0 0 8px;
+}
+
+/* 서버가 보낸 줄. 개발용이라 접어 둔다. */
+.flow-root details.flow-log {
+  margin: 24px 0 0;
+  font-size: 12px;
+}
+
+.flow-root details.flow-log summary {
+  color: var(--c-dim);
+  cursor: pointer;
+  margin: 0 0 8px;
+}
+
+.flow-root details.flow-log li {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-muted);
+}
