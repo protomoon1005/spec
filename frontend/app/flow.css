@@ -964,3 +964,161 @@
   flex: 1 1 240px;
   max-width: none;
 }
+
+/* --- 전략서 내용 (components/spec-contents.tsx) · 전략 완료 -------------------- */
+
+.flow-root .flow-done-title > span {
+  color: var(--c-profit);
+  margin-right: 4px;
+}
+
+.flow-root .flow-spec-head {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 18px 20px;
+  margin: 16px 0 24px;
+}
+
+.flow-root .flow-spec-head > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-root .flow-spec-name {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--c-bright);
+  word-break: keep-all;
+  margin: 0;
+}
+
+.flow-root .flow-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-muted);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  padding: 2px 10px;
+}
+
+.flow-root .flow-spec-prompt {
+  font-size: 13px;
+  color: var(--c-text);
+  margin: 8px 0 4px;
+  word-break: keep-all;
+}
+
+.flow-root .flow-spec-id {
+  font-family: var(--flow-mono);
+  font-size: 11px;
+  color: var(--c-dim);
+  margin: 0;
+}
+
+.flow-root .flow-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-bright);
+  margin: 0 0 8px;
+}
+
+/* 종목 한 줄 = 이름 | 범위 막대 | 숫자. 좁으면 막대가 다음 줄 전체로. */
+.flow-root .flow-holdings {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 28px;
+}
+
+.flow-root .flow-holdings > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 92px;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 13px;
+}
+
+.flow-root .flow-holding-name {
+  word-break: keep-all;
+}
+
+.flow-root .flow-holding-range {
+  font-family: var(--flow-mono);
+  font-size: 12px;
+  color: var(--c-bright);
+  text-align: right;
+}
+
+.flow-root .flow-range {
+  position: relative;
+  height: 6px;
+  background: var(--c-surface2);
+  border-radius: var(--r-pill);
+}
+
+.flow-root .flow-range > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--c-accent);
+  border-radius: var(--r-pill);
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-holdings > div {
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+  }
+  .flow-root .flow-range {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* 규칙 세 칸. */
+.flow-root .flow-rules {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 28px;
+}
+
+.flow-root .flow-rules > div {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 16px;
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .flow-root .flow-rules > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+.flow-root .flow-rules dt {
+  color: var(--c-muted);
+}
+
+.flow-root .flow-rules dd {
+  margin: 0;
+  color: var(--c-bright);
+  word-break: keep-all;
+}
+
+.flow-root .flow-rule-line {
+  display: block;
+}
+
+.flow-root .flow-rule-warn {
+  display: block;
+  font-size: 12px;
+  color: var(--c-warn);
+  margin-top: 2px;
+}

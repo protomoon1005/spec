@@ -2,7 +2,8 @@
 
 // 전략 완료 — docs/frontend_milestone.md 4단계, 확정 결정 2번.
 //
-// 컴파일 결과로는 spec_id 와 종목 수만 온다. 내용은 GET /specs/{spec_id} 로 따로 받는다.
+// 컴파일 결과로는 spec_id 와 종목 수만 온다. 내용은 GET /specs/{spec_id} 로 따로 받는다
+// (components/spec-contents.tsx — 번호 · 종목 수도 거기서 보여 준다).
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,18 +48,16 @@ function Result() {
 
   return (
     <>
-      <p>전략서가 초안(draft)으로 저장되었습니다.</p>
-      <ul>
-        <li>전략서 번호: {done.spec_id}</li>
-        <li>종목 수: {done.universe_size}</li>
-      </ul>
+      <p className="flow-run-title flow-done-title">
+        <span aria-hidden="true">✓</span> 전략서를 만들었어요
+      </p>
+      <p className="flow-hint">초안으로 저장됐어요. 하드캡 확인과 백테스트를 거쳐 승인합니다.</p>
 
-      <h2>전략서 내용</h2>
       <SpecContents specId={done.spec_id} />
 
-      <p>
-        <button onClick={() => router.push("/hardcap")}>다음 — 하드캡</button>
-      </p>
+      <div className="flow-actions">
+        <button onClick={() => router.push("/hardcap")}>다음 — 하드캡 확인</button>
+      </div>
     </>
   );
 }

@@ -35,10 +35,6 @@ export default function SpecViewPage() {
 function View() {
   const specId = useSearchParams().get("id");
   if (!specId) return <p>전략서 번호가 없습니다.</p>;
-  return (
-    <>
-      <p>전략서 번호: {specId}</p>
-      <SpecContents specId={specId} />
-    </>
-  );
+  // 번호는 SpecContents 머리에 있다.
+  return <SpecContents specId={specId} />;
 }
