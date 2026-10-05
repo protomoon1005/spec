@@ -1287,3 +1287,89 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* 전략 초안 이중막대 (components/spec-contents.tsx, U05) */
+.flow-dual {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-width: 160px;
+  padding: 3px 0;
+}
+
+.flow-dual .row {
+  position: relative;
+  display: block;
+  height: 8px;
+  background: var(--c-bg);
+  border-radius: 999px;
+}
+
+.flow-dual .row > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+
+.flow-dual .allowed,
+.flow-legend .allowed {
+  background: #7f9ab544;
+}
+
+.flow-dual .ai,
+.flow-legend .ai {
+  background: var(--c-accent);
+}
+
+.flow-dual .final,
+.flow-legend .final {
+  background: transparent;
+  border: 1.5px solid var(--c-warn);
+}
+
+.flow-dual .row > em {
+  position: absolute;
+  right: 2px;
+  top: -4px;
+  font-style: normal;
+  font-size: 9px;
+  color: var(--c-muted);
+}
+
+.flow-dual > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-warn);
+}
+
+.flow-root .flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+
+.flow-legend > span {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
+.flow-legend > span:first-child {
+  margin-left: 0;
+}
+
+.flow-legend .cap {
+  width: 1px;
+  height: 12px;
+  border-radius: 0;
+  background: var(--c-warn);
+}
