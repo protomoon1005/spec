@@ -43,8 +43,9 @@ function Request() {
   }
 
   return (
-    <>
-      <p>
+    <section className="flow-card">
+      <label>
+        원하는 투자 방식
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -52,15 +53,20 @@ function Request() {
           cols={60}
           placeholder="예: 안전하게 채권 위주로 굴리고 매달 정리해줘"
           disabled={busy}
+          style={{ fontSize: 16 }}
         />
-      </p>
-      <p>
-        <button onClick={send} disabled={busy || !text.trim()}>
+      </label>
+      <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+        <span className="flow-hint">전략서 생성은 2분 이상 걸립니다.</span>
+        <button className="primary" onClick={send} disabled={busy || !text.trim()}>
           보내기
-        </button>{" "}
-        전략서 생성은 2분 이상 걸립니다.
-      </p>
-      {message && <p>{message}</p>}
-    </>
+        </button>
+      </div>
+      {message && (
+        <p className="flow-msg err" role="alert">
+          {message}
+        </p>
+      )}
+    </section>
   );
 }

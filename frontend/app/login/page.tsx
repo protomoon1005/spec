@@ -127,53 +127,60 @@ export default function LoginPage() {
         <h1>로그인</h1>
         <p>이 화면에서 하는 일: 아이디와 가입 때 받은 토큰으로 로그인한다.</p>
 
-        <p>
-          <label>
-            아이디{" "}
-            <input value={username} onChange={(e) => edit(setUsername, e.target.value)} disabled={busy} />
-          </label>
-        </p>
-        <p>
-          <label>
+        <section className="flow-card">
+          <div className="flow-field">
+            <label>
+              아이디
+              <input value={username} onChange={(e) => edit(setUsername, e.target.value)} disabled={busy} />
+            </label>
+          </div>
+          <label style={{ display: "block", marginTop: 16 }}>
             토큰
-            <br />
             <textarea
               value={token}
               onChange={(e) => edit(setToken, e.target.value)}
               rows={4}
               cols={60}
               disabled={busy}
+              placeholder="가입할 때 받은 토큰을 붙여 넣으세요"
             />
           </label>
-        </p>
-        <p>
-          <button onClick={verify} disabled={busy || !username.trim() || !token.trim()}>
-            인증
-          </button>{" "}
-          {verified && (
-            <span>
-              인증 통과 (아이디 {verified.username}, 번호 {verified.user_id})
-            </span>
-          )}
-        </p>
-        <p>
-          <button onClick={login} disabled={busy || !username.trim()}>
-            로그인
-          </button>{" "}
-          이 브라우저에서 이미 인증한 토큰이 유효기간 안이면 토큰 없이 로그인됩니다.
-        </p>
-
-        {busy && <p>확인 중…</p>}
-        {message && <p>{message}</p>}
-        {expired && (
-          <p>
-            <button onClick={reissue} disabled={busy || !username.trim()}>
-              토큰 재인증
+          <div className="flow-actions" style={{ marginTop: 12 }}>
+            <button onClick={verify} disabled={busy || !username.trim() || !token.trim()}>
+              인증
             </button>
+            {verified && (
+              <span className="flow-badge ok">
+                인증 통과 (아이디 {verified.username}, 번호 {verified.user_id})
+              </span>
+            )}
+          </div>
+
+          <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <span className="flow-hint" style={{ flex: "1 1 260px" }}>
+              이 브라우저에서 이미 인증한 토큰이 유효기간 안이면 토큰 없이 로그인됩니다.
+            </span>
+            <button className="primary" onClick={login} disabled={busy || !username.trim()}>
+              로그인
+            </button>
+          </div>
+        </section>
+
+        {busy && <p className="flow-state">확인 중…</p>}
+        {message && (
+          <p className={verified ? "flow-msg ok" : "flow-msg err"} role="alert">
+            {message}
           </p>
         )}
+        {expired && (
+          <div className="flow-actions" style={{ marginTop: 12 }}>
+            <button className="primary" onClick={reissue} disabled={busy || !username.trim()}>
+              토큰 재인증
+            </button>
+          </div>
+        )}
 
-        <p>
+        <p className="flow-hint" style={{ marginTop: 24 }}>
           계정이 없으면 <Link href="/signup">회원가입</Link>
         </p>
       </main>

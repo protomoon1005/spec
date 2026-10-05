@@ -55,6 +55,8 @@ ml = [
     # vectorbt·plotly 를 함께 끌고 온다(.[dev,ml] 1.32GB -> .[dev,ml,backtest] 1.55GB,
     # 실측 +230MB). 판단 계층만 필요한 환경에서 그걸 받지 않으려고 여기에도 선언한다.
     "finance-datareader",
+    # 모델 산출물 MinIO 업로드(app/scoring/model_store.py). boto3 보다 설치가 절반 이하다.
+    "minio",
 ]
 
 [tool.pytest.ini_options]

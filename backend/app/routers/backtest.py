@@ -108,7 +108,7 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
     상태는 queued → running → done | failed. 곡선은 done 일 때만, 실패 이유는
     failed 일 때만 나온다. 남의 실행 기록이면 404.
 
-    판단 계층은 아직 목업이다 — scorer_sources 가 관점별로 mock · neutral 을 알려 준다.
+    관점별 출처(real · neutral · mock)는 scorer_sources 가 알려 준다 — 감성은 중립 고정이다.
     """
     run = backtests.get_run(run_id)
     if run is None or run["user_id"] != user.user_id:

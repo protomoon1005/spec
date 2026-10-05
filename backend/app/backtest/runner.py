@@ -153,16 +153,17 @@ def run(
             signals = {t: 0.0 for t in tickers}
         mapped, tgt, cash, apps = map_signals_to_weights(holdings, bounds, signals, profile["cash_min"], caps)
         target.loc[d] = [tgt[t] for t in tickers]
-        decisions.append(
-            {
-                "date": d,
-                "signals": signals,
-                "mapped": mapped,
-                "target": tgt,
-                "cash": cash,
-                "capApplications": apps,
-            }
-        )
+        decision = {
+            "date": d,
+            "signals": signals,
+            "mapped": mapped,
+            "target": tgt,
+            "cash": cash,
+            "capApplications": apps,
+        }
+        if use_signals:
+            decision["views"] = judge.last_views()
+        decisions.append(decision)
 
     pf = vbt.Portfolio.from_orders(
         close=px,

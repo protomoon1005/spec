@@ -250,8 +250,9 @@ def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
     targets = [[d["target"] for d in r["window_results"]["decisions"]] for r in runs]
     assert targets[0] == targets[1]
     assert len(targets[0]) == 36
+    # 2026-10-05 시장분석·시장온도가 실물로 바뀌었다. 감성은 중립 고정(팀 결정).
     assert runs[0]["window_results"]["scorer_sources"] == {
-        "market": "mock", "sentiment": "neutral", "regime": "mock"
+        "market": "real", "sentiment": "neutral", "regime": "real"
     }
 
 

@@ -57,38 +57,43 @@ export default function SignupPage() {
         <p>이 화면에서 하는 일: 아이디를 정하고, 로그인에 쓸 토큰을 받는다.</p>
 
         {token === null ? (
-          <section>
-            <p>
+          <section className="flow-card">
+            <div className="flow-field">
               <label>
-                아이디{" "}
+                아이디
                 <input value={username} onChange={(e) => setUsername(e.target.value)} disabled={busy} />
-              </label>{" "}
-              <button onClick={check} disabled={busy || !username.trim()}>
+              </label>
+              <button className="primary" onClick={check} disabled={busy || !username.trim()}>
                 중복확인
               </button>
+            </div>
+            <p className="flow-hint" style={{ marginTop: 10 }}>
+              형식 제한은 없습니다. 중복이 아니면 확인과 동시에 바로 가입됩니다.
             </p>
-            <p>형식 제한은 없습니다. 중복이 아니면 확인과 동시에 바로 가입됩니다.</p>
-            {busy && <p>확인 중…</p>}
+            {busy && <p className="flow-state">확인 중…</p>}
           </section>
         ) : (
-          <section>
-            <p>가입이 완료되었습니다. 아이디: {username.trim()}</p>
-            <p>아래 토큰을 복사해 두세요. 로그인할 때 아이디와 함께 입력합니다.</p>
-            <p>
-              <textarea readOnly value={token} rows={4} cols={60} />
+          <section className="flow-card">
+            <p className="flow-msg ok" style={{ marginTop: 0 }}>
+              가입이 완료되었습니다. 아이디: <b className="mono">{username.trim()}</b>
             </p>
-            <p>
-              <button onClick={copy}>토큰 복사</button> {copied && <span>복사되었습니다.</span>}
-            </p>
-            <p>
-              <button onClick={() => router.push("/login")}>로그인으로 돌아가기</button>
-            </p>
+            <p style={{ marginTop: 14 }}>아래 토큰을 복사해 두세요. 로그인할 때 아이디와 함께 입력합니다.</p>
+            <textarea readOnly value={token} rows={4} cols={60} aria-label="발급된 토큰" />
+            <div className="flow-actions" style={{ marginTop: 12 }}>
+              <button onClick={copy}>토큰 복사</button>
+              {copied && <span className="flow-hint">복사되었습니다.</span>}
+            </div>
+            <div className="flow-next">
+              <button className="primary" onClick={() => router.push("/login")}>
+                로그인으로 돌아가기
+              </button>
+            </div>
           </section>
         )}
 
-        {message && <p>{message}</p>}
+        {message && <p className="flow-msg err" role="alert">{message}</p>}
 
-        <p>
+        <p className="flow-hint" style={{ marginTop: 24 }}>
           이미 계정이 있으면 <Link href="/login">로그인</Link>
         </p>
       </main>

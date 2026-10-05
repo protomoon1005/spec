@@ -31,37 +31,52 @@ export default function SpecContents({ specId }: { specId: string }) {
       .catch((err) => setMessage(`전략서를 받지 못했습니다: ${err instanceof Error ? err.message : String(err)}`));
   }, [specId]);
 
-  if (!spec) return <p>{message ?? "불러오는 중…"}</p>;
+  if (!spec) {
+    return message ? (
+      <p className="flow-msg err" role="alert">
+        {message}
+      </p>
+    ) : (
+      <p className="flow-state">불러오는 중…</p>
+    );
+  }
 
   return (
     <>
-      <ul>
-        <li>이름: {spec.name}</li>
-        <li>상태: {spec.status}</li>
-        <li>요청 문장: {spec.input_prompt ?? "-"}</li>
-      </ul>
+      <dl className="flow-kv">
+        <dt>이름</dt>
+        <dd className="prose">{spec.name}</dd>
+        <dt>상태</dt>
+        <dd>
+          <StatusBadge status={spec.status} />
+        </dd>
+        <dt>요청 문장</dt>
+        <dd className="prose">{spec.input_prompt ?? "-"}</dd>
+      </dl>
 
       <h3>담은 종목과 비중 범위</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>종목코드</th>
-            <th>종목명</th>
-            <th>최소 비중</th>
-            <th>최대 비중</th>
-          </tr>
-        </thead>
-        <tbody>
-          {spec.universe.map((u) => (
-            <tr key={u.ticker}>
-              <td>{u.ticker}</td>
-              <td>{u.name}</td>
-              <td>{pct(u.weight_min)}</td>
-              <td>{pct(u.weight_max)}</td>
+      <div className="flow-table">
+        <table style={{ minWidth: 420 }}>
+          <thead>
+            <tr>
+              <th>종목코드</th>
+              <th>종목명</th>
+              <th className="num">최소 비중</th>
+              <th className="num">최대 비중</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {spec.universe.map((u) => (
+              <tr key={u.ticker}>
+                <td className="mono">{u.ticker}</td>
+                <td>{u.name}</td>
+                <td className="num">{pct(u.weight_min)}</td>
+                <td className="num">{pct(u.weight_max)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <h3>리밸런싱 방식</h3>
       <RuleList rules={spec.rebalance} />
@@ -73,16 +88,25 @@ export default function SpecContents({ specId }: { specId: string }) {
   );
 }
 
+// 전략서 상태 표시. draft 는 아직 고칠 수 있는 상태라 주의색, 승인은 확정색.
+export function StatusBadge({ status }: { status: string }) {
+  const tone = status === "approved" ? "ok" : status === "draft" ? "warn" : "muted";
+  return <span className={`flow-badge ${tone}`}>{status}</span>;
+}
+
 // 규칙 칸은 블록마다 모양이 달라서 키: 값 그대로 보여 준다. null 은 쓰지 않는 규칙이다.
 function RuleList({ rules }: { rules: Rules }) {
-  if (!rules) return <p>없음</p>;
+  if (!rules) return <p className="flow-hint">없음</p>;
   return (
-    <ul>
+    <dl className="flow-kv">
       {Object.entries(rules).map(([k, v]) => (
-        <li key={k}>
-          {k}: {v === null ? "사용 안 함" : typeof v === "object" ? JSON.stringify(v) : String(v)}
-        </li>
+        <div key={k} style={{ display: "contents" }}>
+          <dt className="mono">{k}</dt>
+          <dd className={v === null ? "prose" : "mono"} style={{ color: v === null ? "var(--c-muted)" : undefined, wordBreak: "break-all" }}>
+            {v === null ? "사용 안 함" : typeof v === "object" ? JSON.stringify(v) : String(v)}
+          </dd>
+        </div>
       ))}
-    </ul>
+    </dl>
   );
 }

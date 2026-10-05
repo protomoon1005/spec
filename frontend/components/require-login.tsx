@@ -27,12 +27,20 @@ export default function RequireLogin({ children }: { children: (session: Session
     router.replace("/login");
   }
 
-  if (!session) return <p>로그인 확인 중…</p>;
+  if (!session) return <p className="flow-state">로그인 확인 중…</p>;
   return (
     <>
-      <p>
-        로그인: {session.username} <Link href="/home">홈</Link> <button onClick={logout}>로그아웃</button>
-      </p>
+      <div className="flow-session">
+        <span>
+          로그인 <b>{session.username}</b>
+        </span>
+        <Link href="/home" style={{ fontSize: 12 }}>
+          홈
+        </Link>
+        <button className="ghost" onClick={logout}>
+          로그아웃
+        </button>
+      </div>
       {children(session)}
     </>
   );

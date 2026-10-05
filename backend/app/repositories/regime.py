@@ -76,8 +76,32 @@ def get_regime_snapshot(trend_index: str, *, as_of: date) -> RegimeSnapshot | No
             {"trend_index": trend_index, "as_of": as_of},
         ).one_or_none()
 
-    if row is None:
-        return None
+    return None if row is None else _as_snapshot(row)
+
+
+def get_regime_history(trend_index: str, *, as_of: date) -> list[RegimeSnapshot]:
+    """as_of 이하 스냅샷 전부. 오래된 것부터.
+
+    시장온도 스코어러의 isotonic 보정이 과거 각 거래일의 국면을 한 번에 읽는 자리다.
+    as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (get_regime_snapshot 과 같다).
+    """
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT as_of, trend_index, regime_label, intensity, threshold_state
+                  FROM regime_snapshots
+                 WHERE trend_index = :trend_index
+                   AND as_of <= :as_of
+                 ORDER BY as_of
+                """
+            ),
+            {"trend_index": trend_index, "as_of": as_of},
+        ).all()
+    return [_as_snapshot(row) for row in rows]
+
+
+def _as_snapshot(row) -> RegimeSnapshot:
     return RegimeSnapshot(
         as_of=row.as_of,
         trend_index=row.trend_index,

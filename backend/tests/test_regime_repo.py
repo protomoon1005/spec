@@ -7,7 +7,11 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import text
 
-from app.repositories.regime import get_regime_snapshot, upsert_regime_snapshot
+from app.repositories.regime import (
+    get_regime_history,
+    get_regime_snapshot,
+    upsert_regime_snapshot,
+)
 from app.views.regime.judge import judge
 
 AS_OF = date(2026, 9, 10)
@@ -74,6 +78,23 @@ def test_reingest_updates_in_place(engine, trend_index) -> None:
 
     assert count == 1
     assert get_regime_snapshot(trend_index, as_of=AS_OF).regime_label == "risk_on"
+
+
+def test_history_is_ascending_and_stops_at_as_of(engine, trend_index) -> None:
+    for offset in (2, 0, 1, -1):
+        _store(trend_index, AS_OF - timedelta(days=offset), PANIC)
+
+    history = get_regime_history(trend_index, as_of=AS_OF)
+
+    assert [s.as_of for s in history] == [AS_OF - timedelta(days=d) for d in (2, 1, 0)]
+    assert get_regime_history(trend_index, as_of=AS_OF - timedelta(days=3)) == []
+
+
+def test_history_requires_keyword_as_of() -> None:
+    with pytest.raises(TypeError):
+        get_regime_history("KOSPI200", AS_OF)  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        get_regime_history("KOSPI200")  # type: ignore[call-arg]
 
 
 def test_unknown_label_is_storable(engine, trend_index) -> None:

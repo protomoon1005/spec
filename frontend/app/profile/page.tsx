@@ -54,24 +54,38 @@ function Result() {
   return (
     <>
       {profile ? (
-        <ul>
-          <li>
-            성향: {profile.risk_level} {PROFILE_LABEL[profile.risk_level] ?? "(알 수 없는 등급)"}
-          </li>
-          <li>기준표 버전: {profile.preset_version}</li>
-          <li>확정 시각: {profile.created_at}</li>
-        </ul>
+        <section className="flow-card">
+          <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+            <span className="mono" style={{ fontSize: 40, fontWeight: 600, color: "var(--c-warn)", lineHeight: 1 }}>
+              {profile.risk_level}
+            </span>
+            <span style={{ fontSize: 20, fontWeight: 600, color: "var(--c-bright)" }}>
+              {PROFILE_LABEL[profile.risk_level] ?? "(알 수 없는 등급)"}
+            </span>
+            <span className="flow-hint">
+              1 {PROFILE_LABEL[1]} ~ 5 {PROFILE_LABEL[5]}
+            </span>
+          </div>
+          <dl className="flow-kv">
+            <dt>기준표 버전</dt>
+            <dd>{profile.preset_version}</dd>
+            <dt>확정 시각</dt>
+            <dd>{profile.created_at}</dd>
+          </dl>
+        </section>
+      ) : message ? (
+        <p className="flow-msg warn" role="alert">
+          {message}
+        </p>
       ) : (
-        <p>{message ?? "불러오는 중…"}</p>
+        <p className="flow-state">불러오는 중…</p>
       )}
-      <p>
+      <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <Link href="/survey">다시 설문하기</Link>
-      </p>
-      <p>
-        <button onClick={() => router.push("/compile")} disabled={!profile}>
+        <button className="primary" onClick={() => router.push("/compile")} disabled={!profile}>
           전략 만들기로
         </button>
-      </p>
+      </div>
     </>
   );
 }

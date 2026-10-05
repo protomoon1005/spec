@@ -67,22 +67,34 @@ function Summary({ session }: { session: Session }) {
 
   return (
     <>
-      <ul>
-        <li>아이디: {session.username}</li>
-        <li>성향: {profile}</li>
-        <li>전략서 번호: {specId ?? "없음 (이번 탭에서 완료한 전략서가 없습니다)"}</li>
-        <li>백테스트: {backtest}</li>
-      </ul>
+      <dl className="flow-kv">
+        <dt>아이디</dt>
+        <dd>{session.username}</dd>
+        <dt>성향</dt>
+        <dd>{profile}</dd>
+        <dt>전략서 번호</dt>
+        <dd>{specId ?? "없음 (이번 탭에서 완료한 전략서가 없습니다)"}</dd>
+        <dt>백테스트</dt>
+        <dd style={{ lineHeight: 1.7 }}>{backtest}</dd>
+      </dl>
 
-      <p>승인하면 전략서를 고칠 수 없습니다.</p>
-      <p>
-        <button onClick={approve}>승인</button>
-      </p>
-      {approval && <p>{approval}</p>}
+      <section className="flow-card" style={{ marginTop: 24, borderColor: "#e0a23c55" }}>
+        <div className="flow-actions" style={{ justifyContent: "space-between" }}>
+          <span>승인하면 전략서를 고칠 수 없습니다.</span>
+          <button className="primary" onClick={approve}>
+            승인
+          </button>
+        </div>
+        {approval && (
+          <p className={approval.startsWith("승인됨") ? "flow-msg ok" : "flow-msg warn"} role="status">
+            {approval}
+          </p>
+        )}
+      </section>
 
-      <p>
+      <div className="flow-next">
         <button onClick={() => router.push("/views")}>다음 — 관점 판단</button>
-      </p>
+      </div>
     </>
   );
 }

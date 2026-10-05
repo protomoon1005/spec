@@ -41,26 +41,33 @@ function Menu() {
   return (
     <>
       {hasProfile === false && (
-        <p>
+        <p className="flow-msg warn" style={{ marginTop: 0, marginBottom: 16 }}>
           성향이 아직 없습니다. 전략을 만들려면 먼저 <Link href="/survey">성향 설문</Link>을 마치세요.
         </p>
       )}
-      {message && <p>{message}</p>}
-      <ul>
-        <li>
-          <Link href={hasProfile === false ? "/survey" : "/compile"}>전략 만들기</Link> — 문장으로 새 전략서를 만든다
-        </li>
-        <li>
-          <Link href="/specs">전략 관리</Link> — 내가 만든 전략서 목록과 내용을 본다
-        </li>
-        <li>
-          <Link href="/specs/delete">전략 삭제</Link> — 승인 전(draft) 전략서를 지운다
-        </li>
-        <li>
-          <Link href="/survey">성향 설문 {hasProfile === false ? "하기" : "다시 하기"}</Link> — 투자 성향을 다시
-          정한다. 이미 만든 전략서는 만들 때의 성향을 그대로 따른다
-        </li>
-      </ul>
+      {message && (
+        <p className="flow-msg err" role="alert" style={{ marginTop: 0, marginBottom: 16 }}>
+          {message}
+        </p>
+      )}
+      <nav className="flow-menu" aria-label="홈 메뉴">
+        <Link href={hasProfile === false ? "/survey" : "/compile"}>
+          <b>전략 만들기</b>
+          <span>문장으로 새 전략서를 만든다</span>
+        </Link>
+        <Link href="/specs">
+          <b>전략 관리</b>
+          <span>내가 만든 전략서 목록과 내용을 본다</span>
+        </Link>
+        <Link href="/specs/delete">
+          <b>전략 삭제</b>
+          <span>승인 전(draft) 전략서를 지운다</span>
+        </Link>
+        <Link href="/survey">
+          <b>성향 설문 {hasProfile === false ? "하기" : "다시 하기"}</b>
+          <span>투자 성향을 다시 정한다. 이미 만든 전략서는 만들 때의 성향을 그대로 따른다</span>
+        </Link>
+      </nav>
     </>
   );
 }
