@@ -73,13 +73,13 @@
   - RiskSizer 가 없고, M2 WeightMapper 가 들어오면 `app/backtest/service.py` 한 곳을 바꾼다
   - 자산곡선·결정 목록·실패 이유는 칸이 없어 `backtest_metrics.window_results` 에 담는다. 칸 이름(워크포워드 창별 결과)과 뜻이 어긋난다 (2026-09-28 결정 D2-a)
 
-- **백테스트가 Validator 결과를 쓰지 않음** (2026-10-04, M2 Validator 구현 때 확인)
-  - 비중 범위 — `spec_universe` 를 읽긴 하지만 확정값(`weight_min`/`weight_max`)이 아니라
-    `weight_min_raw`/`weight_max_raw` 를 읽고(`app/backtest/inputs.py`), 프리셋·하드캡을
-    `policy.resolve_bounds` 로 다시 씌운다. 범위 보정(case B 로 늘린 상한)은 반영되지 않는다
-  - 현금 — Validator 의 현금 목표(`cash_target`) 대신 성향별 기본값 `policy.CASH_MIN` 을 쓴다
-  - 클램프된 제약값(낙폭 · 1회 손실 · 종목당 상한) — `validation_logs` 4단 행에만 있고 백테스트는 읽지 않는다.
-    리밸런싱 간격도 요청값 그대로 쓴다(하드캡으로 올린 값이 아니라)
+- **백테스트가 Validator 결과를 일부만 씀** (2026-10-04 확인, 2026-10-05 비중 범위 · 현금 · 간격은 해결)
+  - 마지막 검증이 4단까지 통과한 전략서는 확정 범위(`weight_min`/`weight_max`) · 현금 목표(`cash_target`) ·
+    하드캡으로 올린 리밸런싱 간격으로 돈다(`app/backtest/inputs.py`). 실행 기록 `validation.status` 가 `passed`
+  - **검증 전이거나 막힌 전략서는 여전히 AI 원래 범위(`_raw`)로 돈다** — 막을지는 팀 결정이라 막지 않고
+    `validation.status` 를 `none` · `failed` 로 남긴다. 백테스트 화면에 "AI 원래 범위" 배지로 보인다
+  - 클램프된 제약값(낙폭 · 1회 손실 · 종목당 상한)은 러너가 쓰는 칸이 아니라 그대로다. 종목당 상한은 확정 범위에
+    이미 들어 있다
 - **범위 보정 case A 가 실제 흐름에서는 일어나지 않음**
   - M1 `_check_feasible`(`app/m1/postprocess.py`)이 Σmin + cash_min > 1 을 컴파일 단계에서 실패시킨다
   - 그래서 저장된 전략서에는 case B 만 나온다. case A 는 무작위 범위 테스트(`tests/test_m2_feasibility.py`)에서만 돈다

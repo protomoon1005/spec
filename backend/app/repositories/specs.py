@@ -237,6 +237,28 @@ def record_validation(spec_id: str, *, bounds: list[dict] | None, logs: list[dic
             )
 
 
+def latest_validation(spec_id: str) -> list[dict]:
+    """가장 최근 검증 한 번의 단계별 기록. 단계 순서대로. 검증한 적이 없으면 빈 목록.
+
+    record_validation 은 한 번의 검증을 한 트랜잭션으로 넣으므로 그 행들의 checked_at
+    (트랜잭션 시작 시각)이 같다. 가장 늦은 checked_at 의 행들이 마지막 검증이다.
+    """
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT stage, passed, violations, adjusted_bounds, clamped_fields, checked_at
+                  FROM validation_logs
+                 WHERE spec_id = :spec_id
+                   AND checked_at = (SELECT max(checked_at) FROM validation_logs WHERE spec_id = :spec_id)
+                 ORDER BY stage
+                """
+            ),
+            {"spec_id": spec_id},
+        ).all()
+    return [dict(row._mapping) for row in rows]
+
+
 def list_specs(user_id: int) -> list[dict]:
     """사용자의 전략서 목록. 최근 것부터, 종목 수를 곁들인다."""
     with get_engine().connect() as conn:

@@ -256,6 +256,10 @@ function Result({ run }: { run: BacktestRun }) {
         </dd>
         <dt>리밸런싱 일정</dt>
         <dd className="prose">{run.schedule?.note}</dd>
+        <dt>비중 범위</dt>
+        <dd>
+          <ValidationUsed v={run.validation} />
+        </dd>
         <dt>비중 계산</dt>
         <dd>{run.weight_path}</dd>
         <dt>서버 지표</dt>
@@ -349,3 +353,32 @@ function Edge({ totals }: { totals: SeriesTotals }) {
     </p>
   );
 }
+
+// 이 실행이 검증 확정값(범위 보정 · 하드캡 · 현금 목표)으로 돌았는지. 하드캡 화면에서 검사를
+// 통과한 전략서만 확정값으로 돈다(backend/app/backtest/inputs.py 머리 주석).
+function ValidationUsed({ v }: { v: BacktestRun["validation"] }) {
+  if (!v) return <span className="flow-hint">기록 없음 (예전 실행 — AI 원래 범위로 돌았어요)</span>;
+  if (v.status === "passed") {
+    return (
+      <>
+        <span className="flow-badge ok">검증 확정값</span>{" "}
+        <span className="flow-hint">
+          범위 보정 · 하드캡을 반영한 범위로 돌았어요
+          {v.cash_target !== undefined && ` · 현금 목표 ${(v.cash_target * 100).toFixed(1)}%`}
+          {v.min_interval_days !== undefined && ` · 리밸런싱 최소 ${v.min_interval_days}일`}
+        </span>
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="flow-badge warn">AI 원래 범위</span>{" "}
+      <span className="flow-hint">
+        {v.status === "failed"
+          ? `검증 ${v.blocked_at ?? "?"}단계에서 막힌 전략서라 확정값이 없어요`
+          : "하드캡 확인(검증)을 거치지 않아 AI가 낸 범위로 돌았어요"}
+      </span>
+    </>
+  );
+}
+

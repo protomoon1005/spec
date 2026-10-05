@@ -115,6 +115,36 @@ def get_asset_bounds(risk_level: int, *, preset_version: str | None = None) -> d
     }
 
 
+def get_bounds_by_ids(preset_ids: list[int]) -> dict[int, AssetBound]:
+    """preset_id 로 허용범위를 찾는다. {preset_id: 범위}. 없는 id 는 결과에 안 들어간다.
+
+    전략서 종목(spec_universe)은 만들어질 때 적용된 기준표 행의 preset_id 를 들고 있다.
+    그 행을 그대로 읽으면 기준표가 나중에 바뀌어도 "그때 허용된 범위" 를 보여 줄 수 있다.
+    """
+    if not preset_ids:
+        return {}
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT preset_id, risk_tag, allowed_min, allowed_max
+                  FROM asset_bound_presets
+                 WHERE preset_id = ANY(:ids)
+                """
+            ),
+            {"ids": list(preset_ids)},
+        ).all()
+    return {
+        row.preset_id: AssetBound(
+            preset_id=row.preset_id,
+            risk_tag=row.risk_tag,
+            allowed_min=float(row.allowed_min),
+            allowed_max=float(row.allowed_max),
+        )
+        for row in rows
+    }
+
+
 def get_group_caps(risk_level: int, *, preset_version: str | None = None) -> dict[str, float]:
     """한 성향에 걸리는 묶음 상한 전부. {묶음: 상한}.
 

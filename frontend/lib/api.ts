@@ -293,5 +293,7 @@ export type BacktestRun = {
   scorer_sources: Record<string, string> | null;
   schedule: { note: string; skipped_rebalance_dates: string[] } | null;
   weight_path: string | null;
+  // 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지(passed) 아닌지(failed · none). 옛 실행에는 없다
+  validation?: { status: "passed" | "failed" | "none"; cash_target?: number; min_interval_days?: number; blocked_at?: number } | null;
   reason: string | null;
 };

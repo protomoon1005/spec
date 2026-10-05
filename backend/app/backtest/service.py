@@ -57,8 +57,10 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
         raise BacktestFailed(str(exc)) from exc
 
     args = (inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates)
-    strategy = run(*args, seed_money, use_signals=True)
-    control = run(*args, seed_money, use_signals=False)
+    # 검증을 통과한 전략서면 확정 범위 · 현금 목표로 돈다(inputs.py 머리 주석).
+    confirmed = {"bounds": inp.bounds, "cash_min": inp.cash_min}
+    strategy = run(*args, seed_money, use_signals=True, **confirmed)
+    control = run(*args, seed_money, use_signals=False, **confirmed)
     market = run_buy_and_hold(inp.prices_wide[MARKET_TICKER], inp.valuation_dates, seed_money)
 
     dates = inp.valuation_dates
@@ -80,6 +82,8 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
         "window_results": {
             "risk_level": inp.risk_level,
             "weight_path": "M4 러너 임시 경로 (RiskSizer 없음, M2 WeightMapper 대기)",
+            # 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지(passed) 아닌지(failed · none)
+            "validation": inp.validation,
             "scorer_sources": {vt: scorer_source(SCORERS[vt]) for vt in VIEW_TYPES},
             "schedule": {
                 "rule": inp.rebalance_rule,
@@ -102,6 +106,9 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
                     "country_group": h["country_group"],
                     "weight_min_raw": h["min_raw"],
                     "weight_max_raw": h["max_raw"],
+                    # 전략서의 확정 범위. 러너가 이걸 쓴 건 validation.status 가 passed 일 때뿐이다
+                    "weight_min": inp.final_ranges[h["ticker"]][0],
+                    "weight_max": inp.final_ranges[h["ticker"]][1],
                 }
                 for h in inp.holdings
             ],

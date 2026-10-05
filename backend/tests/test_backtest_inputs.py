@@ -102,6 +102,7 @@ def make_spec(engine, make_user):
 
     with engine.begin() as conn:
         mine = "(SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
+        conn.execute(text(f"DELETE FROM validation_logs WHERE spec_id IN {mine}"), {"u": user_id})
         conn.execute(text(f"DELETE FROM spec_universe WHERE spec_id IN {mine}"), {"u": user_id})
         conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
         conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
@@ -228,3 +229,101 @@ def test_min_interval_keeps_the_first_and_drops_what_is_too_close():
 
     assert kept == ["2024-12-27", "2025-01-03", "2025-01-10"]
     assert skipped == ["2024-12-30"]  # 건너뛴 뒤 간격은 남긴 날짜부터 다시 잰다
+
+
+# ── 검증 결과 쓰기 (inputs.py 머리 주석) ──────────────────────────────
+
+WEEKLY = {"trigger": {"type": "calendar", "freq": "weekly", "day": 1}, "min_interval_days": 5}
+
+
+def _logs(*, passed: bool = True, cash_target: float = 0.12, min_interval: float = 7.0) -> list[dict]:
+    """record_validation 에 넣을 4단 기록. 검증기를 돌리지 않고 결과 모양만 만든다."""
+    rows = [
+        {"stage": 1, "passed": True, "violations": []},
+        {"stage": 2, "passed": True, "violations": []},
+        {
+            "stage": 3,
+            "passed": True,
+            "violations": [],
+            "adjusted_bounds": {"case": "B", "cash_target": cash_target},
+        },
+        {
+            "stage": 4,
+            "passed": passed,
+            "violations": [] if passed else [{"code": "LEVERAGE_NOT_ALLOWED", "message": "x"}],
+            "clamped_fields": [
+                {
+                    "field": "rebalance.min_interval_days",
+                    "requested": 5.0,
+                    "applied": min_interval,
+                    "limit": "min_interval_days",
+                }
+            ],
+        },
+    ]
+    return rows
+
+
+def test_unvalidated_spec_runs_on_raw_ranges(make_spec):
+    inp = _build(make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY))
+
+    assert inp.validation == {"status": "none"}
+    assert inp.bounds is None and inp.cash_min is None
+
+
+def test_passed_validation_uses_confirmed_ranges_cash_and_interval(make_spec):
+    spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
+    confirmed = [
+        {"ticker": "069500", "weight_min": 0.05, "weight_max": 0.30, "was_adjusted": True},
+        {"ticker": "273130", "weight_min": 0.10, "weight_max": 0.25, "was_adjusted": False},
+    ]
+    specs.record_validation(spec_id, bounds=confirmed, logs=_logs(cash_target=0.12, min_interval=7))
+
+    inp = _build(spec_id)
+
+    assert inp.validation["status"] == "passed"
+    assert inp.bounds == {"069500": (0.05, 0.30), "273130": (0.10, 0.25)}
+    assert inp.cash_min == 0.12
+    assert inp.validation["min_interval_days"] == 7
+    # 원래 범위는 그대로 남는다(실행 기록의 weight_*_raw)
+    raw = {h["ticker"]: (h["min_raw"], h["max_raw"]) for h in inp.holdings}
+    assert raw["069500"] == (0.05, 0.20)
+    # 간격 7일이 적용됐다 — 남은 리밸런싱일끼리는 7일 이상 떨어져 있다
+    days = [date.fromisoformat(d) for d in inp.rebalance_dates]
+    assert all((b - a).days >= 7 for a, b in zip(days, days[1:]))
+
+
+def test_failed_validation_falls_back_to_raw_and_says_so(make_spec):
+    spec_id = make_spec([("069500", 0.05, 0.20)], WEEKLY)
+    specs.record_validation(spec_id, bounds=None, logs=_logs(passed=False))
+
+    inp = _build(spec_id)
+
+    assert inp.validation["status"] == "failed"
+    assert inp.validation["blocked_at"] == 4
+    assert inp.bounds is None and inp.cash_min is None
+
+
+
+@pytest.mark.requires_backfill
+def test_runner_holds_targets_inside_confirmed_ranges_and_cash(make_spec):
+    """확정 범위 · 현금을 넘기면 러너가 그 안에서 비중을 낸다. 신호 없는 대조군으로 본다."""
+    from app.backtest.runner import run
+
+    spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
+    confirmed = [
+        {"ticker": "069500", "weight_min": 0.02, "weight_max": 0.08, "was_adjusted": True},
+        {"ticker": "273130", "weight_min": 0.03, "weight_max": 0.09, "was_adjusted": True},
+    ]
+    specs.record_validation(spec_id, bounds=confirmed, logs=_logs(cash_target=0.40))
+    inp = _build(spec_id)
+
+    out = run(
+        inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates,
+        1_000_000, use_signals=False, bounds=inp.bounds, cash_min=inp.cash_min,
+    )
+
+    for decision in out["decisions"]:
+        assert decision["target"]["069500"] <= 0.08 + 1e-9
+        assert decision["target"]["273130"] <= 0.09 + 1e-9
+        assert decision["cash"] >= 0.40 - 1e-9

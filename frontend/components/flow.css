@@ -1184,3 +1184,192 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 허용범위 미리보기 (app/bounds/page.tsx) — 성향 고르기 · 범위 막대 */
+.flow-levels {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.flow-root .flow-levels > button {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  text-align: left;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.flow-levels > button .mono {
+  font-size: 10px;
+  color: var(--c-muted);
+}
+
+.flow-levels > button b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text);
+}
+
+.flow-root .flow-levels > button[aria-checked='true'] {
+  background: #e0a23c14;
+  border-color: var(--c-warn);
+}
+
+.flow-levels > button[aria-checked='true'] b {
+  color: var(--c-bright);
+  font-weight: 600;
+}
+
+.flow-limits b small {
+  font-size: 12px;
+  color: var(--c-muted);
+  font-weight: 400;
+}
+
+.flow-root button.flow-chip[aria-pressed='true'] {
+  color: var(--c-bright);
+  border-color: var(--c-warn);
+  background: #e0a23c14;
+}
+
+/* 0 ~ 상한 막대 + 하드캡 세로선 */
+.flow-bound {
+  position: relative;
+  display: block;
+  height: 18px;
+  min-width: 120px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.flow-bound > span {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  background: var(--c-accent);
+  border-radius: 999px;
+  transition: width 260ms ease-out;
+}
+
+.flow-bound > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-warn);
+}
+
+.flow-bound > em {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  font-style: normal;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--c-loss);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-bound > span {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .flow-levels {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 전략 초안 이중막대 (components/spec-contents.tsx, U05) */
+.flow-dual {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-width: 160px;
+  padding: 3px 0;
+}
+
+.flow-dual .row {
+  position: relative;
+  display: block;
+  height: 8px;
+  background: var(--c-bg);
+  border-radius: 999px;
+}
+
+.flow-dual .row > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+
+.flow-dual .allowed,
+.flow-legend .allowed {
+  background: #7f9ab544;
+}
+
+.flow-dual .ai,
+.flow-legend .ai {
+  background: var(--c-accent);
+}
+
+.flow-dual .final,
+.flow-legend .final {
+  background: transparent;
+  border: 1.5px solid var(--c-warn);
+}
+
+.flow-dual .row > em {
+  position: absolute;
+  right: 2px;
+  top: -4px;
+  font-style: normal;
+  font-size: 9px;
+  color: var(--c-muted);
+}
+
+.flow-dual > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-warn);
+}
+
+.flow-root .flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+
+.flow-legend > span {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
+.flow-legend > span:first-child {
+  margin-left: 0;
+}
+
+.flow-legend .cap {
+  width: 1px;
+  height: 12px;
+  border-radius: 0;
+  background: var(--c-warn);
+}

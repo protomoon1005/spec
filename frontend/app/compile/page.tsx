@@ -162,7 +162,7 @@ function ProfileLine({ level }: { level: number | null | undefined }) {
     <p className="flow-msg" style={{ marginTop: 0, marginBottom: 16 }}>
       <b style={{ color: "var(--c-bright)" }}>{PROFILE_LABEL[level]}</b> 기준으로 만들어집니다 · 주식 최대{" "}
       {Math.round(ASSET_CAP.EQUITY[level] * 100)}% · 현금 최소 {Math.round(CASH_MIN[level] * 100)}% ·{" "}
-      <Link href="/survey">성향 바꾸기</Link>
+      <Link href="/bounds">담을 수 있는 종목 보기</Link> · <Link href="/survey">성향 바꾸기</Link>
       <br />
       <span className="flow-hint" style={{ fontSize: 12 }}>
         문장에 &ldquo;공격적으로&rdquo;라고 써도 성향 한도는 바뀌지 않습니다.

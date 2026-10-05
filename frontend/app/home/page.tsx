@@ -55,6 +55,10 @@ function Menu() {
           <b>전략 만들기</b>
           <span>문장으로 새 전략서를 만든다</span>
         </Link>
+        <Link href="/bounds">
+          <b>허용범위 미리보기</b>
+          <span>성향에 따라 어떤 종목을 얼마까지 담을 수 있는지 먼저 본다</span>
+        </Link>
         <Link href="/specs">
           <b>전략 관리</b>
           <span>내가 만든 전략서 목록과 내용을 본다</span>
