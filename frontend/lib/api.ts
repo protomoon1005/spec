@@ -54,6 +54,24 @@ export function loadRememberedToken(username: string): string | null {
   return loadTokens()[username] ?? null;
 }
 
+// JWT 가운데 조각의 exp(초)를 읽어 밀리초로 낸다. 서명은 서버가 본다 — 여기선 만료
+// 안내용일 뿐이다. 모양이 JWT 가 아니면 null(만료 판단은 서버에 맡긴다).
+// 로그인 화면에만 있던 것을 RequireLogin 도 쓰도록 여기로 옮겼다.
+export function tokenExpiry(token: string): number | null {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const { exp } = JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, "="))) as { exp?: number };
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isExpired(token: string): boolean {
+  const exp = tokenExpiry(token);
+  return exp !== null && exp <= Date.now();
+}
+
 export function clearSession(): void {
   try {
     window.localStorage.removeItem(SESSION_KEY);
@@ -192,6 +210,27 @@ export function loadCompileResult(): CompileResult | null {
   }
 }
 
+// 전략 요청 화면이 보낸 문장. 진행 상황 화면이 "무엇을 만들고 있는지" 보여 주고,
+// 실패해서 다시 요청할 때 입력칸에 되채운다. 같은 탭 안에서만 쓰므로 탭 저장소에 둔다.
+
+const REQUEST_KEY = "spec.compileRequest";
+
+export function saveCompileRequest(text: string): void {
+  try {
+    window.sessionStorage.setItem(REQUEST_KEY, text);
+  } catch {
+    // 저장소가 막힌 브라우저 — 화면에 문장이 안 보일 뿐 흐름은 그대로다.
+  }
+}
+
+export function loadCompileRequest(): string | null {
+  try {
+    return window.sessionStorage.getItem(REQUEST_KEY);
+  } catch {
+    return null;
+  }
+}
+
 // 백테스트 화면이 만든 실행 번호를 최종 확인 화면이 읽는다. 어느 전략서로 돌린 것인지
 // 함께 둔다 — 탭에서 새 전략서를 만들면 옛 실행 결과를 그 전략서 것으로 보이면 안 된다.
 // 새로고침해도 같은 전략서면 새로 돌리지 않고 이 번호를 다시 조회한다.
@@ -208,6 +247,31 @@ export function loadBacktestRun(specId: string): SavedBacktest | null {
   try {
     const raw = window.sessionStorage.getItem(BACKTEST_KEY);
     const saved = raw ? (JSON.parse(raw) as SavedBacktest) : null;
+    return saved?.spec_id === specId ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// 하드캡 화면의 검사 결과. 최종 확인 화면이 체크리스트에 쓴다. 검사 API 는 전략서를
+// 저장하는 요청이라 확인 화면에서 다시 부르지 않고 이것만 읽는다.
+
+export type SavedValidation = { spec_id: string; passed: boolean; blocked_at: number | null };
+
+const VALIDATION_KEY = "spec.validation";
+
+export function saveValidation(saved: SavedValidation): void {
+  try {
+    window.sessionStorage.setItem(VALIDATION_KEY, JSON.stringify(saved));
+  } catch {
+    // 저장소가 막힌 브라우저 — 확인 화면에 "아직 확인 안 함" 으로 나올 뿐이다.
+  }
+}
+
+export function loadValidation(specId: string): SavedValidation | null {
+  try {
+    const raw = window.sessionStorage.getItem(VALIDATION_KEY);
+    const saved = raw ? (JSON.parse(raw) as SavedValidation) : null;
     return saved?.spec_id === specId ? saved : null;
   } catch {
     return null;

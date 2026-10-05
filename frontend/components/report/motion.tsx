@@ -87,6 +87,31 @@ export function useReducedMotion(): boolean {
 export const CHART_DRAW_MS = 1100;
 export const BAR_DRAW_MS = 800;
 
+// 차트 애니메이션이 끝났다고 보는 시점. 가장 늦은 것(시작 지연 240ms + 1100ms)에
+// 여유를 더한다.
+export const CHART_SETTLE_MS = CHART_DRAW_MS + 600;
+
+// key 가 바뀐 뒤 ms 가 지나면 true. 차트 애니메이션의 안전망이다.
+//
+// recharts 는 차트를 requestAnimationFrame 으로 그린다. rAF 는 화면이 그려지지 않을 때
+// (창이 다른 창 뒤에 있을 때 · 숨은 탭 · 스크린샷/PDF 캡처) 돌지 않아서, 막대가 첫
+// 프레임(높이 0)에 멈춘 채로 남는다. 카운트업이 0 에 멈추던 것과 같은 원인이다.
+// setTimeout 은 그때도 돈다. 그래서 이 값이 true 가 되면 애니메이션을 끄고, recharts 가
+// rAF 없이 최종 모양을 바로 그리게 한다. 화면이 정상적으로 그려질 때는 이미 애니메이션이
+// 끝난 뒤라 끄는 순간 모양이 바뀌지 않는다.
+//
+// 탭마다 다시 건다(key = 탭). 다른 탭의 차트는 그 탭을 열 때 새로 생기므로, 한 번만 걸면
+// 나중에 연 탭의 차트는 그리는 애니메이션 없이 나타난다. 키를 바꾼 그 렌더에서 바로
+// false 가 되도록 effect 가 아니라 "어느 키가 끝났는가" 를 비교해 낸다.
+export function useSettled(key: string, ms: number): boolean {
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettledKey(key), ms);
+    return () => window.clearTimeout(timer);
+  }, [key, ms]);
+  return settledKey === key;
+}
+
 export function CountUp({
   value,
   format,

@@ -5,6 +5,12 @@
 // 이번 탭에서 완료한 전략서(spec_id)가 있으면 그 전략서로 백테스트를 돌린다.
 // POST /backtest/runs 로 접수하고 3초마다 GET 으로 상태를 받아 한 줄씩 쌓는다.
 // 전략서가 없으면 예전처럼 저장된 결과 파일(data/backtest-result.json)을 보여 준다.
+//
+// 도는 동안은 경과 시계와 흐르는 막대, 상태 로그는 "실행 기록" 으로 접는다.
+// 결과에는 "신호를 쓴 효과"(전략 − 대조군)를 한 줄로 뽑는다 — 같은 제약에서 3관점 신호만 뺀
+// 것이 대조군이라 그 차이가 이 프로젝트가 보여 주려는 값이다.
+// 실패 중 "러너가 지원하지 않는 리밸런싱 규칙" 은 풀어 쓰고 원문은 작게 남긴다.
+// "다음 — 최종 확인" 은 결과가 나왔을 때만 누를 수 있다(저장된 데모는 늘 있음).
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +22,7 @@ import { api, type BacktestRun, loadBacktestRun, loadCompileResult, saveBacktest
 import { control, DATA_SOURCE, market, PERIOD_END, PERIOD_START, PROFILE_LABEL, strategy } from "@/lib/data";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+const signedPp = (v: number) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%p`;
 
 // 데모 계획 1.4 의 평가 구간 끝. 시작일은 서버 기본값(2023-01-01)을 쓴다.
 const REQUEST_PERIOD_END = "2025-12-31";
@@ -31,7 +38,6 @@ const SERIES = [
 type SeriesTotals = Record<(typeof SERIES)[number]["key"], { total: number; mdd: number }>;
 
 export default function BacktestPage() {
-  const router = useRouter();
   const [specId, setSpecId] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -47,12 +53,6 @@ export default function BacktestPage() {
         <RequireLogin>
           {() => <Body specId={specId} />}
         </RequireLogin>
-
-        <div className="flow-next">
-          <button className="primary" onClick={() => router.push("/confirm")}>
-            다음 — 최종 확인
-          </button>
-        </div>
       </main>
     </ScaffoldShell>
   );
@@ -66,6 +66,9 @@ function Body({ specId }: { specId: string | null | undefined }) {
 function LiveRun({ specId }: { specId: string }) {
   const [log, setLog] = useState<string[]>([]);
   const [run, setRun] = useState<BacktestRun | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const finished = run?.status === "done" || run?.status === "failed" || error !== null;
   const started = useRef(false);
   const alive = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -78,6 +81,14 @@ function LiveRun({ specId }: { specId: string }) {
       clearTimeout(timer.current);
     };
   }, []);
+
+  // 끝날 때까지 시계를 돌린다.
+  useEffect(() => {
+    if (finished) return;
+    const t0 = Date.now();
+    const tick = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(tick);
+  }, [finished]);
 
   useEffect(() => {
     // 개발 모드는 effect 를 두 번 돌린다. 접수가 두 번 되지 않게 막는다 — 그래서
@@ -97,6 +108,7 @@ function LiveRun({ specId }: { specId: string }) {
         }
       } catch (err) {
         add(`조회 실패 — ${err instanceof Error ? err.message : String(err)}`);
+        setError(`결과를 받지 못했어요: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -116,33 +128,84 @@ function LiveRun({ specId }: { specId: string }) {
         await poll(r.run_id);
       } catch (err) {
         add(`접수 실패 — ${err instanceof Error ? err.message : String(err)}`);
+        setError(`백테스트를 접수하지 못했어요: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     start();
   }, [specId]);
 
+  const done = run?.status === "done";
+  const failed = run?.status === "failed" || error !== null;
+
   return (
     <>
       <p className="flow-hint" style={{ marginBottom: 10 }}>
         전략서 <span className="mono">{specId}</span> 로 백테스트를 돌립니다.
       </p>
-      {run && run.status !== "done" && run.status !== "failed" && (
-        <p className="flow-state">돌리는 중… 상태 {run.status}</p>
+      {!finished && (
+        <>
+          <div className="flow-run-head">
+            <b>백테스트를 돌리고 있어요{run?.status ? ` · ${run.status}` : ""}</b>
+            <span className="mono flow-run-clock">{clock(elapsed)}</span>
+          </div>
+          <div className="flow-indeterminate" aria-hidden="true" />
+        </>
       )}
-      <ul className="flow-log" aria-live="polite">
-        {log.map((line, i) => (
-          <li key={i}>{line}</li>
-        ))}
-      </ul>
-      {run?.status === "done" && <Result run={run} />}
-      {run?.status === "failed" && (
-        <p className="flow-msg err" role="alert">
-          실패 이유: {run.reason}
-        </p>
-      )}
+      {done && <Result run={run} />}
+      {failed && <Failure reason={run?.reason ?? error} />}
+
+      <details className="flow-details">
+        <summary>실행 기록</summary>
+        <ul className="flow-log" aria-live="polite">
+          {log.map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      </details>
+      <Next enabled={done} />
     </>
   );
+}
+
+// 서버 문장을 풀어 쓰고 원문은 작게 남긴다.
+function Failure({ reason }: { reason: string | null | undefined }) {
+  const raw = reason ?? "이유를 받지 못했어요";
+  const rebalance = raw.startsWith("러너가 지원하지 않는 리밸런싱 규칙");
+  return (
+    <div className="flow-msg err" role="alert">
+      <p style={{ color: "var(--c-bright)" }}>
+        {rebalance
+          ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 매주 · 매달 첫 거래일 규칙만 돌릴 수 있어요."
+          : `실패 이유: ${raw}`}
+      </p>
+      {rebalance && (
+        <p className="mono flow-hint" style={{ marginTop: 6, fontSize: 11 }}>
+          {raw}
+        </p>
+      )}
+      <p style={{ marginTop: 8 }}>
+        <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
+      </p>
+    </div>
+  );
+}
+
+function Next({ enabled }: { enabled: boolean }) {
+  const router = useRouter();
+  return (
+    <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center" }}>
+      <span className="flow-hint">{enabled ? "" : "결과가 나와야 최종 확인으로 갈 수 있어요."}</span>
+      <button className="primary" onClick={() => router.push("/confirm")} disabled={!enabled}>
+        다음 — 최종 확인
+      </button>
+    </div>
+  );
+}
+
+// 87 → 01:27
+function clock(sec: number): string {
+  return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 }
 
 // 관점 출처 배지. real 은 실제 모델, mock 은 고정 가짜 점수, neutral 은 항상 중립.
@@ -163,7 +226,12 @@ function Result({ run }: { run: BacktestRun }) {
           목업 신호가 섞인 실행입니다(관점 출처 참고). 감성은 중립 고정입니다. 결과를 실력으로 읽으면 안 됩니다.
         </p>
       )}
-      {run.summary && <SeriesTable totals={run.summary} />}
+      {run.summary && (
+        <>
+          <SeriesTable totals={run.summary} />
+          <Edge totals={run.summary} />
+        </>
+      )}
       <dl className="flow-kv" style={{ marginTop: 16 }}>
         <dt>기간</dt>
         <dd>
@@ -231,9 +299,11 @@ function Stored() {
         </dd>
       </dl>
       <SeriesTable totals={{ strategy, control, market }} />
+      <Edge totals={{ strategy, control, market }} />
       <p style={{ marginTop: 16 }}>
         <Link href="/report">데모 리포트 보기</Link> <span className="flow-hint">위와 같은 데모 결과입니다</span>
       </p>
+      <Next enabled />
     </>
   );
 }
@@ -266,5 +336,16 @@ function SeriesTable({ totals }: { totals: SeriesTotals }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// 같은 제약에서 3관점 신호만 뺀 게 대조군이다. 둘의 차이가 신호가 낸 몫.
+function Edge({ totals }: { totals: SeriesTotals }) {
+  const edge = totals.strategy.total - totals.control.total;
+  return (
+    <p className="flow-edge">
+      신호를 쓴 효과 <span className="flow-hint">전략 − 대조군</span>
+      <strong className={edge >= 0 ? "up" : "down"}>{signedPp(edge)}</strong>
+    </p>
   );
 }
