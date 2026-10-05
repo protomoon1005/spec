@@ -42,12 +42,6 @@ function View() {
       </div>
     );
   }
-  return (
-    <>
-      <p className="flow-hint" style={{ marginBottom: 12 }}>
-        전략서 번호 <span className="mono">{specId}</span>
-      </p>
-      <SpecContents specId={specId} />
-    </>
-  );
+  // 번호는 SpecContents 머리에 있다.
+  return <SpecContents specId={specId} />;
 }

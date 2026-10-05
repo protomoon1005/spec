@@ -49,21 +49,14 @@ function Result() {
   return (
     <>
       <p className="flow-msg ok" style={{ marginTop: 0, marginBottom: 16 }}>
-        전략서가 초안(draft)으로 저장되었습니다.
+        전략서를 만들었어요. 초안으로 저장됐고, 하드캡 확인과 백테스트를 거쳐 승인합니다.
       </p>
-      <dl className="flow-kv">
-        <dt>전략서 번호</dt>
-        <dd>{done.spec_id}</dd>
-        <dt>종목 수</dt>
-        <dd>{done.universe_size}</dd>
-      </dl>
-
-      <h2>전략서 내용</h2>
+      {/* 번호 · 종목 수는 SpecContents 가 보여 준다. */}
       <SpecContents specId={done.spec_id} />
 
       <div className="flow-next">
         <button className="primary" onClick={() => router.push("/hardcap")}>
-          다음 — 하드캡
+          다음 — 하드캡 확인
         </button>
       </div>
     </>

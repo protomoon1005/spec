@@ -1,6 +1,17 @@
 "use client";
 
 // 전략서 하나의 내용 — GET /specs/{spec_id}. 전략 완료 화면과 전략 관리 상세 화면이 같이 쓴다.
+//
+// 규칙 칸을 JSON 그대로 늘어놓지 않고 사람이 읽는 말로 바꾼다.
+//   리밸런싱  {"type":"calendar","freq":"weekly"} → "매주 (최소 7일 간격)"
+//   신호      market_temperature → "시장온도 — 코스피200 20일 추세 · VIX"
+//   제약      cash_min 0.15 → "현금 최소 15%"
+// 종목 비중 범위는 표에 막대를 더한다. 모르는 키나 모양은 버리지 않고 원래 값 그대로
+// 보여 준다 — 서버가 새 규칙을 보내도 화면에서 사라지지 않게.
+//
+// 리밸런싱이 백테스트에서 돌 수 없는 규칙이면 미리 경고한다. 러너가 받는 규칙은
+// backend/app/backtest/inputs.py 의 _SCHEDULES 두 개뿐이다(BACKTESTABLE). 러너가 늘면
+// 여기도 같이 고친다. 이름표(INDICATOR_LABEL)는 BBL 지표 블록의 title 이다.
 
 import { useEffect, useState } from "react";
 
@@ -20,6 +31,7 @@ type SpecDetail = {
 };
 
 const pct = (v: number | null) => (v === null ? "-" : `${Math.round(v * 1000) / 10}%`);
+const pctOf = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
 export default function SpecContents({ specId }: { specId: string }) {
   const [spec, setSpec] = useState<SpecDetail | null>(null);
@@ -41,9 +53,13 @@ export default function SpecContents({ specId }: { specId: string }) {
     );
   }
 
+  const rebalance = describeRebalance(spec.rebalance);
+
   return (
     <>
       <dl className="flow-kv">
+        <dt>번호</dt>
+        <dd className="mono">{spec.spec_id}</dd>
         <dt>이름</dt>
         <dd className="prose">{spec.name}</dd>
         <dt>상태</dt>
@@ -54,37 +70,75 @@ export default function SpecContents({ specId }: { specId: string }) {
         <dd className="prose">{spec.input_prompt ?? "-"}</dd>
       </dl>
 
-      <h3>담은 종목과 비중 범위</h3>
-      <div className="flow-table">
-        <table style={{ minWidth: 420 }}>
-          <thead>
-            <tr>
-              <th>종목코드</th>
-              <th>종목명</th>
-              <th className="num">최소 비중</th>
-              <th className="num">최대 비중</th>
-            </tr>
-          </thead>
-          <tbody>
-            {spec.universe.map((u) => (
-              <tr key={u.ticker}>
-                <td className="mono">{u.ticker}</td>
-                <td>{u.name}</td>
-                <td className="num">{pct(u.weight_min)}</td>
-                <td className="num">{pct(u.weight_max)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <h3>담은 종목과 비중 범위 · {spec.universe.length}개</h3>
+      <Holdings universe={spec.universe} />
 
-      <h3>리밸런싱 방식</h3>
-      <RuleList rules={spec.rebalance} />
-      <h3>신호 규칙</h3>
-      <RuleList rules={spec.signal_rules} />
-      <h3>제약</h3>
-      <RuleList rules={spec.constraint_user} />
+      <h3>규칙</h3>
+      <dl className="flow-kv">
+        <dt>언제 비중을 맞추나</dt>
+        <dd>
+          {rebalance.text}
+          {rebalance.backtestable === false && (
+            <span className="flow-badge warn" style={{ marginLeft: 8 }}>
+              이 규칙은 아직 백테스트할 수 없어요
+            </span>
+          )}
+        </dd>
+        <dt>사고팔 판단</dt>
+        <dd>
+          {describeSignals(spec.signal_rules).map((line) => (
+            <span key={line} style={{ display: "block" }}>
+              {line}
+            </span>
+          ))}
+        </dd>
+        <dt>지킬 제약</dt>
+        <dd>{describeConstraints(spec.constraint_user)}</dd>
+      </dl>
     </>
+  );
+}
+
+// 최소~최대 비중 표 + 막대. 막대 눈금 끝은 이 전략서의 가장 큰 최대 비중이다 — 종목끼리
+// 비교하려는 막대라 100% 기준으로 그리면 전부 왼쪽에 몰려 차이가 안 보인다.
+function Holdings({ universe }: { universe: SpecDetail["universe"] }) {
+  const scale = Math.max(...universe.map((u) => u.weight_max ?? 0), 0.0001);
+  return (
+    <div className="flow-table">
+      <table style={{ minWidth: 420 }}>
+        <thead>
+          <tr>
+            <th>종목코드</th>
+            <th>종목명</th>
+            <th style={{ width: "30%" }}>범위</th>
+            <th className="num">최소 비중</th>
+            <th className="num">최대 비중</th>
+          </tr>
+        </thead>
+        <tbody>
+          {universe.map((u) => (
+            <tr key={u.ticker}>
+              <td className="mono">{u.ticker}</td>
+              <td>{u.name}</td>
+              <td>
+                {u.weight_min !== null && u.weight_max !== null && (
+                  <span className="flow-range" aria-hidden="true">
+                    <span
+                      style={{
+                        left: `${(u.weight_min / scale) * 100}%`,
+                        width: `${Math.max(((u.weight_max - u.weight_min) / scale) * 100, 1.5)}%`,
+                      }}
+                    />
+                  </span>
+                )}
+              </td>
+              <td className="num">{pct(u.weight_min)}</td>
+              <td className="num">{pct(u.weight_max)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -94,19 +148,97 @@ export function StatusBadge({ status }: { status: string }) {
   return <span className={`flow-badge ${tone}`}>{status}</span>;
 }
 
-// 규칙 칸은 블록마다 모양이 달라서 키: 값 그대로 보여 준다. null 은 쓰지 않는 규칙이다.
-function RuleList({ rules }: { rules: Rules }) {
-  if (!rules) return <p className="flow-hint">없음</p>;
-  return (
-    <dl className="flow-kv">
-      {Object.entries(rules).map(([k, v]) => (
-        <div key={k} style={{ display: "contents" }}>
-          <dt className="mono">{k}</dt>
-          <dd className={v === null ? "prose" : "mono"} style={{ color: v === null ? "var(--c-muted)" : undefined, wordBreak: "break-all" }}>
-            {v === null ? "사용 안 함" : typeof v === "object" ? JSON.stringify(v) : String(v)}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
+// --- 규칙을 말로 ------------------------------------------------------------
+
+// backend/app/backtest/inputs.py _SCHEDULES 의 키 (type, freq, day). min_interval_days 도 있어야 한다.
+const BACKTESTABLE = new Set(["calendar/monthly/1", "calendar/weekly/1"]);
+
+function describeRebalance(rule: Rules): { text: string; backtestable: boolean | null } {
+  if (!rule) return { text: "없음", backtestable: null };
+  const trigger = (rule.trigger ?? {}) as { type?: string; freq?: string; day?: number | null };
+  const interval = typeof rule.min_interval_days === "number" ? rule.min_interval_days : null;
+
+  let what: string | null = null;
+  if (trigger.type === "calendar") {
+    if (trigger.freq === "weekly") what = "매주";
+    else if (trigger.freq === "monthly") what = trigger.day === 1 ? "매달 첫 거래일" : trigger.day ? `매달 ${trigger.day}일` : "매달";
+    else if (trigger.freq === "quarterly") what = "분기마다";
+  } else if (trigger.type === "threshold") what = "비중이 정한 범위를 벗어날 때";
+  else if (trigger.type === "signal") what = "신호가 바뀔 때";
+
+  const text = what ? `${what}${interval !== null ? ` (최소 ${interval}일 간격)` : ""}` : JSON.stringify(rule);
+  const key = `${trigger.type}/${trigger.freq}/${trigger.day}`;
+  return { text, backtestable: BACKTESTABLE.has(key) && interval !== null };
+}
+
+const VIEW_LABEL: Record<string, string> = {
+  market_temperature: "시장온도",
+  market_analysis: "시장분석",
+  sentiment: "뉴스 감성",
+};
+
+const INDICATOR_LABEL: Record<string, string> = {
+  KOSPI200: "코스피200",
+  VIX_CLOSE: "VIX",
+  atr_14_pct: "평균실체범위 비율(14)",
+  ma_gap_20: "20일 이격도",
+  ma_gap_60: "60일 이격도",
+  ret_1: "1일 수익률",
+  ret_5: "5일 수익률",
+  ret_20: "20일 수익률",
+  rsi_14: "RSI(14)",
+  vol_20: "20일 변동성",
+  volume_ratio_20: "거래량 비율(20일)",
+};
+
+const label = (v: unknown) => (typeof v === "string" ? (INDICATOR_LABEL[v] ?? v) : JSON.stringify(v));
+
+function describeSignals(rules: Rules): string[] {
+  if (!rules) return ["없음"];
+  const used: string[] = [];
+  const unused: string[] = [];
+  for (const [key, value] of Object.entries(rules)) {
+    const name = VIEW_LABEL[key] ?? key;
+    if (value === null || value === undefined) {
+      unused.push(name);
+      continue;
+    }
+    const v = value as Record<string, unknown>;
+    let detail: string;
+    if (key === "market_temperature") {
+      const parts = [
+        v.trend_index !== undefined &&
+          `${label(v.trend_index)}${typeof v.trend_ma_window === "number" ? ` ${v.trend_ma_window}일` : ""} 추세`,
+        v.volatility_index !== undefined && label(v.volatility_index),
+      ].filter(Boolean);
+      detail = parts.join(" · ");
+    } else if (key === "market_analysis" && Array.isArray(v.indicators)) {
+      detail = v.indicators.map(label).join(" · ");
+    } else if (key === "sentiment") {
+      const sectors = Array.isArray(v.target_sectors) && v.target_sectors.length ? v.target_sectors.join(" · ") : "전체";
+      detail = `${sectors}${typeof v.lookback_hours === "number" ? ` · 최근 ${v.lookback_hours}시간` : ""}`;
+    } else {
+      detail = JSON.stringify(value);
+    }
+    used.push(`${name} — ${detail || "사용"}`);
+  }
+  if (unused.length) used.push(`${unused.join(" · ")} — 안 씀`);
+  return used;
+}
+
+const CONSTRAINT_LABEL: Record<string, string> = {
+  cash_min: "현금 최소",
+  max_drawdown: "최대 낙폭",
+  max_loss_per_trade: "한 번 손실 최대",
+  max_weight_per_asset: "종목당 최대",
+  min_weight_per_asset: "종목당 최소",
+};
+
+function describeConstraints(rules: Rules): string {
+  if (!rules) return "없음";
+  const entries = Object.entries(rules).filter(([, v]) => v !== null && v !== undefined);
+  if (!entries.length) return "없음";
+  return entries
+    .map(([k, v]) => `${CONSTRAINT_LABEL[k] ?? k} ${typeof v === "number" ? pctOf(v) : JSON.stringify(v)}`)
+    .join(" · ");
 }
