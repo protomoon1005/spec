@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
 import { api, ApiError } from "@/lib/api";
-import { PROFILE_LABEL } from "@/lib/policy";
+import { ASSET_CAP, CASH_MIN, PROFILE_LABEL } from "@/lib/policy";
 
 type RiskProfile = {
   profile_id: number;
@@ -66,11 +66,12 @@ function Result() {
               1 {PROFILE_LABEL[1]} ~ 5 {PROFILE_LABEL[5]}
             </span>
           </div>
+          <Limits level={profile.risk_level} />
           <dl className="flow-kv">
             <dt>기준표 버전</dt>
             <dd>{profile.preset_version}</dd>
             <dt>확정 시각</dt>
-            <dd>{profile.created_at}</dd>
+            <dd>{formatTime(profile.created_at)}</dd>
           </dl>
         </section>
       ) : message ? (
@@ -88,4 +89,39 @@ function Result() {
       </div>
     </>
   );
+}
+
+// 이 성향이면 무엇이 제한되는가. 서버는 한도를 주지 않으므로 lib/policy.ts(정책 값 단일
+// 출처)에서 읽는다 — 전략 만들기 · 백테스트가 실제로 거는 한도와 같은 값이다.
+function Limits({ level }: { level: number }) {
+  if (!PROFILE_LABEL[level]) return null;
+  const limits = [
+    { name: "주식 최대", value: ASSET_CAP.EQUITY[level] },
+    { name: "채권 최대", value: ASSET_CAP.BOND[level] },
+    { name: "원자재 최대", value: ASSET_CAP.COMMODITY[level] },
+    { name: "현금 최소", value: CASH_MIN[level] },
+  ];
+  return (
+    <>
+      <p className="flow-hint" style={{ marginBottom: 8 }}>
+        이 성향에서는
+      </p>
+      <div className="flow-limits">
+        {limits.map((l) => (
+          <div key={l.name}>
+            <span>{l.name}</span>
+            <b className="mono">{Math.round(l.value * 100)}%</b>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// 2026-10-05T01:23:45.123+00:00 → 2026.10.05 10:23 (보는 사람의 현지 시각)
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

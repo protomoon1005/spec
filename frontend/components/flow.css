@@ -809,3 +809,378 @@
     margin-top: -12px;
   }
 }
+
+/* --- 화면 기능 부품 (M4) -------------------------------------------------------
+ * 설문 단계 · 성향 한도 · 요청 예시 · 진행 막대 · 비중 범위 막대 · 결과 세 칸.
+ * 위 절의 변수(--c-* · --f-*)만 쓴다. */
+
+/* 설문: 진행 막대 + "질문 n / 7" */
+.flow-progress {
+  height: 4px;
+  background: var(--c-surface2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.flow-progress > div {
+  height: 100%;
+  background: var(--c-warn);
+  border-radius: 999px;
+  transition: width 260ms ease-out;
+}
+
+.flow-root .flow-step-count {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 12px;
+}
+
+/* 문항이 바뀔 때 아래에서 살짝 올라온다. 시작 불투명도를 0 으로 두지 않는다 — 화면이
+   그려지지 않는 동안(창이 뒤 · 캡처) 애니메이션이 멈추면 문항이 안 보인다. */
+.flow-step {
+  animation: flow-step-in 240ms ease-out;
+}
+
+@keyframes flow-step-in {
+  from {
+    opacity: 0.35;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.flow-root .flow-question-text {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--c-bright);
+  margin-bottom: 16px;
+}
+
+.flow-choices {
+  display: grid;
+  gap: 8px;
+}
+
+/* 선택지 한 줄. 버튼 기본 모양보다 넓고 왼쪽 정렬. */
+.flow-root button.flow-choice {
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  padding: 13px 16px;
+}
+
+/* 터치 화면은 누른 뒤에도 :hover 가 남는다. 다음 문항의 같은 자리 선택지가 골라진 것처럼
+   보이지 않게 마우스를 올릴 수 있는 기기에서만 칠한다. 바로 아래 줄은 공통 hover 를 걷는다. */
+.flow-root button.flow-choice:hover:not(:disabled) {
+  border-color: var(--c-border);
+}
+
+@media (hover: hover) {
+  .flow-root button.flow-choice:hover:not(:disabled) {
+    background: var(--c-surface2);
+    border-color: var(--c-grid);
+  }
+}
+
+.flow-root button.flow-choice[aria-pressed='true'],
+.flow-root button.flow-choice[aria-pressed='true']:hover:not(:disabled) {
+  color: var(--c-bright);
+  background: #e0a23c14;
+  border-color: var(--c-warn);
+}
+
+/* 누르면 바로 답으로 가는 선택지(되묻기). 오른쪽 화살표. */
+.flow-root button.flow-choice-go {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-root button.flow-choice-go > span[aria-hidden] {
+  color: var(--c-dim);
+}
+
+/* 설문 답변 확인: 줄 하나 = 그 문항으로 돌아가는 버튼 */
+.flow-review {
+  display: grid;
+  border-top: 1px solid var(--c-border);
+}
+
+.flow-root .flow-review > button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  border-radius: 0;
+  padding: 10px 4px;
+}
+
+.flow-root .flow-review > button:hover:not(:disabled) {
+  background: var(--c-surface);
+}
+
+.flow-review-q {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-review-a {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+/* 성향별 한도 네 칸 */
+.flow-limits {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.flow-limits > div {
+  display: grid;
+  gap: 2px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.flow-limits span {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-limits b {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+/* 예시 문장 칩 */
+.flow-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.flow-root button.flow-chip {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  text-align: left;
+}
+
+.flow-root button.flow-chip:hover:not(:disabled) {
+  color: var(--c-bright);
+  border-color: var(--c-grid);
+}
+
+/* 진행 상황: 제목 + 경과 시계, 끝을 모르는 흐르는 막대 */
+.flow-run-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-size: 18px;
+  color: var(--c-bright);
+}
+
+.flow-root .flow-run-clock {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+.flow-indeterminate {
+  position: relative;
+  height: 4px;
+  background: var(--c-surface2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.flow-indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: var(--c-accent);
+  border-radius: 999px;
+  animation: flow-indeterminate 1.6s ease-in-out infinite;
+}
+
+@keyframes flow-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-step,
+  .flow-indeterminate::after {
+    animation: none;
+  }
+  .flow-progress > div {
+    transition: none;
+  }
+}
+
+/* 만드는 순서 — 위 "설문처럼 번호가 의미 있는 목록" 의 카드 모양을 걷고 줄 목록으로 */
+.flow-root main ol.flow-steps {
+  gap: 0;
+  counter-reset: s;
+}
+
+.flow-root main ol.flow-steps > li {
+  counter-increment: s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  border-radius: 0;
+  padding: 8px 2px;
+}
+
+.flow-root main ol.flow-steps > li::before {
+  content: counter(s);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+  width: 14px;
+}
+
+/* 개발용 기록을 접어 두는 칸 */
+.flow-details {
+  margin-top: 24px;
+}
+
+.flow-details summary {
+  font-size: 12px;
+  color: var(--c-dim);
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+/* 비중 범위 막대 (전략서 종목 표) */
+.flow-range {
+  position: relative;
+  display: block;
+  height: 6px;
+  background: var(--c-surface2);
+  border-radius: 999px;
+}
+
+.flow-range > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--c-accent);
+  border-radius: 999px;
+}
+
+/* 보정 · 클램프 전후: 원래 값은 취소선 */
+.flow-root s {
+  color: var(--c-dim);
+}
+
+/* 백테스트: 전략 · 대조군 · 시장 세 칸 */
+.flow-series {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.flow-series > div {
+  display: grid;
+  gap: 2px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.flow-series > div.main {
+  border-color: #e0a23c66;
+}
+
+.flow-series b {
+  font-size: 14px;
+  color: var(--c-bright);
+}
+
+.flow-series small {
+  font-size: 11px;
+  color: var(--c-muted);
+  margin-bottom: 6px;
+}
+
+.flow-series .total {
+  font-family: var(--f-mono);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.flow-series .meta {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.flow-root .up {
+  color: var(--c-profit);
+}
+
+.flow-root .down {
+  color: var(--c-loss);
+}
+
+.flow-root .flow-edge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--c-bright);
+}
+
+.flow-edge strong {
+  font-family: var(--f-mono);
+  font-size: 18px;
+}
+
+@media (max-width: 640px) {
+  .flow-limits {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .flow-series {
+    grid-template-columns: 1fr;
+  }
+}
