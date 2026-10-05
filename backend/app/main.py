@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import admin, auth, backtest, health, jobs, portfolio, profile, spec
+from app.routers import admin, auth, backtest, bounds, health, jobs, portfolio, profile, spec
 
 API_DESCRIPTION = """
 사용자가 말로 요청하면 그걸 **전략서(Spec)** 로 만들고, 그 전략서대로 ETF를 사고파는
@@ -82,6 +82,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(profile.router)
+app.include_router(bounds.router)
 app.include_router(spec.router)
 app.include_router(backtest.router)
 app.include_router(portfolio.router)
