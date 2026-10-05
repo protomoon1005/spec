@@ -10,29 +10,20 @@
 //
 // 서버는 만료와 위조를 둘 다 401 하나로 돌려준다. 그래서 만료는 토큰 안의 exp 를
 // 읽어 따로 판단하고, 만료면 "토큰 재인증" 버튼으로 POST /auth/login 에서 새 토큰을 받는다.
-// 로그인하면 홈(/home)으로 간다. 성향이 없으면 홈이 설문으로 안내한다.
+// 로그인하면 홈(/home)으로 간다. 성향이 아직 없으면(GET /profile/me 404) 설문(/survey)으로
+// 바로 간다 — 가입 뒤 첫 로그인이 이 경우다. 성향 없이는 전략을 만들 수 없어서 홈을 거칠
+// 이유가 없다. "첫 로그인" 을 따로 기록하지 않고 성향 유무로 본다: 설문을 마치지 않고 나간
+// 사람도 다음 로그인에 설문으로 간다.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import ScaffoldShell from "@/components/scaffold-shell";
-import { api, loadRememberedToken, saveSession } from "@/lib/api";
+import { api, ApiError, isExpired, loadRememberedToken, loadSession, saveSession } from "@/lib/api";
 
 type MeResponse = { user_id: number; username: string; role: string };
 type TokenResponse = { access_token: string; refresh_token: string };
-
-// JWT 가운데 조각의 exp(초)를 읽는다. 서명은 서버가 본다 — 여기선 만료 안내용일 뿐이다.
-function isExpired(token: string): boolean {
-  try {
-    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const { exp } = JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, "="))) as { exp?: number };
-    return typeof exp === "number" && exp * 1000 <= Date.now();
-  } catch {
-    // 모양이 JWT 가 아니면 만료 판단은 서버에 맡긴다.
-    return false;
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,6 +33,18 @@ export default function LoginPage() {
   const [expired, setExpired] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 로그인이 만료돼 다른 화면에서 넘어온 경우(?expired=1, components/require-login.tsx).
+  // 아이디를 채우고 재인증 버튼을 바로 보여 준다 — 처음부터 다시 입력하게 하지 않는다.
+  // 아이디는 주소에 싣지 않는다. 남아 있는 로그인 정보에서 읽는다.
+  // useSearchParams 대신 window.location 을 읽는다: 앞의 것은 Suspense 경계가 필요하다.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("expired") !== "1") return;
+    const stale = loadSession();
+    if (stale?.username) setUsername(stale.username);
+    setExpired(true);
+    setMessage("로그인이 만료됐습니다. 토큰 재인증을 누른 뒤 로그인하세요.");
+  }, []);
 
   // 아이디나 토큰을 고치면 앞의 인증·만료 안내는 무효다.
   function edit(set: (v: string) => void, value: string) {
@@ -118,7 +121,18 @@ export default function LoginPage() {
 
     // 로그인 화면에는 refresh 토큰이 없다. 만료되면 이 화면에서 재인증한다.
     saveSession({ access, refresh: "", username: me.username });
-    router.push("/home");
+    router.push(await landing());
+  }
+
+  // 로그인 직후 갈 곳. 성향 확인이 404 가 아닌 이유로 실패하면 홈으로 보낸다 — 홈이 같은
+  // 확인을 다시 하고 실패 사유를 화면에 보여 준다.
+  async function landing(): Promise<string> {
+    try {
+      await api("/profile/me");
+      return "/home";
+    } catch (err) {
+      return err instanceof ApiError && err.status === 404 ? "/survey" : "/home";
+    }
   }
 
   return (

@@ -78,6 +78,7 @@ export default function SignupPage() {
               가입이 완료되었습니다. 아이디: <b className="mono">{username.trim()}</b>
             </p>
             <p style={{ marginTop: 14 }}>아래 토큰을 복사해 두세요. 로그인할 때 아이디와 함께 입력합니다.</p>
+            <p className="flow-hint">첫 로그인을 하면 바로 성향 설문으로 이동합니다.</p>
             <textarea readOnly value={token} rows={4} cols={60} aria-label="발급된 토큰" />
             <div className="flow-actions" style={{ marginTop: 12 }}>
               <button onClick={copy}>토큰 복사</button>
