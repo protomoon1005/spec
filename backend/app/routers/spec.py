@@ -14,7 +14,7 @@ from app.core.errors import raise_not_implemented
 from app.core.security import AuthUser, require_any_role
 from app.m2 import validator
 from app.m2.stages import ValidationResult
-from app.repositories import specs
+from app.repositories import presets, specs
 from app.workers.tasks import compile_spec
 
 router = APIRouter(prefix="/specs", tags=["spec"])
@@ -33,13 +33,23 @@ class CompileSpecAccepted(BaseModel):
 
 
 class SpecUniverseItem(BaseModel):
-    """SPEC_UNIVERSE 한 줄 + etf_master 의 종목명."""
+    """SPEC_UNIVERSE 한 줄 + etf_master 의 종목명 + 그 종목에 적용된 기준표 행.
+
+    weight_min_raw · weight_max_raw 는 AI 가 낸 범위, weight_min · weight_max 는 검증기가
+    고친 뒤의 확정 범위(검증 전에는 둘이 같다). allowed_min · allowed_max 는 전략서를 만들 때
+    양식에 들어간 허용범위(preset_id 의 기준표 행) — 전략 초안 이중막대(U05)가 쓴다.
+    """
 
     ticker: str
     name: str
     weight_min: float | None
     weight_max: float | None
+    weight_min_raw: float | None = None
+    weight_max_raw: float | None = None
     was_adjusted: bool
+    risk_tag: str | None = None
+    allowed_min: float | None = None
+    allowed_max: float | None = None
 
 
 class SpecResponse(BaseModel):
@@ -70,6 +80,8 @@ class SpecDetailResponse(SpecResponse):
     rebalance: dict | None
     signal_rules: dict | None
     constraint_user: dict | None
+    # 전략서가 만들어질 때의 성향 등급(사용자의 최신 성향이 아님)
+    risk_level: int | None = None
     universe: list[SpecUniverseItem]
 
 
@@ -257,7 +269,21 @@ def get_spec(spec_id: str, user: AuthUser = Depends(require_any_role)) -> SpecDe
     spec = specs.get_spec(spec_id)
     if spec is None or spec["user_id"] != user.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
-    return SpecDetailResponse(**spec, universe=specs.get_spec_universe(spec_id))
+    universe = specs.get_spec_universe(spec_id)
+    preset_ids = [row["preset_id"] for row in universe if row.get("preset_id") is not None]
+    bounds = presets.get_bounds_by_ids(preset_ids)
+    items = []
+    for row in universe:
+        bound = bounds.get(row.get("preset_id"))
+        items.append(
+            SpecUniverseItem(
+                **row,
+                risk_tag=bound.risk_tag if bound else None,
+                allowed_min=bound.allowed_min if bound else None,
+                allowed_max=bound.allowed_max if bound else None,
+            )
+        )
+    return SpecDetailResponse(**spec, risk_level=specs.get_spec_risk_level(spec_id), universe=items)
 
 
 @router.delete("/{spec_id}", status_code=status.HTTP_204_NO_CONTENT, summary="전략서 지우기 (draft 만)")
