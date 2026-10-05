@@ -62,6 +62,9 @@ class BacktestRunDetail(BacktestRunResponse):
     scorer_sources: dict[str, str] | None  # 관점별 real · mock · neutral
     schedule: dict | None
     weight_path: str | None
+    # 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지. status: passed · failed · none.
+    # 2026-10-05 이전 실행에는 없다(그때는 늘 AI 원래 범위로 돌았다)
+    validation: dict | None = None
     reason: str | None  # failed 일 때만
     # 아래는 done 일 때만. 리포트 화면(/report?run_id=)이 비중 표·캡 로그·리밸런싱
     # 이력을 이 실행 그대로 그리는 데 쓴다. 저장은 전부터 하고 있었고 내보내지만
@@ -124,6 +127,7 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
         scorer_sources=results.get("scorer_sources"),
         schedule=results.get("schedule"),
         weight_path=results.get("weight_path"),
+        validation=results.get("validation"),
         reason=results.get("error"),
         risk_level=results.get("risk_level"),
         # universe 는 2026-09-29 이전 실행에는 없다(그때는 저장하지 않았다). 없으면 None.

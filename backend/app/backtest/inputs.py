@@ -12,6 +12,16 @@ DB 의 전략서·종목 원장·가격으로 같은 형태로 만든다. 러너
 min_interval_days 는 앞 리밸런싱일과의 간격이 모자란 날짜를 건너뛰는 것으로
 적용한다(FN-506 최소 간격 검사). 러너의 주간 구분이 해를 넘는 주를 둘로 나눠서
 주간 규칙은 연말에 3~4일 간격이 생긴다.
+
+검증 결과를 쓴다 (2026-10-05). 마지막 검증(validation_logs)이 4단까지 통과했으면
+  비중 범위   spec_universe 의 확정값(weight_min · weight_max) — 범위 보정 · 하드캡 반영
+  현금        3단 adjusted_bounds.cash_target — 상한을 다 늘려도 모자라면 성향 기본값보다 크다
+  최소 간격   4단 clamped_fields 의 rebalance.min_interval_days 적용값(하드캡으로 올린 값)
+를 쓴다. 검증 전이거나 막힌 전략서는 예전처럼 AI 원래 범위(_raw)를 러너의 resolve_bounds 로
+접고 성향 기본 현금을 쓴다 — 막을지는 팀이 정할 일이라 막지 않고, 무엇을 썼는지
+validation 에 남긴다(status: passed · failed · none).
+known-issues "백테스트가 Validator 결과를 쓰지 않음" 의 비중 범위 · 현금 · 간격 부분이다.
+낙폭 · 1회 손실 같은 클램프된 제약은 러너가 쓰는 칸이 아니라 여기서도 다루지 않는다.
 """
 from __future__ import annotations
 
@@ -55,6 +65,15 @@ class BacktestInputs:
     schedule_note: str
     # 최소 간격에 걸려 건너뛴 리밸런싱 후보일
     skipped_rebalance_dates: list[str] = field(default_factory=list)
+    # spec_universe 의 확정 범위 {종목: (하한, 상한)}. 검증 전에는 _raw 와 같다(M1 이 둘을 같이 쓴다).
+    # holdings 는 데모 스크립트와 같은 모양으로 두려고 여기 따로 둔다
+    final_ranges: dict[str, tuple[float, float]] = field(default_factory=dict)
+    # 러너에 넘길 확정 범위. 검증을 통과했을 때만 final_ranges, 아니면 None(러너가 _raw 로 접는다)
+    bounds: dict[str, tuple[float, float]] | None = None
+    # 현금 하한. None 이면 러너가 성향 기본값(policy.CASH_MIN)을 쓴다
+    cash_min: float | None = None
+    # 무엇을 썼는지. {"status": passed|failed|none, "cash_target", "min_interval_days"}
+    validation: dict = field(default_factory=lambda: {"status": "none"})
 
     @property
     def data_snapshot_asof(self) -> str:
@@ -76,8 +95,13 @@ def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> Backt
     rule = spec["rebalance"]
     schedule, note = _schedule(rule)
 
-    holdings = _holdings(spec_id)
+    holdings, final_ranges = _holdings(spec_id)
     tickers = [h["ticker"] for h in holdings]
+    validation = _validation(spec_id)
+    passed = validation["status"] == "passed"
+    min_interval = validation.get("min_interval_days") if passed else None
+    if min_interval is None:
+        min_interval = rule["min_interval_days"]
     prices_wide = _prices_wide(sorted({*tickers, MARKET_TICKER}), as_of=period_end)
 
     start = period_start.isoformat()
@@ -85,7 +109,7 @@ def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> Backt
     if not all_dates:
         raise InputError(f"기간 안에 거래일이 없다: {period_start} ~ {period_end}")
     weekly = weekly_dates(all_dates)
-    rebalance, skipped = _apply_min_interval(schedule(weekly), rule["min_interval_days"])
+    rebalance, skipped = _apply_min_interval(schedule(weekly), min_interval)
 
     return BacktestInputs(
         spec_id=spec_id,
@@ -97,17 +121,40 @@ def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> Backt
         rebalance_rule=rule,
         schedule_note=note,
         skipped_rebalance_dates=skipped,
+        final_ranges=final_ranges,
+        bounds=final_ranges if passed else None,
+        cash_min=validation.get("cash_target") if passed else None,
+        validation=validation,
     )
 
 
-def _holdings(spec_id: str) -> list[dict]:
-    # 키는 scripts/run_backtest_vbt.py 의 holdings 와 같다.
+def _validation(spec_id: str) -> dict:
+    # 마지막 검증의 요약. 4단까지 전부 통과했을 때만 passed.
+    logs = specs.latest_validation(spec_id)
+    if not logs:
+        return {"status": "none"}
+    if len(logs) < 4 or not all(row["passed"] for row in logs):
+        return {"status": "failed", "blocked_at": next((r["stage"] for r in logs if not r["passed"]), None)}
+    by_stage = {row["stage"]: row for row in logs}
+    summary: dict = {"status": "passed", "checked_at": by_stage[4]["checked_at"].isoformat()}
+    adjusted = by_stage[3].get("adjusted_bounds") or {}
+    if adjusted.get("cash_target") is not None:
+        summary["cash_target"] = float(adjusted["cash_target"])
+    for clamp in by_stage[4].get("clamped_fields") or []:
+        if clamp.get("field") == "rebalance.min_interval_days":
+            summary["min_interval_days"] = int(round(float(clamp["applied"])))
+    return summary
+
+
+def _holdings(spec_id: str) -> tuple[list[dict], dict[str, tuple[float, float]]]:
+    # 키는 scripts/run_backtest_vbt.py 의 holdings 와 같다. 확정 범위는 따로 돌려준다.
     universe = specs.get_spec_universe(spec_id)
     if not universe:
         raise InputError(f"전략서에 종목이 없다: {spec_id}")
     records = etf_master.get_by_tickers([u["ticker"] for u in universe])
 
     holdings = []
+    final_ranges: dict[str, tuple[float, float]] = {}
     for u in universe:
         rec = records[u["ticker"]]  # spec_universe.ticker 는 etf_master FK 라 항상 있다
         required = {
@@ -134,7 +181,10 @@ def _holdings(spec_id: str) -> list[dict]:
                 "max_raw": float(u["weight_max_raw"]),
             }
         )
-    return holdings
+        lo = u["weight_min"] if u["weight_min"] is not None else u["weight_min_raw"]
+        hi = u["weight_max"] if u["weight_max"] is not None else u["weight_max_raw"]
+        final_ranges[u["ticker"]] = (float(lo), float(hi))
+    return holdings, final_ranges
 
 
 def _prices_wide(tickers: list[str], *, as_of: date) -> pd.DataFrame:

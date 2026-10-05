@@ -275,8 +275,12 @@ def test_task_runs_the_real_runner_to_done(owner):
     results = got["window_results"]
     universe = results["universe"]
     assert universe, "실행 기록에 universe 가 없다"
+    # weight_min · weight_max 는 전략서의 확정 범위(검증 결과 쓰기, 2026-10-05)
     assert set(universe[0]) == {"ticker", "name", "grade", "asset_group", "sector_group",
-                                "country_group", "weight_min_raw", "weight_max_raw"}
+                                "country_group", "weight_min_raw", "weight_max_raw",
+                                "weight_min", "weight_max"}
+    # 검증하지 않은 전략서라 예전처럼 원래 범위로 돌았다고 남는다
+    assert results["validation"] == {"status": "none"}
     tickers = {u["ticker"] for u in universe}
     # 결정 기록의 목표 비중이 정확히 그 종목들로 되어 있어야 표가 맞게 그려진다.
     assert results["decisions"] and set(results["decisions"][-1]["target"]) == tickers
