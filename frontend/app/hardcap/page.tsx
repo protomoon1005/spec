@@ -158,6 +158,12 @@ function Check() {
               {s.violations.map((v, i) => (
                 <span key={i} style={{ display: "block", marginTop: 6 }}>
                   {v.ticker && <span className="mono flow-hint">{nameOf(v.ticker)} </span>}
+                  {/* 형식 오류 문장은 "Field required" 처럼 칸을 말하지 않는다. 걸린 칸을 앞에 붙인다. */}
+                  {v.field && (
+                    <span className="flow-hint">
+                      {fieldLabel(v.field, nameOf)} <span className="mono">({v.field})</span> —{" "}
+                    </span>
+                  )}
                   {v.message}
                 </span>
               ))}

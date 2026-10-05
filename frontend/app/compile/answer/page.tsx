@@ -148,8 +148,8 @@ function Answer() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) send(text.trim());
               }}
-              size={50}
               disabled={busy}
+              style={{ width: "100%" }}
             />
           </label>
           <button className="primary" onClick={() => send(text.trim())} disabled={busy || !text.trim()}>
