@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
 
 const STEPS = [
   { href: "/login", label: "로그인", match: ["/login", "/signup"] },
-  { href: "/survey", label: "투자 성향", match: ["/survey", "/profile"] },
+  { href: "/survey", label: "투자 성향", match: ["/survey", "/profile", "/bounds"] },
   { href: "/compile", label: "전략서 만들기", match: ["/compile"] },
   { href: "/hardcap", label: "하드캡", match: ["/hardcap"] },
   { href: "/backtest", label: "백테스트", match: ["/backtest"] },

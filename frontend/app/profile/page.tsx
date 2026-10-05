@@ -82,7 +82,10 @@ function Result() {
         <p className="flow-state">불러오는 중…</p>
       )}
       <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Link href="/survey">다시 설문하기</Link>
+        <span style={{ display: "flex", gap: 16 }}>
+          <Link href="/survey">다시 설문하기</Link>
+          {profile && <Link href="/bounds">종목별 허용범위 보기</Link>}
+        </span>
         <button className="primary" onClick={() => router.push("/compile")} disabled={!profile}>
           전략 만들기로
         </button>
