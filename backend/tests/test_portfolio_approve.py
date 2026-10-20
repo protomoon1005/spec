@@ -105,7 +105,7 @@ def _run(
     row = backtests.create_run(spec_id, period_start=date(2023, 1, 1), period_end=date(2025, 12, 30),
                                seed_money=SEED, feature_set_version="v0.1-ta9")
     if status == backtests.DONE:
-        results: dict = {"universe": _bounds(spec_id)}
+        results: dict = {}
         if no_chain:
             results["validation"] = {"status": "failed", "source": "recorded", "blocked_at": 4}
             results["m2"] = None
@@ -119,13 +119,6 @@ def _run(
 
 def _policy(spec_id: str) -> dict:
     return m2_chain.policy_record(m2_chain.recorded_policy(spec_id))
-
-
-def _bounds(spec_id: str) -> list[dict]:
-    return [
-        {"ticker": u["ticker"], "weight_min": float(u["weight_min"]), "weight_max": float(u["weight_max"])}
-        for u in specs.get_spec_universe(spec_id)
-    ]
 
 
 def _ready(profile) -> tuple[str, int]:
