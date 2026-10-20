@@ -293,7 +293,15 @@ export type BacktestRun = {
   scorer_sources: Record<string, string> | null;
   schedule: { note: string; skipped_rebalance_dates: string[] } | null;
   weight_path: string | null;
-  // 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지(passed) 아닌지(failed · none). 옛 실행에는 없다
-  validation?: { status: "passed" | "failed" | "none"; cash_target?: number; min_interval_days?: number; blocked_at?: number } | null;
+  // 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지(passed) 아닌지(failed · none). 옛 실행에는 없다.
+  // source 는 2026-10-20 부터: stored(승인 시점 저장값) · recorded(마지막 검증 기록) ·
+  // revalidated(기록이 없어 이번 실행에서 같은 검사를 다시 돌림, 기록은 안 남김). none 은 그 전 실행에만 있다
+  validation?: {
+    status: "passed" | "failed" | "none";
+    source?: "stored" | "recorded" | "revalidated";
+    cash_target?: number;
+    min_interval_days?: number;
+    blocked_at?: number;
+  } | null;
   reason: string | null;
 };

@@ -354,8 +354,14 @@ function Edge({ totals }: { totals: SeriesTotals }) {
   );
 }
 
-// 이 실행이 검증 확정값(범위 보정 · 하드캡 · 현금 목표)으로 돌았는지. 하드캡 화면에서 검사를
-// 통과한 전략서만 확정값으로 돈다(backend/app/backtest/inputs.py 머리 주석).
+// 이 실행이 검증 확정값(범위 보정 · 하드캡 · 현금 목표)으로 돌았는지. 검사를 통과한 전략서는
+// 확정값으로, 막힌 전략서는 AI 원래 범위로 돈다(backend/app/backtest/m2_chain.py 머리 주석).
+const VALIDATION_SOURCE: Record<string, string> = {
+  stored: "승인 때 저장된 값",
+  recorded: "하드캡 확인 때 기록된 값",
+  revalidated: "검사 기록이 없어 이번 실행에서 같은 검사를 다시 돌린 값(기록은 안 남김)",
+};
+
 function ValidationUsed({ v }: { v: BacktestRun["validation"] }) {
   if (!v) return <span className="flow-hint">기록 없음 (예전 실행 — AI 원래 범위로 돌았어요)</span>;
   if (v.status === "passed") {
@@ -364,6 +370,7 @@ function ValidationUsed({ v }: { v: BacktestRun["validation"] }) {
         <span className="flow-badge ok">검증 확정값</span>{" "}
         <span className="flow-hint">
           범위 보정 · 하드캡을 반영한 범위로 돌았어요
+          {v.source && VALIDATION_SOURCE[v.source] && ` · ${VALIDATION_SOURCE[v.source]}`}
           {v.cash_target !== undefined && ` · 현금 목표 ${(v.cash_target * 100).toFixed(1)}%`}
           {v.min_interval_days !== undefined && ` · 리밸런싱 최소 ${v.min_interval_days}일`}
         </span>
