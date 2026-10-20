@@ -324,8 +324,8 @@ export type ApprovedPortfolio = Portfolio & {
   weights_as_of: string; // 활성화일(KST)
 };
 
-// 승인 근거는 이 전략서로 지금 확정 범위로 끝까지 돈 백테스트(run_id)다. 승인 · 포트폴리오 ·
-// 초기 가중치가 한 번에 생기고, 이미 승인한 전략서면 409 다.
+// 승인 근거는 이 전략서로 지금 확정값(범위 · 현금 목표 · 1회 손실 · 최소 간격)으로 끝까지 돈
+// 백테스트(run_id)다. 승인 · 포트폴리오 · 초기 가중치가 한 번에 생기고, 이미 승인한 전략서면 409 다.
 export function approveSpec(specId: string, runId: number, comment?: string): Promise<ApprovedPortfolio> {
   return api<ApprovedPortfolio>(`/specs/${encodeURIComponent(specId)}/approve`, {
     method: "POST",

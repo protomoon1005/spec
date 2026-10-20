@@ -81,7 +81,8 @@ def _logs(*, passed: bool = True, cash_target: float = 0.12, clamped: list[dict]
 
 
 def _approve(engine, spec_id: str) -> None:
-    # 승인 API 가 없어 상태만 바꾼다. 트리거는 approved 인 행의 UPDATE 만 막는다(draft → approved 는 된다).
+    # 승인 API(app/m2/approval.py)는 근거 실행이 있어야 해서 상태만 바꾼다.
+    # 트리거는 approved 인 행의 UPDATE 만 막는다(draft → approved 는 된다).
     with engine.begin() as conn:
         conn.execute(text("UPDATE strategy_specs SET status = 'approved' WHERE spec_id = :s"), {"s": spec_id})
 
