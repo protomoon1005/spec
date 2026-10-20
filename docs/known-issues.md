@@ -63,12 +63,12 @@
     트리거가 `approved` 만 막으므로 `running` 전략서는 다시 고칠 수 있게 되어 Spec 불변이 깨진다
   - 같은 이유로 승인을 되돌리는(approved → draft) 보상 처리가 불가능하다. 승인 흐름은 한 트랜잭션이다
 
-- **승인 · 포트폴리오 표의 스키마 판단이 남아 있음** (2026-10-20, 코드로만 막고 표는 안 바꿈)
+- **승인 · 포트폴리오 표의 스키마 판단이 남아 있음** (2026-10-20 기록, 2026-10-21 중복 승인 인덱스는 해결)
   - `approvals` ↔ `portfolios` 를 잇는 칸이 없다. ERD 는 1:1(APPROVALS activates PORTFOLIOS)인데
     `spec_id` 로만 이어진다. 전략서가 draft→approved 를 한 번만 거치므로 지금은 하나로 정해진다
-  - 전략서 하나에 승인 · 포트폴리오가 둘 생기는 것을 막는 유일 제약이 없다. 지금은 전략서 행
-    `SELECT … FOR UPDATE` + draft 확인으로 막는다(8개 동시 요청 → 1개 생성, 테스트 고정).
-    선택지: `approvals (spec_id) WHERE approved` 부분 유일 인덱스 · `portfolios (spec_id)` 유일 인덱스 · 그대로
+  - (해결 2026-10-21) 중복 승인 — 전략서 행 `SELECT … FOR UPDATE` + draft 확인에 더해 DB 부분 유일 인덱스
+    `uq_approvals_spec_approved ON approvals (spec_id) WHERE approved` 를 둔다(`db/migrate/002`). 거절 기록은 여러 번 가능.
+    `portfolios (spec_id)` 에는 걸지 않았다 — 같은 전략서로 포트폴리오를 다시 여는 기능을 막지 않으려고
   - `portfolios.status` 에 CHECK 가 없다. 코드 상수는 `active` 하나(`app/repositories/portfolios.py`).
     정지 · 종료 값을 정할 때 CHECK 를 둘지 함께 정한다
 
@@ -99,13 +99,15 @@
     - approved 이후 — 마지막 검증 기록 + spec_universe 확정 범위(`stored`). 통과 기록이 없으면 실패
     - draft, 기록 있음 — 마지막 검증이 4단 통과면 그 값(`recorded`)
     - draft, 기록 없음 — Validator 를 메모리에서 다시 돌린다(`revalidated`, 기록 안 함). 실측 0.06~0.36초
-    - 막힘(기록 또는 재검증) — `status: failed`. 아래 팀 결정
-  - **검증에서 막힌 전략서를 막을지는 팀 결정** — 지금은 막지 않고 러너 기본 경로(AI 원래 범위, RiskSizer 없음)로 돈다.
-    백테스트 화면에 "AI 원래 범위" 배지로 보인다. 막기로 하면 `m2_chain.FALLBACK_WHEN_BLOCKED = False` 한 줄이다
+    - 막힘(기록 또는 재검증) — 백테스트가 실패한다. 아래
+  - **검증에서 막힌 전략서는 백테스트하지 않는다** (2026-10-21 사용자 결정. 원래 c1f2501 이 "팀 결정"으로 남긴 항목이라
+    팀 공유 필요) — 실패 이유 "검증 N단에서 막힌 전략서는 백테스트하지 않는다 …" 로 끝나고, 백테스트 화면이 하드캡 화면으로
+    안내한다. 예전처럼 러너 기본 경로(AI 원래 범위, RiskSizer 없음)로 돌리려면 `m2_chain.FALLBACK_WHEN_BLOCKED = True` 한 줄이다.
+    그 전에 돈 실행에는 "AI 원래 범위" 배지가 그대로 보인다
     - 막힌 전략서의 `_raw` 를 M2 체인에 넣지 않는 이유: 1장 불변식(Σweight_min ≤ 1 − cash)은 Validator 가 보장하는 것이라
       `_raw` + 성향 기본 현금으로는 깨진다. M1 은 전략서 자신의 `cash_min` 으로만 검사하므로, LLM 이 성향 기본값보다 낮은
       현금을 쓰면 통과한다 — 무작위 5000건 중 20건, 성향 1·현금 0.05·하한 합 0.90 픽스처에서 체인이 거부
-  - 백테스트 자체는 막지 않지만 **승인은 막힌 실행을 근거로 받지 않는다**(409). 승인 근거 실행은 M2 체인을 돌았고
+  - **승인은 M2 체인을 돌지 않은 실행을 근거로 받지 않는다**(409 — 예전 폴백 실행 포함). 승인 근거 실행은 M2 체인을 돌았고
     그 입력(`window_results.m2`: 범위 · 현금 목표 · 1회 손실 · 최소 간격 · 하드캡 버전)이 마지막 검증 기록의 확정값과
     같아야 한다(`m2_chain.recorded_policy` · `same_policy`, 2026-10-20). 출처는 보지 않으므로 기록 전 메모리 재검증으로
     돈 실행도 값이 같으면 근거가 된다. approved 경로(`stored`)는 승인 → 백테스트로 이어 돌고, 결과가 승인 전 실행과
@@ -131,7 +133,7 @@
   - 그룹캡을 비례 축소만 해서 종목이 weight_min 아래로 내려간다(2장 5단계 "축소 후에도 lo 이상" 위반) —
     Validator 확정 범위 무작위 2000건 중 1375건, M2 체인은 0건 (2026-10-20 측정)
   - M2 체인은 3회 뒤 최종 보정(docs/m2-algorithms.md 2장 "2~4단계 해석과 보완")과 하한 고정 축소로 막지만,
-    기본 경로(`scripts/run_backtest_vbt.py` · TS 대조 · 검증에서 막힌 전략서의 폴백)는 그대로다.
+    기본 경로(`scripts/run_backtest_vbt.py` · TS 대조, 폴백을 켜면 막힌 전략서도)는 그대로다.
     하늘 러너는 고치지 않기로 했고(2026-10-04 팀 결정), 고치면 TS 쪽(`lib/backtest.ts`)도 같이 바꿔야 두 러너 대조가 유지된다
 
 - **OrderBuilder 의 최소 거래 폭 수치가 없음**

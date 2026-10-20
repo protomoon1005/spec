@@ -1,7 +1,7 @@
 """백테스트가 쓸 Validator 확정값 고르기 — app/backtest/m2_chain.resolve_policy.
 
 표는 m2_chain 머리 주석에 있다. approved 이후는 저장값, draft 는 기록된 통과 검증 → 없으면 메모리
-재검증, 막히면 비차단 폴백(FALLBACK_WHEN_BLOCKED). pandas 없이 돈다 — 기록된 검증만 읽는
+재검증, 막히면 실패(FALLBACK_WHEN_BLOCKED 를 켜면 러너 기본 경로). pandas 없이 돈다 — 기록된 검증만 읽는
 경우는 가격이 필요 없고, 메모리 재검증은 2단 가격 대조가 실가격을 읽으므로 requires_backfill 이다.
 """
 from __future__ import annotations
@@ -124,24 +124,26 @@ def test_clamped_loss_limit_wins_over_the_requested_one(make_spec):
     assert m2_chain.resolve_policy(spec_id, as_of=AS_OF).confirmed.max_loss_per_trade == 0.05
 
 
-def test_recorded_block_falls_back_without_confirmed_values(make_spec):
+def test_recorded_block_stops_the_backtest(make_spec):
+    # 검증을 통과한 명세만 집행한다(2026-10-21 결정) — 막힌 전략서는 백테스트도 돌지 않는다
+    spec_id = make_spec(TWO)
+    specs.record_validation(spec_id, bounds=None, logs=_logs(passed=False))
+
+    blocked = "검증 4단에서 막힌 전략서는 백테스트하지 않는다.*: 레버리지"
+    with pytest.raises(m2_chain.ChainError, match=blocked):
+        m2_chain.resolve_policy(spec_id, as_of=AS_OF)
+
+
+def test_block_policy_is_one_switch(make_spec, monkeypatch):
+    # 되돌리면 예전 정책(c1f2501) — 확정값 없이 러너 기본 경로로 돈다
+    monkeypatch.setattr(m2_chain, "FALLBACK_WHEN_BLOCKED", True)
     spec_id = make_spec(TWO)
     specs.record_validation(spec_id, bounds=None, logs=_logs(passed=False))
 
     choice = m2_chain.resolve_policy(spec_id, as_of=AS_OF)
 
-    assert choice.confirmed is None  # 러너 기본 경로로 돈다
+    assert choice.confirmed is None
     assert choice.validation == {"status": "failed", "source": "recorded", "blocked_at": 4}
-
-
-def test_block_policy_is_one_switch(make_spec, monkeypatch):
-    # 막을지는 팀 결정이다 — 바꾸면 그 자리에서 실패한다
-    monkeypatch.setattr(m2_chain, "FALLBACK_WHEN_BLOCKED", False)
-    spec_id = make_spec(TWO)
-    specs.record_validation(spec_id, bounds=None, logs=_logs(passed=False))
-
-    with pytest.raises(m2_chain.ChainError, match="4단에서 막힌 전략서다: 레버리지"):
-        m2_chain.resolve_policy(spec_id, as_of=AS_OF)
 
 
 def test_latest_validation_wins(make_spec, engine):
@@ -196,11 +198,9 @@ def test_unrecorded_draft_is_revalidated_in_memory_and_nothing_is_written(make_s
 
 
 @pytest.mark.requires_backfill
-def test_unrecorded_blocked_draft_falls_back(make_spec):
-    # 레버리지는 하드캡 v0.1 이 막는다(4단)
+def test_unrecorded_blocked_draft_stops_the_backtest(make_spec):
+    # 레버리지는 하드캡 v0.1 이 막는다(4단). 기록이 없어도 메모리 재검증에서 막히면 실패
     spec_id = make_spec([("069500", 0.05, 0.20), ("122630", 0.00, 0.10)])
 
-    choice = m2_chain.resolve_policy(spec_id, as_of=AS_OF)
-
-    assert choice.confirmed is None
-    assert choice.validation == {"status": "failed", "source": "revalidated", "blocked_at": 4}
+    with pytest.raises(m2_chain.ChainError, match="검증 4단에서 막힌 전략서는 백테스트하지 않는다"):
+        m2_chain.resolve_policy(spec_id, as_of=AS_OF)

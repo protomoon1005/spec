@@ -8,9 +8,9 @@
                     승인된 전략서에 통과 기록이 없는 건 정책 문제가 아니라 기록이 깨진 것이다.
   draft, 기록 있음   마지막 검증이 4단 통과면 그 값(사용자가 하드캡 화면에서 본 값)을 쓴다.
   draft, 기록 없음   Validator 순수 파이프라인을 메모리에서만 돌린다(기록 안 함). 통과면 그 값.
-  그 밖(막힘)        확정값이 없다. 막지 않고 러너 기본 경로(_raw + resolve_bounds + 성향 기본 현금,
-                    M2 체인 없음)로 돌린다. 막을지는 팀 결정이라(docs/known-issues.md)
-                    FALLBACK_WHEN_BLOCKED 한 줄로 바꿀 수 있게 둔다.
+  그 밖(막힘)        확정값이 없다. 백테스트를 그 자리에서 실패시킨다(2026-10-21 결정, "검증을 통과한
+                    명세만 집행한다"). 예전처럼 러너 기본 경로(_raw + resolve_bounds + 성향 기본 현금,
+                    M2 체인 없음)로 돌리려면 FALLBACK_WHEN_BLOCKED 를 True 로 되돌린다 — 그 한 줄이다.
 M2 체인에는 확정값만 넣는다. 1장 불변식(Σweight_min ≤ 1 − cash)은 Validator 가 보장하는 것이라
 _raw 를 넣으면 깨질 수 있다 — 성향 기본 현금보다 낮은 cash_min 을 쓴 전략서에서 실제로 깨진다.
 
@@ -47,9 +47,9 @@ from app.views.market.features import FEATURE_WARMUP_ROWS, compute_features
 STORED_STATUSES = ("approved", "running", "closed")
 STAGES = {1, 2, 3, 4}
 
-# 검증에서 막힌 draft 를 막지 않고 러너 기본 경로로 돌린다(c1f2501 의 정책). 막을지는 팀 결정이다.
-# False 로 바꾸면 막힌 전략서의 백테스트가 그 자리에서 실패한다 — 바꿀 곳은 이 한 줄이다.
-FALLBACK_WHEN_BLOCKED = True
+# 검증에서 막힌 draft 의 백테스트를 막는다(2026-10-21 사용자 결정, docs/m2-체인통합-승인-결정기록.md).
+# True 로 되돌리면 c1f2501 의 정책대로 막지 않고 러너 기본 경로(AI 원래 범위)로 돈다 — 바꿀 곳은 이 한 줄이다.
+FALLBACK_WHEN_BLOCKED = False
 
 
 class ChainError(Exception):
@@ -177,7 +177,11 @@ def _passed(confirmed: ConfirmedPolicy, logs: Sequence[Mapping] = ()) -> PolicyC
 
 def _blocked(blocked_at: int | None, reasons: Sequence[str], *, source: str) -> PolicyChoice:
     if not FALLBACK_WHEN_BLOCKED:
-        raise ChainError(f"Validator {blocked_at}단에서 막힌 전략서다: " + "; ".join(reasons[:3]))
+        reason = "; ".join(r for r in reasons[:3] if r)
+        raise ChainError(
+            f"검증 {blocked_at}단에서 막힌 전략서는 백테스트하지 않는다 — 고친 뒤 다시 검증한다"
+            + (f": {reason}" if reason else "")
+        )
     return PolicyChoice(
         confirmed=None, validation={"status": "failed", "source": source, "blocked_at": blocked_at}
     )

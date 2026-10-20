@@ -172,20 +172,28 @@ function LiveRun({ specId }: { specId: string }) {
 function Failure({ reason }: { reason: string | null | undefined }) {
   const raw = reason ?? "이유를 받지 못했어요";
   const rebalance = raw.startsWith("러너가 지원하지 않는 리밸런싱 규칙");
+  // backend m2_chain._blocked 의 문장. 검증을 통과한 전략서만 백테스트한다(2026-10-21 결정).
+  const blocked = raw.includes("막힌 전략서는 백테스트하지 않는다");
   return (
     <div className="flow-msg err" role="alert">
       <p style={{ color: "var(--c-bright)" }}>
         {rebalance
           ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 매주 · 매달 첫 거래일 규칙만 돌릴 수 있어요."
-          : `실패 이유: ${raw}`}
+          : blocked
+            ? "하드캡 검증을 통과하지 못한 전략서라 백테스트하지 않았어요. 검증을 통과한 전략서만 돌립니다."
+            : `실패 이유: ${raw}`}
       </p>
-      {rebalance && (
+      {(rebalance || blocked) && (
         <p className="mono flow-hint" style={{ marginTop: 6, fontSize: 11 }}>
           {raw}
         </p>
       )}
       <p style={{ marginTop: 8 }}>
-        <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
+        {blocked ? (
+          <Link href="/hardcap">하드캡 검증 화면에서 무엇이 걸렸는지 보기</Link>
+        ) : (
+          <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
+        )}
       </p>
     </div>
   );
@@ -354,8 +362,8 @@ function Edge({ totals }: { totals: SeriesTotals }) {
   );
 }
 
-// 이 실행이 검증 확정값(범위 보정 · 하드캡 · 현금 목표)으로 돌았는지. 검사를 통과한 전략서는
-// 확정값으로, 막힌 전략서는 AI 원래 범위로 돈다(backend/app/backtest/m2_chain.py 머리 주석).
+// 이 실행이 검증 확정값(범위 보정 · 하드캡 · 현금 목표)으로 돌았는지(backend/app/backtest/m2_chain.py
+// 머리 주석). 2026-10-21 부터 막힌 전략서는 백테스트가 실패하므로, "AI 원래 범위" 표시는 그 전 실행에만 나온다.
 const VALIDATION_SOURCE: Record<string, string> = {
   stored: "승인 때 저장된 값",
   recorded: "하드캡 확인 때 기록된 값",
