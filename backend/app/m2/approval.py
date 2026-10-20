@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy import Connection
+
 from app.backtest import m2_chain
 from app.repositories import backtests, portfolios, specs
 from app.scoring import live
@@ -64,8 +66,10 @@ def approve(spec_id: str, *, user_id: int, run_id: int, user_comment: str | None
             raise ApprovalError(NOT_FOUND, "전략서를 찾을 수 없다")
         if spec["status"] != specs.DRAFT:
             raise ApprovalError(NOT_DRAFT, "draft 전략서만 승인할 수 있다")
-        current = _require_validation(spec_id)
-        run = _require_run(spec_id, run_id=run_id, user_id=user_id, current=current)
+        # 아래 읽기는 전부 잠금을 쥔 이 연결에서 한다 — 풀에서 따로 빌리면 동시 요청이 몰릴 때
+        # 잠금 대기자들이 풀을 다 잡아 모두 30초 멈춘다(2026-10-21 리뷰, 20건 재현).
+        current = _require_validation(spec_id, conn=conn)
+        run = _require_run(spec_id, run_id=run_id, user_id=user_id, current=current, conn=conn)
 
         row = portfolios.activate(
             conn,
@@ -79,15 +83,17 @@ def approve(spec_id: str, *, user_id: int, run_id: int, user_comment: str | None
     return Approved(portfolio=row, initial_weights=weights)
 
 
-def _require_validation(spec_id: str) -> m2_chain.ConfirmedPolicy:
+def _require_validation(spec_id: str, *, conn: Connection) -> m2_chain.ConfirmedPolicy:
     try:
-        return m2_chain.recorded_policy(spec_id)
+        return m2_chain.recorded_policy(spec_id, conn=conn)
     except m2_chain.ChainError as exc:
         raise ApprovalError(NOT_VALIDATED, "검증을 4단까지 통과한 전략서만 승인할 수 있다") from exc
 
 
-def _require_run(spec_id: str, *, run_id: int, user_id: int, current: m2_chain.ConfirmedPolicy) -> dict:
-    run = backtests.get_run(run_id)
+def _require_run(
+    spec_id: str, *, run_id: int, user_id: int, current: m2_chain.ConfirmedPolicy, conn: Connection
+) -> dict:
+    run = backtests.get_run(run_id, conn=conn)
     if run is None or run["user_id"] != user_id:
         raise ApprovalError(RUN_NOT_FOUND, "실행 기록을 찾을 수 없다")
     if run["spec_id"] != spec_id:

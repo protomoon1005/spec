@@ -29,8 +29,18 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from sqlalchemy import Connection
+
 from app.m2.orders import build_orders
-from app.m2.weights import TOLERANCE, AssetLimit, CapStep, compute_target_weights, risk_caps
+from app.m2.weights import (
+    ATR_MULTIPLE,
+    RISK_SIZER_VERSION,
+    TOLERANCE,
+    AssetLimit,
+    CapStep,
+    compute_target_weights,
+    risk_caps,
+)
 from app.repositories import price_daily, specs
 from app.views.market.features import FEATURE_WARMUP_ROWS, compute_features
 
@@ -86,12 +96,15 @@ def resolve_policy(spec_id: str, *, as_of: date) -> PolicyChoice:
     return _revalidate(spec_id, spec, as_of=as_of)
 
 
-def recorded_policy(spec_id: str) -> ConfirmedPolicy:
-    """마지막 검증 기록이 4단 통과면 그 확정값. 아니면 ChainError. 승인 검사가 쓴다."""
-    spec, logs = _spec_and_logs(spec_id)
+def recorded_policy(spec_id: str, *, conn: Connection | None = None) -> ConfirmedPolicy:
+    """마지막 검증 기록이 4단 통과면 그 확정값. 아니면 ChainError. 승인 검사가 쓴다.
+
+    conn 은 승인 트랜잭션의 연결이다 — 전략서 행 잠금 아래에서 같은 연결로 읽는다.
+    """
+    spec, logs = _spec_and_logs(spec_id, conn=conn)
     if not _all_passed(logs):
         raise ChainError(f"검증을 4단까지 통과한 기록이 없다: {spec_id}")
-    return _from_logs(spec_id, spec, logs, source="recorded")
+    return _from_logs(spec_id, spec, logs, source="recorded", conn=conn)
 
 
 def policy_record(confirmed: ConfirmedPolicy) -> dict:
@@ -103,6 +116,8 @@ def policy_record(confirmed: ConfirmedPolicy) -> dict:
         "max_loss_per_trade": confirmed.max_loss_per_trade,
         "min_interval_days": confirmed.min_interval_days,
         "bounds": {t: list(b) for t, b in confirmed.bounds.items()},
+        # 보유 기간 h 는 리밸런싱 규칙에서 나오므로 service 가 horizon_days 로 더한다
+        "risk_sizer": {"version": RISK_SIZER_VERSION, "atr_multiple": ATR_MULTIPLE},
     }
 
 
@@ -110,11 +125,15 @@ def same_policy(used: Mapping | None, current: ConfirmedPolicy) -> bool:
     """실행이 쓴 확정값(window_results.m2)이 지금 확정값과 같은가.
 
     출처(source)는 보지 않는다 — 메모리 재검증과 기록된 검증은 같은 계산이다. 숫자는 JSON 왕복
-    오차만 허용한다.
+    오차만 허용한다. 하드캡 버전 표기도 보지 않는다 — 기록 경로는 전략서의 버전을, 재검증은 활성
+    버전을 적어 버전이 갈리면 값이 같아도 어긋난다(검증 기록에 쓴 버전 칸이 없다, known-issues).
+    하드캡이 바꾼 값은 위 숫자에 이미 들어 있다. RiskSizer 버전 · 상수는 본다 — 같은 확정값이라도
+    상수가 바뀌면 비중이 달라진다.
     """
     if not used:
         return False
-    if used.get("hardcap_version") != current.hardcap_version:
+    sizer = used.get("risk_sizer") or {}
+    if sizer.get("version") != RISK_SIZER_VERSION or sizer.get("atr_multiple") != ATR_MULTIPLE:
         return False
     if int(used.get("min_interval_days", -1)) != current.min_interval_days:
         return False
@@ -132,12 +151,12 @@ def same_policy(used: Mapping | None, current: ConfirmedPolicy) -> bool:
     )
 
 
-def _spec_and_logs(spec_id: str) -> tuple[dict, list[dict]]:
+def _spec_and_logs(spec_id: str, *, conn: Connection | None = None) -> tuple[dict, list[dict]]:
     # 전략서와 그 마지막 검증 기록(단계마다 한 행). resolve_policy · recorded_policy 가 같이 쓴다.
-    spec = specs.get_spec(spec_id)
+    spec = specs.get_spec(spec_id, conn=conn)
     if spec is None:
         raise ChainError(f"전략서가 없다: {spec_id}")
-    return spec, specs.latest_validation(spec_id)
+    return spec, specs.latest_validation(spec_id, conn=conn)
 
 
 def _all_passed(logs: Sequence[Mapping]) -> bool:
@@ -191,12 +210,14 @@ def _revalidate(spec_id: str, spec: dict, *, as_of: date) -> PolicyChoice:
     )
 
 
-def _from_logs(spec_id: str, spec: dict, logs: Sequence[Mapping], *, source: str) -> ConfirmedPolicy:
+def _from_logs(
+    spec_id: str, spec: dict, logs: Sequence[Mapping], *, source: str, conn: Connection | None = None
+) -> ConfirmedPolicy:
     by_stage = {row["stage"]: row for row in logs}
     adjusted = by_stage[3]["adjusted_bounds"] or {}
     if adjusted.get("cash_target") is None:
         raise ChainError(f"검증 기록에 현금 목표가 없다: {spec_id}")
-    universe = specs.get_spec_universe(spec_id)
+    universe = specs.get_spec_universe(spec_id, conn=conn)
     if any(u["weight_min"] is None or u["weight_max"] is None for u in universe):
         raise ChainError(f"확정 비중 범위가 비어 있다: {spec_id}")
     applied = _applied(by_stage[4]["clamped_fields"] or ())

@@ -52,7 +52,7 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
     입력을 만들 수 없으면 BacktestFailed.
     """
     from app.contracts.view_weights import VIEW_TYPES
-    from app.m2.weights import ATR_MULTIPLE, WeightChainError, horizon_for
+    from app.m2.weights import WeightChainError, horizon_for
     from app.views.bridge import SCORERS, scorer_source
 
     from .inputs import MARKET_TICKER, InputError, build_inputs
@@ -102,12 +102,10 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
             for decision in series["decisions"]:
                 decision["m2"] = w.records[decision["date"]]
         weight_path, used_ranges = M2_CHAIN_PATH, confirmed.bounds
-        m2 = {
-            # Validator 확정값과 범위. universe 의 키는 프론트 결과 파일과 맞춰 두므로 범위도 여기 따로 둔다.
-            # 승인 검사(app/m2/approval.py)가 이 값을 지금 확정값과 대조한다.
-            **policy_record(confirmed),
-            "risk_sizer": {"version": "v0.1", "atr_multiple": ATR_MULTIPLE, "horizon_days": horizon},
-        }
+        # Validator 확정값과 범위 · RiskSizer 상수. universe 의 키는 프론트 결과 파일과 맞춰 두므로
+        # 범위도 여기 따로 둔다. 승인 검사(app/m2/approval.py)가 이 값을 지금 확정값과 대조한다.
+        m2 = policy_record(confirmed)
+        m2["risk_sizer"]["horizon_days"] = horizon
     market = run_buy_and_hold(inp.prices_wide[MARKET_TICKER], inp.valuation_dates, seed_money)
 
     dates = inp.valuation_dates

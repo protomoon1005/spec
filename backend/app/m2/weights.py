@@ -22,6 +22,7 @@ from app.contracts.target_weights import GroupCapApplication, TargetWeights
 
 # ── RiskSizer v0.1 상수 (docs/m2-algorithms.md 2장 소절, 2026-10-04 M2 결정) ──
 # 바꾸면 버전을 올린다. 근거는 문서에 있다.
+RISK_SIZER_VERSION = "v0.1"
 ATR_MULTIPLE = 2
 HORIZON_DAYS = {"monthly": 21, "weekly": 5}  # 리밸런싱 사이 보유 기간(거래일)
 

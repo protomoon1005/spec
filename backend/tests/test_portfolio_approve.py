@@ -322,9 +322,12 @@ def test_run_checks(engine, client, make_owner):
     longer = {**policy, "min_interval_days": policy["min_interval_days"] + 1}
     assert approve(_run(spec_id, m2=longer))[0] == 409  # 최소 간격
     assert approve(_run(spec_id, m2={**policy, "max_loss_per_trade": 0.01}))[0] == 409  # 1회 손실 한도
+    old_sizer = {**policy, "risk_sizer": {**policy["risk_sizer"], "version": "v0.0"}}
+    assert approve(_run(spec_id, m2=old_sizer))[0] == 409  # 다른 RiskSizer 버전으로 돈 실행
     assert _counts(engine, spec_id) == {"approvals": 0, "portfolios": 0, "weights": 0, "status": "draft"}
-    # 출처(source)는 보지 않는다 — 메모리 재검증으로 돈 실행도 값이 같으면 된다
-    assert approve(_run(spec_id, m2={**policy, "source": "revalidated"}))[0] == 201
+    # 출처(source) · 하드캡 버전 표기는 보지 않는다 — 메모리 재검증은 활성 버전을 적지만 값이 같으면 된다
+    relabeled = {**policy, "source": "revalidated", "hardcap_version": "v0.2-다른표기"}
+    assert approve(_run(spec_id, m2=relabeled))[0] == 201
 
 
 # ── 원자성 · 동시성 ─────────────────────────────────────────────────────
@@ -348,10 +351,12 @@ def test_weight_write_failure_rolls_back_everything(engine, client, make_owner, 
     assert _counts(engine, spec_id) == {"approvals": 1, "portfolios": 1, "weights": 3, "status": "approved"}
 
 
-def test_concurrent_approvals_create_one_portfolio(engine, make_owner):
+# 20 은 커넥션 풀(기본 5 + 넘침 10)보다 많다. 잠금 뒤 읽기가 풀에서 따로 연결을 빌리면 여기서
+# 잠금 대기자들이 풀을 다 잡아 TimeoutError 가 난다(2026-10-21 리뷰 재현: 20건 중 6건, 30초).
+@pytest.mark.parametrize("n", [8, 20])
+def test_concurrent_approvals_create_one_portfolio(engine, make_owner, n):
     _, profile = make_owner()
     spec_id, run_id = _ready(profile)
-    n = 8
     barrier = threading.Barrier(n)
     outcomes: list[str] = []
     lock = threading.Lock()

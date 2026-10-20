@@ -20,9 +20,9 @@ import json
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
-from app.core.db import get_engine
+from app.core.db import get_engine, reading
 
 SPEC_ID_PREFIX = "STR"
 DRAFT = "draft"
@@ -113,8 +113,9 @@ def insert_spec(
     )
 
 
-def get_spec(spec_id: str) -> dict | None:
-    with get_engine().connect() as conn:
+def get_spec(spec_id: str, *, conn: Connection | None = None) -> dict | None:
+    # conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
+    with reading(conn) as conn:
         row = conn.execute(
             text(
                 """
@@ -129,8 +130,9 @@ def get_spec(spec_id: str) -> dict | None:
     return dict(row._mapping) if row is not None else None
 
 
-def get_spec_universe(spec_id: str) -> list[dict]:
-    with get_engine().connect() as conn:
+def get_spec_universe(spec_id: str, *, conn: Connection | None = None) -> list[dict]:
+    # conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
+    with reading(conn) as conn:
         rows = conn.execute(
             text(
                 """
@@ -237,13 +239,15 @@ def record_validation(spec_id: str, *, bounds: list[dict] | None, logs: list[dic
             )
 
 
-def latest_validation(spec_id: str) -> list[dict]:
+def latest_validation(spec_id: str, *, conn: Connection | None = None) -> list[dict]:
     """가장 최근 검증 한 번의 단계별 기록. 단계 순서대로. 검증한 적이 없으면 빈 목록.
 
     record_validation 은 한 번의 검증을 한 트랜잭션으로 넣으므로 그 행들의 checked_at
     (트랜잭션 시작 시각)이 같다. 가장 늦은 checked_at 의 행들이 마지막 검증이다.
+
+    conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
     """
-    with get_engine().connect() as conn:
+    with reading(conn) as conn:
         rows = conn.execute(
             text(
                 """
