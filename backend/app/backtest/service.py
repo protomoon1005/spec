@@ -56,7 +56,7 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
     from app.views.bridge import SCORERS, scorer_source
 
     from .inputs import MARKET_TICKER, InputError, build_inputs
-    from .m2_chain import AtrSource, ChainError, M2Weigher, load_bars, policy_record, resolve_policy
+    from .m2_chain import AtrSource, ChainError, M2Weigher, policy_record, resolve_policy
     from .policy import CAP_EXEMPT_GROUPS, caps_for
     from .runner import run, run_buy_and_hold
 
@@ -79,7 +79,7 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
         control = run(*args, seed_money, use_signals=False)
         weight_path, m2, used_ranges = RUNNER_DEFAULT_PATH, None, inp.final_ranges
     else:
-        atr = AtrSource(load_bars([h["ticker"] for h in inp.holdings], as_of=period_end))
+        atr = AtrSource.load([h["ticker"] for h in inp.holdings], as_of=period_end)
 
         def weigher() -> M2Weigher:
             # 계열마다 새로 만든다 — 주문은 그 계열의 직전 목표 비중에서 나온다.

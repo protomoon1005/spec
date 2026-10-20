@@ -34,7 +34,6 @@ from app.m2.weights import TOLERANCE, AssetLimit, CapStep, compute_target_weight
 from app.repositories import price_daily, specs
 from app.views.market.features import FEATURE_WARMUP_ROWS, compute_features
 
-DRAFT = "draft"
 STORED_STATUSES = ("approved", "running", "closed")
 STAGES = {1, 2, 3, 4}
 
@@ -56,15 +55,6 @@ class ConfirmedPolicy:
     max_loss_per_trade: float
     min_interval_days: int
 
-    def as_dict(self) -> dict:
-        return {
-            "source": self.source,
-            "hardcap_version": self.hardcap_version,
-            "cash_target": self.cash_target,
-            "max_loss_per_trade": self.max_loss_per_trade,
-            "min_interval_days": self.min_interval_days,
-        }
-
 
 @dataclass(frozen=True)
 class PolicyChoice:
@@ -78,14 +68,11 @@ class PolicyChoice:
 
 def resolve_policy(spec_id: str, *, as_of: date) -> PolicyChoice:
     """백테스트가 쓸 확정값을 고른다(머리 주석의 표). as_of 는 백테스트 구간의 끝이다."""
-    spec = specs.get_spec(spec_id)
-    if spec is None:
-        raise ChainError(f"전략서가 없다: {spec_id}")
+    spec, logs = _spec_and_logs(spec_id)
     status = spec["status"]
-    if status != DRAFT and status not in STORED_STATUSES:
+    if status != specs.DRAFT and status not in STORED_STATUSES:
         raise ChainError(f"알 수 없는 전략서 상태: {status}")
 
-    logs = specs.latest_validation(spec_id)
     if status in STORED_STATUSES:
         if not _all_passed(logs):
             raise ChainError(f"{status} 전략서인데 통과한 검증 기록이 없다: {spec_id}")
@@ -101,10 +88,7 @@ def resolve_policy(spec_id: str, *, as_of: date) -> PolicyChoice:
 
 def recorded_policy(spec_id: str) -> ConfirmedPolicy:
     """마지막 검증 기록이 4단 통과면 그 확정값. 아니면 ChainError. 승인 검사가 쓴다."""
-    spec = specs.get_spec(spec_id)
-    if spec is None:
-        raise ChainError(f"전략서가 없다: {spec_id}")
-    logs = specs.latest_validation(spec_id)
+    spec, logs = _spec_and_logs(spec_id)
     if not _all_passed(logs):
         raise ChainError(f"검증을 4단까지 통과한 기록이 없다: {spec_id}")
     return _from_logs(spec_id, spec, logs, source="recorded")
@@ -112,7 +96,14 @@ def recorded_policy(spec_id: str) -> ConfirmedPolicy:
 
 def policy_record(confirmed: ConfirmedPolicy) -> dict:
     """window_results.m2 의 확정값 부분. 범위는 JSON 에 맞춰 [하한, 상한] 목록으로 둔다."""
-    return {**confirmed.as_dict(), "bounds": {t: list(b) for t, b in confirmed.bounds.items()}}
+    return {
+        "source": confirmed.source,
+        "hardcap_version": confirmed.hardcap_version,
+        "cash_target": confirmed.cash_target,
+        "max_loss_per_trade": confirmed.max_loss_per_trade,
+        "min_interval_days": confirmed.min_interval_days,
+        "bounds": {t: list(b) for t, b in confirmed.bounds.items()},
+    }
 
 
 def same_policy(used: Mapping | None, current: ConfirmedPolicy) -> bool:
@@ -141,6 +132,14 @@ def same_policy(used: Mapping | None, current: ConfirmedPolicy) -> bool:
     )
 
 
+def _spec_and_logs(spec_id: str) -> tuple[dict, list[dict]]:
+    # 전략서와 그 마지막 검증 기록(단계마다 한 행). resolve_policy · recorded_policy 가 같이 쓴다.
+    spec = specs.get_spec(spec_id)
+    if spec is None:
+        raise ChainError(f"전략서가 없다: {spec_id}")
+    return spec, specs.latest_validation(spec_id)
+
+
 def _all_passed(logs: Sequence[Mapping]) -> bool:
     return {r["stage"] for r in logs} == STAGES and all(r["passed"] for r in logs)
 
@@ -159,7 +158,7 @@ def _passed(confirmed: ConfirmedPolicy, logs: Sequence[Mapping] = ()) -> PolicyC
 
 def _blocked(blocked_at: int | None, reasons: Sequence[str], *, source: str) -> PolicyChoice:
     if not FALLBACK_WHEN_BLOCKED:
-        raise ChainError(f"Validator {blocked_at}단에서 막힌 전략서다: " + "; ".join(list(reasons)[:3]))
+        raise ChainError(f"Validator {blocked_at}단에서 막힌 전략서다: " + "; ".join(reasons[:3]))
     return PolicyChoice(
         confirmed=None, validation={"status": "failed", "source": source, "blocked_at": blocked_at}
     )
@@ -235,16 +234,17 @@ def _interval(spec: dict, applied: Mapping) -> int:
 # --- ATR ---------------------------------------------------------------------
 
 
-def load_bars(tickers: Sequence[str], *, as_of: date) -> dict[str, list[dict]]:
-    return price_daily.get_bar_history(list(tickers), as_of=as_of)
-
-
 class AtrSource:
     """리밸런싱일별 atr_14_pct. 워밍업 미달·고가/저가 결측이면 None."""
 
     def __init__(self, bars: Mapping[str, list[dict]]) -> None:
         self._bars = dict(bars)
         self._dates = {t: [row["trade_date"] for row in rows] for t, rows in bars.items()}
+
+    @classmethod
+    def load(cls, tickers: Sequence[str], *, as_of: date) -> AtrSource:
+        """as_of 까지의 일봉을 읽어 만든다. as_of 는 백테스트 구간의 끝이다."""
+        return cls(price_daily.get_bar_history(list(tickers), as_of=as_of))
 
     def atr_pct(self, ticker: str, as_of: date) -> float | None:
         rows = self._bars.get(ticker, [])
@@ -320,12 +320,15 @@ class M2Weigher:
             }
             for s in decision.steps
         ]
+        used_caps = decision.risk_caps
         self.records[d] = {
             "atrPct": atr,
-            "riskCaps": caps,
+            "riskCaps": used_caps,
             # RiskSizer 상한이 weight_max 보다 작아 실제로 매핑 상한이 된 종목
             "riskCapBound": [
-                a.ticker for a in self._assets if caps[a.ticker] is not None and caps[a.ticker] < a.weight_max
+                a.ticker
+                for a in self._assets
+                if used_caps[a.ticker] is not None and used_caps[a.ticker] < a.weight_max
             ],
             "bounds": {t: [lo, hi] for t, (lo, hi) in decision.bounds.items()},
             "linear": decision.linear,

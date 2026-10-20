@@ -231,8 +231,6 @@ def test_min_interval_keeps_the_first_and_drops_what_is_too_close():
     assert skipped == ["2024-12-30"]  # 건너뛴 뒤 간격은 남긴 날짜부터 다시 잰다
 
 
-
-
 # ── 검증 결과 쓰기 ────────────────────────────────────────────────────
 # 어떤 확정값을 쓸지는 app/backtest/m2_chain.resolve_policy 가 정한다(tests/test_m2_chain.py).
 # 여기서는 조립이 그 값(간격)을 받아 쓰는지와, 실행 기록용 확정 범위를 읽는지만 본다.
@@ -285,7 +283,7 @@ def test_confirmed_interval_replaces_the_requested_one(make_spec):
 @pytest.mark.requires_backfill
 def test_m2_chain_holds_targets_inside_confirmed_ranges_and_cash(make_spec):
     """확정 범위 · 현금을 M2 체인에 넘기면 러너가 그 안에서 비중을 낸다. 신호 없는 대조군으로 본다."""
-    from app.backtest.m2_chain import AtrSource, ConfirmedPolicy, M2Weigher, load_bars
+    from app.backtest.m2_chain import AtrSource, ConfirmedPolicy, M2Weigher
     from app.backtest.policy import CAP_EXEMPT_GROUPS, caps_for
     from app.backtest.runner import run
 
@@ -298,7 +296,7 @@ def test_m2_chain_holds_targets_inside_confirmed_ranges_and_cash(make_spec):
     )
     weigh = M2Weigher(
         inp.holdings, confirmed, caps=caps_for(inp.risk_level), exempt=CAP_EXEMPT_GROUPS, horizon_days=5,
-        atr=AtrSource(load_bars([h["ticker"] for h in inp.holdings], as_of=PERIOD_END)),
+        atr=AtrSource.load([h["ticker"] for h in inp.holdings], as_of=PERIOD_END),
     )
 
     out = run(
