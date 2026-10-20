@@ -468,6 +468,9 @@ CREATE UNIQUE INDEX uq_preset_lookup   ON asset_bound_presets (preset_version, r
 -- 관점 가중치는 as_of 기준 최신 행을 읽는다
 CREATE UNIQUE INDEX uq_view_weight     ON view_weights (portfolio_id, as_of, view_type);
 
+-- 전략서 하나에 승인함 기록은 하나 (db/migrate/002, 2026-10-21). 거절(approved = false)은 여러 번 가능
+CREATE UNIQUE INDEX uq_approvals_spec_approved ON approvals (spec_id) WHERE approved;
+
 -- 결정 기록 조회 및 감사 추적
 CREATE INDEX idx_decision_spec_asof    ON decision_records (spec_id, as_of DESC);
 CREATE INDEX idx_viewscore_decision    ON view_scores      (decision_id, view_type);

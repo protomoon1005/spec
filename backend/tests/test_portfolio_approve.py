@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.backtest import m2_chain
 from app.m1 import candidates as C
@@ -381,6 +382,38 @@ def test_concurrent_approvals_create_one_portfolio(engine, make_owner, n):
 
     assert sorted(outcomes) == ["not_draft"] * (n - 1) + ["ok"]
     assert _counts(engine, spec_id) == {"approvals": 1, "portfolios": 1, "weights": 3, "status": "approved"}
+
+
+def test_db_index_backs_up_the_lock(engine, client, make_owner, monkeypatch):
+    # 잠금 코드가 우회돼도 DB 유일 인덱스(db/migrate/002)가 두 번째 승인을 막고, 500 이 아니라 409 다
+    email, profile = make_owner()
+    headers = _auth(client, email)
+    spec_id, run_id = _ready(profile)
+    first = client.post(f"/specs/{spec_id}/approve", json={"run_id": run_id}, headers=headers)
+    assert first.status_code == 201
+
+    from app.repositories import portfolios
+
+    def no_lock(conn, spec_id):  # 잠그지 않고 늘 draft 라고 답하는 고장 난 잠금
+        return {"spec_id": spec_id, "user_id": profile.user_id, "status": specs.DRAFT}
+
+    monkeypatch.setattr(portfolios, "lock_spec", no_lock)
+    again = client.post(f"/specs/{spec_id}/approve", json={"run_id": run_id}, headers=headers)
+
+    assert again.status_code == 409, again.text
+    assert _counts(engine, spec_id) == {"approvals": 1, "portfolios": 1, "weights": 3, "status": "approved"}
+
+
+def test_rejections_are_not_limited_by_the_index(engine, make_owner):
+    # 부분 인덱스라 거절 기록(approved = false)은 여러 번 남는다 — 승인함만 하나
+    _, profile = make_owner()
+    spec_id = _save_spec(profile)
+    insert = text("INSERT INTO approvals (spec_id, user_id, approved) VALUES (:s, :u, :a)")
+    with engine.begin() as conn:
+        for approved in (False, False, True):
+            conn.execute(insert, {"s": spec_id, "u": profile.user_id, "a": approved})
+    with pytest.raises(IntegrityError, match="uq_approvals_spec_approved"), engine.begin() as conn:
+        conn.execute(insert, {"s": spec_id, "u": profile.user_id, "a": True})
 
 
 # ── 실제 검증기 · 러너로 끝까지 ────────────────────────────────────────

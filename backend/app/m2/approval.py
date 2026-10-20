@@ -32,6 +32,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sqlalchemy import Connection
+from sqlalchemy.exc import IntegrityError
 
 from app.backtest import m2_chain
 from app.repositories import backtests, portfolios, specs
@@ -59,7 +60,21 @@ class Approved:
     initial_weights: dict[str, float]
 
 
+# 전략서당 "승인함" 하나(db/migrate/002). 잠금(FOR UPDATE)이 먼저 막으므로 정상 흐름에서는 걸리지
+# 않는다 — 걸리면 잠금이 우회된 것이고, 사용자에게는 두 번 누른 승인과 같은 409 로 보인다.
+ONE_APPROVAL_INDEX = "uq_approvals_spec_approved"
+
+
 def approve(spec_id: str, *, user_id: int, run_id: int, user_comment: str | None = None) -> Approved:
+    try:
+        return _approve(spec_id, user_id=user_id, run_id=run_id, user_comment=user_comment)
+    except IntegrityError as exc:
+        if ONE_APPROVAL_INDEX not in str(exc.orig):
+            raise
+        raise ApprovalError(NOT_DRAFT, "draft 전략서만 승인할 수 있다") from exc
+
+
+def _approve(spec_id: str, *, user_id: int, run_id: int, user_comment: str | None) -> Approved:
     with portfolios.transaction() as conn:
         spec = portfolios.lock_spec(conn, spec_id)
         if spec is None or spec["user_id"] != user_id:
