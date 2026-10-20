@@ -20,6 +20,8 @@ import bisect
 import math
 from datetime import date, timedelta
 
+from sqlalchemy import Connection
+
 from app.contracts.view_weights import VIEW_TYPES
 from app.repositories import decisions, price_daily, specs
 from app.repositories.view_weights import get_view_weights, insert_view_weights
@@ -205,17 +207,21 @@ def update_view_weights(portfolio_id: int, *, as_of: date) -> dict:
     return {"as_of": as_of.isoformat(), "graded": len(realized), "weights": weights}
 
 
-def init_view_weights(portfolio_id: int, *, as_of: date) -> dict[str, float]:
-    # FN-409: 포트폴리오 활성화 시점에 균등 1/3 을 남긴다. 부르는 자리(활성화 라우터)는
-    # M2 경계라 여기서 연결하지 않는다.
-    return _save_weights(portfolio_id, as_of=as_of, weights=initial_weights())
+def init_view_weights(portfolio_id: int, *, as_of: date, conn: Connection | None = None) -> dict[str, float]:
+    # FN-409: 포트폴리오 활성화 시점에 균등 1/3 을 남긴다. 부르는 자리는 승인
+    # (app/m2/approval.py)이고, conn 으로 승인 트랜잭션에 묶인다 — 가중치 기록이
+    # 실패하면 승인 · 포트폴리오도 남지 않는다. as_of 는 활성화일(KST)이다.
+    return _save_weights(portfolio_id, as_of=as_of, weights=initial_weights(), conn=conn)
 
 
-def _save_weights(portfolio_id: int, *, as_of: date, weights: dict[str, float]) -> dict[str, float]:
+def _save_weights(
+    portfolio_id: int, *, as_of: date, weights: dict[str, float], conn: Connection | None = None
+) -> dict[str, float]:
     insert_view_weights(
         portfolio_id=portfolio_id,
         as_of=as_of,
         weights=weights,
         update_rule_version=UPDATE_RULE_VERSION,
+        conn=conn,
     )
     return weights
