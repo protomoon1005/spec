@@ -35,10 +35,16 @@ def run_conditions() -> dict:
     return {"fee_rate": FEE, "tax_rate": TAX, "slippage_bp": round(SLIPPAGE * 10_000, 6)}
 
 
-# M2 WeightMapper 대기 중인 임시 경로, RiskSizer 없음.
-# 비중은 M4 러너의 map_signals_to_weights·resolve_bounds 가 낸다. 설계상 이 자리는
-# RiskSizer → WeightMapper → GroupCapEnforcer(docs/m2-algorithms.md 2장)이고,
-# 그 구현이 들어오면 이 함수 안만 바뀐다.
+# 비중 경로 — window_results.weight_path 에 그대로 남는다.
+M2_CHAIN_PATH = "M2 체인 (RiskSizer v0.1 → WeightMapper → GroupCapEnforcer → OrderBuilder)"
+RUNNER_DEFAULT_PATH = "M4 러너 기본 경로 (검증에서 막혀 확정값 없음 — AI 원래 범위, RiskSizer 없음)"
+
+
+# 비중은 M2 체인 RiskSizer → WeightMapper → GroupCapEnforcer → OrderBuilder
+# (docs/m2-algorithms.md 2장, app/m2/weights.py)가 낸다. 범위·현금·손실 한도·간격은 Validator
+# 확정값이고, 어디서 얻을지는 app/backtest/m2_chain.resolve_policy 가 정한다. 러너에는 weigh
+# 콜러블로 끼운다. 확정값이 없으면(검증에서 막힌 draft) 막지 않고 러너 기본 경로
+# (map_signals_to_weights · _raw · 성향 기본 현금)로 돈다 — 스크립트·TS 대조가 쓰는 그 경로다.
 def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, seed_money: float) -> dict:
     """전략서 하나를 전략·대조군·시장 세 계열로 돌린다.
 
@@ -46,21 +52,62 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
     입력을 만들 수 없으면 BacktestFailed.
     """
     from app.contracts.view_weights import VIEW_TYPES
+    from app.m2.weights import ATR_MULTIPLE, WeightChainError, horizon_for
     from app.views.bridge import SCORERS, scorer_source
 
     from .inputs import MARKET_TICKER, InputError, build_inputs
+    from .m2_chain import AtrSource, ChainError, M2Weigher, load_bars, resolve_policy
+    from .policy import CAP_EXEMPT_GROUPS, caps_for
     from .runner import run, run_buy_and_hold
 
     try:
-        inp = build_inputs(spec_id, period_start=period_start, period_end=period_end)
-    except InputError as exc:
+        choice = resolve_policy(spec_id, as_of=period_end)
+        confirmed = choice.confirmed
+        inp = build_inputs(
+            spec_id,
+            period_start=period_start,
+            period_end=period_end,
+            min_interval_days=confirmed.min_interval_days if confirmed else None,
+        )
+        horizon = horizon_for(inp.rebalance_rule) if confirmed else None
+    except (InputError, ChainError, WeightChainError) as exc:
         raise BacktestFailed(str(exc)) from exc
 
     args = (inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates)
-    # 검증을 통과한 전략서면 확정 범위 · 현금 목표로 돈다(inputs.py 머리 주석).
-    confirmed = {"bounds": inp.bounds, "cash_min": inp.cash_min}
-    strategy = run(*args, seed_money, use_signals=True, **confirmed)
-    control = run(*args, seed_money, use_signals=False, **confirmed)
+    if confirmed is None:
+        strategy = run(*args, seed_money, use_signals=True)
+        control = run(*args, seed_money, use_signals=False)
+        weight_path, m2, used_ranges = RUNNER_DEFAULT_PATH, None, inp.final_ranges
+    else:
+        atr = AtrSource(load_bars([h["ticker"] for h in inp.holdings], as_of=period_end))
+
+        def weigher() -> M2Weigher:
+            # 계열마다 새로 만든다 — 주문은 그 계열의 직전 목표 비중에서 나온다.
+            return M2Weigher(
+                inp.holdings,
+                confirmed,
+                caps=caps_for(inp.risk_level),
+                exempt=CAP_EXEMPT_GROUPS,
+                horizon_days=horizon,
+                atr=atr,
+            )
+
+        strategy_w, control_w = weigher(), weigher()
+        try:
+            strategy = run(*args, seed_money, use_signals=True, weigh=strategy_w)
+            control = run(*args, seed_money, use_signals=False, weigh=control_w)
+        except (ChainError, WeightChainError) as exc:
+            raise BacktestFailed(f"비중 산출 사후 검증 실패: {exc}") from exc
+        for series, w in ((strategy, strategy_w), (control, control_w)):
+            for decision in series["decisions"]:
+                decision["m2"] = w.records[decision["date"]]
+        weight_path, used_ranges = M2_CHAIN_PATH, confirmed.bounds
+        m2 = {
+            **confirmed.as_dict(),
+            # Validator 확정 범위. universe 의 키는 프론트 결과 파일과 맞춰 두므로 여기 따로 둔다.
+            "bounds": {t: list(b) for t, b in confirmed.bounds.items()},
+            "risk_sizer": {"version": "v0.1", "atr_multiple": ATR_MULTIPLE, "horizon_days": horizon},
+        }
     market = run_buy_and_hold(inp.prices_wide[MARKET_TICKER], inp.valuation_dates, seed_money)
 
     dates = inp.valuation_dates
@@ -81,9 +128,11 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
         },
         "window_results": {
             "risk_level": inp.risk_level,
-            "weight_path": "M4 러너 임시 경로 (RiskSizer 없음, M2 WeightMapper 대기)",
-            # 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지(passed) 아닌지(failed · none)
-            "validation": inp.validation,
+            "weight_path": weight_path,
+            # 확정값을 어디서 얻었는지(passed: stored · recorded · revalidated) 또는 막혔는지(failed)
+            "validation": choice.validation,
+            # M2 체인 입력. 러너 기본 경로로 돌았으면 None
+            "m2": m2,
             "scorer_sources": {vt: scorer_source(SCORERS[vt]) for vt in VIEW_TYPES},
             "schedule": {
                 "rule": inp.rebalance_rule,
@@ -106,9 +155,10 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
                     "country_group": h["country_group"],
                     "weight_min_raw": h["min_raw"],
                     "weight_max_raw": h["max_raw"],
-                    # 전략서의 확정 범위. 러너가 이걸 쓴 건 validation.status 가 passed 일 때뿐이다
-                    "weight_min": inp.final_ranges[h["ticker"]][0],
-                    "weight_max": inp.final_ranges[h["ticker"]][1],
+                    # 확정 범위. passed 면 M2 체인이 실제로 쓴 범위(revalidated 면 기록 안 된 값),
+                    # failed 면 spec_universe 의 값이고 러너는 쓰지 않았다(_raw 로 돌았다)
+                    "weight_min": used_ranges[h["ticker"]][0],
+                    "weight_max": used_ranges[h["ticker"]][1],
                 }
                 for h in inp.holdings
             ],

@@ -26,6 +26,16 @@ DEMO_UNIVERSE = [
     ("411060", 0.00, 0.15),
 ]
 BODY = {"period_start": "2023-01-01", "period_end": "2025-12-31"}
+# service 는 draft 를 Validator 로 메모리 재검증한다(M2 체인). 스키마를 통과하는 제약이어야 한다.
+# 값은 성향 4 기본값(docs/m2-algorithms.md 4장), 1회 손실은 하드캡 v0.1 이 0.05 로 클램프한다.
+CONSTRAINT = {
+    "max_weight_per_asset": 0.30,
+    "min_weight_per_asset": 0.00,
+    "cash_min": 0.05,
+    "max_loss_per_trade": 0.07,
+    "max_drawdown": 0.28,
+}
+SIGNAL_RULES = {"market_analysis": {"indicators": ["ret_20"]}}
 
 FAKE_RESULT = {
     "data_snapshot_asof": "2025-12-30",
@@ -74,7 +84,7 @@ def owner(engine, make_user):
         spec_id=specs.new_spec_id(), user_id=user_id, profile_id=profile.profile_id,
         hardcap_version=presets.get_active_hardcap()["hardcap_version"], spec_version="0.1",
         name="백테스트 API 테스트", input_prompt=None, rebalance=MONTHLY_FIRST,
-        signal_rules={}, constraint={},
+        signal_rules=SIGNAL_RULES, constraint=CONSTRAINT,
         universe=[
             {"ticker": t, "preset_id": bounds[tags[t]].preset_id, "weight_min": lo, "weight_max": hi,
              "weight_min_raw": lo, "weight_max_raw": hi, "was_adjusted": False}
@@ -250,6 +260,10 @@ def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
     targets = [[d["target"] for d in r["window_results"]["decisions"]] for r in runs]
     assert targets[0] == targets[1]
     assert len(targets[0]) == 36
+    # M2 체인: 같은 입력이면 주문까지 같다
+    orders = [[d["m2"]["orders"] for d in r["window_results"]["decisions"]] for r in runs]
+    assert orders[0] == orders[1]
+    assert runs[0]["window_results"]["m2"]["max_loss_per_trade"] == 0.05  # 하드캡 클램프값
     # 2026-10-05 시장분석·시장온도가 실물로 바뀌었다. 감성은 중립 고정(팀 결정).
     assert runs[0]["window_results"]["scorer_sources"] == {
         "market": "real", "sentiment": "neutral", "regime": "real"
@@ -279,8 +293,13 @@ def test_task_runs_the_real_runner_to_done(owner):
     assert set(universe[0]) == {"ticker", "name", "grade", "asset_group", "sector_group",
                                 "country_group", "weight_min_raw", "weight_max_raw",
                                 "weight_min", "weight_max"}
-    # 검증하지 않은 전략서라 예전처럼 원래 범위로 돌았다고 남는다
-    assert results["validation"] == {"status": "none"}
+    # 검증 기록이 없는 draft 라 메모리에서 다시 검증한 확정값으로 M2 체인이 돌았다(기록은 안 남긴다)
+    assert results["validation"] == {
+        "status": "passed", "source": "revalidated", "cash_target": 0.05, "min_interval_days": 20
+    }
+    assert results["weight_path"] == service.M2_CHAIN_PATH
+    assert results["m2"]["source"] == "revalidated"
+    assert "m2" in results["decisions"][0] and "m2" in results["control_decisions"][0]
     tickers = {u["ticker"] for u in universe}
     # 결정 기록의 목표 비중이 정확히 그 종목들로 되어 있어야 표가 맞게 그려진다.
     assert results["decisions"] and set(results["decisions"][-1]["target"]) == tickers

@@ -251,7 +251,7 @@ def latest_validation(spec_id: str) -> list[dict]:
                   FROM validation_logs
                  WHERE spec_id = :spec_id
                    AND checked_at = (SELECT max(checked_at) FROM validation_logs WHERE spec_id = :spec_id)
-                 ORDER BY stage
+                 ORDER BY stage, validation_id
                 """
             ),
             {"spec_id": spec_id},

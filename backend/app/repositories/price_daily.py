@@ -97,6 +97,47 @@ def get_close_history(tickers: list[str], *, as_of: date) -> dict[str, list[tupl
     return out
 
 
+def get_bar_history(tickers: list[str], *, as_of: date) -> dict[str, list[dict]]:
+    """여러 종목의 as_of 시점까지 일봉 전체. {종목: [행, ...]} 오래된 것부터.
+
+    M2 RiskSizer 가 atr_14_pct 를 계산하려고 쓴다. 행의 키는 get_price_window 와 같아서
+    compute_features 에 그대로 먹일 수 있다. 워밍업 절단(직전 120행)은 호출부 몫이다.
+    가격이 한 행도 없는 종목은 결과에 키가 없다.
+
+    as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (get_price_window 와 같다).
+    """
+    if not tickers:
+        return {}
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT ticker, trade_date, open, high, low, close, volume
+                  FROM price_daily
+                 WHERE ticker = ANY(:tickers)
+                   AND trade_date <= :as_of
+                   AND close IS NOT NULL
+                 ORDER BY ticker, trade_date
+                """
+            ),
+            {"tickers": list(tickers), "as_of": as_of},
+        ).all()
+
+    out: dict[str, list[dict]] = {}
+    for row in rows:
+        out.setdefault(row.ticker, []).append(
+            {
+                "trade_date": row.trade_date,
+                "open": _optional_float(row.open),
+                "high": _optional_float(row.high),
+                "low": _optional_float(row.low),
+                "close": _optional_float(row.close),
+                "volume": _optional_float(row.volume),
+            }
+        )
+    return out
+
+
 def get_latest_trade_date() -> date | None:
     """적재된 가장 늦은 거래일. 없으면 None.
 
