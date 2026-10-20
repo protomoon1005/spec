@@ -17,24 +17,23 @@
 #   4 run_id 가 내 실행인가                 아니면 404
 #   5 그 실행이 이 전략서의 것인가           아니면 422
 #   6 그 실행이 끝났는가(done)               아니면 409
-#   7 그 실행이 지금 확정 범위로 돌았는가     아니면 409 — 실행 결과에 남은 종목별 확정
-#     범위가 지금 spec_universe 와 같아야 하고, 결과에 검증 요약(validation)이 있으면 그
-#     status 가 passed 여야 한다. 검증 전에 돌린 실행은 범위가 달라 걸린다. 재검증은 범위가
-#     같으므로(검증기는 멱등) 다시 돌릴 필요가 없다.
+#   7 그 실행이 지금 확정값으로 M2 체인을 돌았는가   아니면 409 — 실행 결과의 체인 입력
+#     (window_results.m2: 범위 · 현금 목표 · 1회 손실 · 최소 간격 · 하드캡 버전)이 마지막 검증
+#     기록에서 나온 확정값과 같아야 한다. "지금 확정값"의 정의는 백테스트와 같은 함수
+#     (backtest/m2_chain.recorded_policy)가 낸다. 막혀서 러너 기본 경로로 돈 실행(m2 없음)과
+#     값이 다른 옛 실행은 걸린다. 기록 없이 메모리 재검증으로 돈 실행은 검증기가 결정적이라
+#     값이 같으므로 다시 돌릴 필요가 없다(2026-10-20 통합 때 범위만 보던 비교를 넓혔다).
 #
 # ── 시작 금액 · 모드 (결정 기록 D6) ───────────────────────────────────
 # initial_cash 는 승인 근거가 된 실행의 seed_money 다. 사용자가 본 백테스트와 같은 금액으로
 # 시작해야 "백테스트대로 굴린다"가 성립한다. 모드는 virtual(11월 데모 = 가상 체결까지).
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
+from app.backtest import m2_chain
 from app.repositories import backtests, portfolios, specs
 from app.scoring import live
-
-# 실행 결과의 확정 범위와 지금 범위를 비교할 때의 허용오차. JSON 왕복으로 생기는 오차만 본다.
-BOUND_TOLERANCE = 1e-9
 
 NOT_FOUND = "not_found"
 NOT_DRAFT = "not_draft"
@@ -65,8 +64,8 @@ def approve(spec_id: str, *, user_id: int, run_id: int, user_comment: str | None
             raise ApprovalError(NOT_FOUND, "전략서를 찾을 수 없다")
         if spec["status"] != specs.DRAFT:
             raise ApprovalError(NOT_DRAFT, "draft 전략서만 승인할 수 있다")
-        _require_validation(spec_id)
-        run = _require_run(spec_id, run_id=run_id, user_id=user_id)
+        current = _require_validation(spec_id)
+        run = _require_run(spec_id, run_id=run_id, user_id=user_id, current=current)
 
         row = portfolios.activate(
             conn,
@@ -80,14 +79,14 @@ def approve(spec_id: str, *, user_id: int, run_id: int, user_comment: str | None
     return Approved(portfolio=row, initial_weights=weights)
 
 
-def _require_validation(spec_id: str) -> None:
-    # 본 트리에서 specs.get_latest_validation 으로 이름이 통일될 수 있다.
-    logs = specs.latest_validation(spec_id)
-    if {row["stage"] for row in logs} != {1, 2, 3, 4} or not all(row["passed"] for row in logs):
-        raise ApprovalError(NOT_VALIDATED, "검증을 4단까지 통과한 전략서만 승인할 수 있다")
+def _require_validation(spec_id: str) -> m2_chain.ConfirmedPolicy:
+    try:
+        return m2_chain.recorded_policy(spec_id)
+    except m2_chain.ChainError as exc:
+        raise ApprovalError(NOT_VALIDATED, "검증을 4단까지 통과한 전략서만 승인할 수 있다") from exc
 
 
-def _require_run(spec_id: str, *, run_id: int, user_id: int) -> dict:
+def _require_run(spec_id: str, *, run_id: int, user_id: int, current: m2_chain.ConfirmedPolicy) -> dict:
     run = backtests.get_run(run_id)
     if run is None or run["user_id"] != user_id:
         raise ApprovalError(RUN_NOT_FOUND, "실행 기록을 찾을 수 없다")
@@ -95,24 +94,6 @@ def _require_run(spec_id: str, *, run_id: int, user_id: int) -> dict:
         raise ApprovalError(RUN_OTHER_SPEC, "이 전략서로 돌린 실행이 아니다")
     if run["status"] != backtests.DONE:
         raise ApprovalError(RUN_NOT_DONE, "끝난 백테스트로만 승인할 수 있다")
-    results = run["window_results"] or {}
-    summary = results.get("validation")
-    if summary is not None and summary.get("status") != "passed":
-        raise ApprovalError(RUN_STALE, "검증 확정값으로 돌린 백테스트가 아니다 — 다시 돌려야 한다")
-    if not _same_bounds(results.get("universe") or [], specs.get_spec_universe(spec_id)):
-        raise ApprovalError(RUN_STALE, "백테스트가 지금 확정 범위로 돈 것이 아니다 — 다시 돌려야 한다")
+    if not m2_chain.same_policy((run["window_results"] or {}).get("m2"), current):
+        raise ApprovalError(RUN_STALE, "백테스트가 지금 확정값으로 돈 것이 아니다 — 다시 돌려야 한다")
     return run
-
-
-def _same_bounds(used: list[dict], current: list[dict]) -> bool:
-    def table(rows: list[dict]) -> dict[str, tuple]:
-        return {r["ticker"]: (r.get("weight_min"), r.get("weight_max")) for r in rows}
-
-    a, b = table(used), table(current)
-    if set(a) != set(b):
-        return False
-    for ticker, pair in b.items():
-        for x, y in zip(a[ticker], pair, strict=True):
-            if x is None or y is None or not math.isclose(float(x), float(y), abs_tol=BOUND_TOLERANCE):
-                return False
-    return True

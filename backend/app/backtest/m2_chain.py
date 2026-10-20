@@ -24,12 +24,13 @@ ATR 은 M3 정의(atr_14_pct)를 그대로 쓴다. 리밸런싱일 이하 직전
 from __future__ import annotations
 
 import bisect
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
 from app.m2.orders import build_orders
-from app.m2.weights import AssetLimit, CapStep, compute_target_weights, risk_caps
+from app.m2.weights import TOLERANCE, AssetLimit, CapStep, compute_target_weights, risk_caps
 from app.repositories import price_daily, specs
 from app.views.market.features import FEATURE_WARMUP_ROWS, compute_features
 
@@ -96,6 +97,48 @@ def resolve_policy(spec_id: str, *, as_of: date) -> PolicyChoice:
         reasons = [v.get("message", "") for r in logs for v in (r["violations"] or [])]
         return _blocked(blocked_at, reasons, source="recorded")
     return _revalidate(spec_id, spec, as_of=as_of)
+
+
+def recorded_policy(spec_id: str) -> ConfirmedPolicy:
+    """마지막 검증 기록이 4단 통과면 그 확정값. 아니면 ChainError. 승인 검사가 쓴다."""
+    spec = specs.get_spec(spec_id)
+    if spec is None:
+        raise ChainError(f"전략서가 없다: {spec_id}")
+    logs = specs.latest_validation(spec_id)
+    if not _all_passed(logs):
+        raise ChainError(f"검증을 4단까지 통과한 기록이 없다: {spec_id}")
+    return _from_logs(spec_id, spec, logs, source="recorded")
+
+
+def policy_record(confirmed: ConfirmedPolicy) -> dict:
+    """window_results.m2 의 확정값 부분. 범위는 JSON 에 맞춰 [하한, 상한] 목록으로 둔다."""
+    return {**confirmed.as_dict(), "bounds": {t: list(b) for t, b in confirmed.bounds.items()}}
+
+
+def same_policy(used: Mapping | None, current: ConfirmedPolicy) -> bool:
+    """실행이 쓴 확정값(window_results.m2)이 지금 확정값과 같은가.
+
+    출처(source)는 보지 않는다 — 메모리 재검증과 기록된 검증은 같은 계산이다. 숫자는 JSON 왕복
+    오차만 허용한다.
+    """
+    if not used:
+        return False
+    if used.get("hardcap_version") != current.hardcap_version:
+        return False
+    if int(used.get("min_interval_days", -1)) != current.min_interval_days:
+        return False
+    for key in ("cash_target", "max_loss_per_trade"):
+        value = used.get(key)
+        if value is None or not math.isclose(float(value), getattr(current, key), abs_tol=TOLERANCE):
+            return False
+    bounds = used.get("bounds") or {}
+    if set(bounds) != set(current.bounds):
+        return False
+    return all(
+        math.isclose(float(x), y, abs_tol=TOLERANCE)
+        for t, pair in current.bounds.items()
+        for x, y in zip(bounds[t], pair, strict=True)
+    )
 
 
 def _all_passed(logs: Sequence[Mapping]) -> bool:

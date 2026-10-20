@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import text
 
+from app.backtest import m2_chain
 from app.m1 import candidates as C
 from app.m1 import postprocess
 from app.m2 import approval
@@ -21,6 +22,7 @@ from app.repositories.view_weights import get_view_weights
 from app.scoring import live
 
 SEED = 10_000_000
+CASH_TARGET = 0.05  # 직접 넣는 검증 기록의 3단 현금 목표
 
 
 @pytest.fixture
@@ -88,27 +90,35 @@ def _validate(spec_id: str, *, failed_stage: int | None = None) -> None:
         spec_id,
         bounds=None,
         logs=[
-            {"stage": s, "passed": s != failed_stage, "violations": [], "adjusted_bounds": None,
-             "clamped_fields": None}
+            {"stage": s, "passed": s != failed_stage, "violations": [],
+             "adjusted_bounds": {"cash_target": CASH_TARGET} if s == 3 else None, "clamped_fields": None}
             for s in (1, 2, 3, 4)
         ],
     )
 
 
-def _run(spec_id: str, *, status: str = backtests.DONE, validation: dict | None = None,
-         universe: list[dict] | None = None, omit_validation: bool = False) -> int:
+def _run(
+    spec_id: str, *, status: str = backtests.DONE, m2: dict | None = None, no_chain: bool = False
+) -> int:
+    """끝난 실행 하나. 기본은 지금 확정값으로 M2 체인을 돈 실행(window_results.m2).
+    no_chain 이면 막혀서 러너 기본 경로로 돈 실행."""
     row = backtests.create_run(spec_id, period_start=date(2023, 1, 1), period_end=date(2025, 12, 30),
                                seed_money=SEED, feature_set_version="v0.1-ta9")
     if status == backtests.DONE:
-        if universe is None:
-            universe = _bounds(spec_id)
-        results: dict = {"universe": universe}
-        if not omit_validation:
-            results["validation"] = validation or {"status": "passed"}
+        results: dict = {"universe": _bounds(spec_id)}
+        if no_chain:
+            results["validation"] = {"status": "failed", "source": "recorded", "blocked_at": 4}
+            results["m2"] = None
+        else:
+            results["m2"] = m2 if m2 is not None else _policy(spec_id)
         backtests.finish_run(
             row["run_id"], data_snapshot_asof="2025-12-30", metrics={}, window_results=results
         )
     return row["run_id"]
+
+
+def _policy(spec_id: str) -> dict:
+    return m2_chain.policy_record(m2_chain.recorded_policy(spec_id))
 
 
 def _bounds(spec_id: str) -> list[dict]:
@@ -263,7 +273,7 @@ def test_spec_must_pass_all_four_stages(engine, client, make_owner, failed_stage
     spec_id = _save_spec(profile)
     if failed_stage is not None:
         _validate(spec_id, failed_stage=failed_stage)
-    run_id = _run(spec_id)
+    run_id = _run(spec_id, m2={})  # 확정값이 없으니 실행 내용은 보지 않는다 — 검증 검사가 먼저 걸린다
 
     resp = client.post(f"/specs/{spec_id}/approve", json={"run_id": run_id}, headers=_auth(client, email))
 
@@ -298,8 +308,11 @@ def test_run_checks(engine, client, make_owner):
     _validate(spec_id)
     sibling, sibling_run = _ready(profile)
     _, foreign_run = _ready(other_profile)
-    bounds = _bounds(spec_id)
-    shifted = [{**bounds[0], "weight_max": bounds[0]["weight_max"] - 0.05}, *bounds[1:]]
+    policy = _policy(spec_id)
+    first = next(iter(policy["bounds"]))
+    lo, hi = policy["bounds"][first]
+    shifted = {**policy, "bounds": {**policy["bounds"], first: [lo, hi - 0.05]}}
+    fewer = {**policy, "bounds": {t: b for t, b in policy["bounds"].items() if t != first}}
 
     def approve(run_id):
         r = client.post(f"/specs/{spec_id}/approve", json={"run_id": run_id}, headers=headers)
@@ -309,12 +322,16 @@ def test_run_checks(engine, client, make_owner):
     assert approve(foreign_run) == (404, "실행 기록을 찾을 수 없다")
     assert approve(sibling_run) == (422, "이 전략서로 돌린 실행이 아니다")
     assert approve(_run(spec_id, status=backtests.QUEUED))[0] == 409
-    assert approve(_run(spec_id, validation={"status": "none"}))[0] == 409  # 검증 전에 돌린 실행
-    assert approve(_run(spec_id, universe=shifted))[0] == 409  # 지금 확정 범위와 다름
-    assert approve(_run(spec_id, universe=bounds[1:]))[0] == 409  # 종목이 다름
+    assert approve(_run(spec_id, no_chain=True))[0] == 409  # 막혀서 러너 기본 경로로 돈 실행
+    assert approve(_run(spec_id, m2=shifted))[0] == 409  # 지금 확정 범위와 다름
+    assert approve(_run(spec_id, m2=fewer))[0] == 409  # 종목이 다름
+    assert approve(_run(spec_id, m2={**policy, "cash_target": CASH_TARGET + 0.05}))[0] == 409  # 현금 목표
+    longer = {**policy, "min_interval_days": policy["min_interval_days"] + 1}
+    assert approve(_run(spec_id, m2=longer))[0] == 409  # 최소 간격
+    assert approve(_run(spec_id, m2={**policy, "max_loss_per_trade": 0.01}))[0] == 409  # 1회 손실 한도
     assert _counts(engine, spec_id) == {"approvals": 0, "portfolios": 0, "weights": 0, "status": "draft"}
-    # 결과에 검증 요약이 없는 형식(M2 비중 체인)이라도 확정 범위가 같으면 된다
-    assert approve(_run(spec_id, omit_validation=True))[0] == 201
+    # 출처(source)는 보지 않는다 — 메모리 재검증으로 돈 실행도 값이 같으면 된다
+    assert approve(_run(spec_id, m2={**policy, "source": "revalidated"}))[0] == 201
 
 
 # ── 원자성 · 동시성 ─────────────────────────────────────────────────────
@@ -386,10 +403,31 @@ def test_end_to_end_with_real_validator_and_runner(engine, client, make_owner, m
         assert backtests.get_run(run_id)["status"] == backtests.DONE
         return run_id
 
-    early = backtest()  # 검증 전 실행 — AI 원래 범위로 돈다
-    assert client.post(f"/specs/{spec_id}/validate", headers=headers).json()["passed"] is True
-    stale = client.post(f"/specs/{spec_id}/approve", json={"run_id": early}, headers=headers)
-    assert stale.status_code == 409
+    def results(run_id: int) -> dict:
+        return backtests.get_run(run_id)["window_results"]
 
-    fresh = client.post(f"/specs/{spec_id}/approve", json={"run_id": backtest()}, headers=headers)
-    assert fresh.status_code == 201, fresh.text
+    def chain_input(run_id: int) -> dict:  # 출처를 뺀 체인 입력
+        return {k: v for k, v in results(run_id)["m2"].items() if k != "source"}
+
+    # 검증 기록 전 — 백테스트는 메모리 재검증 확정값으로 돌지만, 승인은 기록된 검증을 요구한다
+    early = backtest()
+    assert results(early)["validation"]["source"] == "revalidated"
+    not_yet = client.post(f"/specs/{spec_id}/approve", json={"run_id": early}, headers=headers)
+    assert not_yet.status_code == 409, not_yet.text
+
+    assert client.post(f"/specs/{spec_id}/validate", headers=headers).json()["passed"] is True
+    recorded = backtest()
+    assert results(recorded)["validation"]["source"] == "recorded"
+    # 검증기는 결정적이다 — 기록 전후 체인 입력이 같아서 기록 전 실행도 승인 근거가 된다
+    assert chain_input(early) == chain_input(recorded)
+
+    approved = client.post(f"/specs/{spec_id}/approve", json={"run_id": early}, headers=headers)
+    assert approved.status_code == 201, approved.text
+
+    # 승인 뒤에는 저장된 확정값(stored)으로 돌고, 같은 입력이라 결과가 승인 전 실행과 같다(재현성)
+    after = backtest()
+    assert results(after)["validation"]["source"] == "stored"
+    assert chain_input(after) == chain_input(recorded)
+    assert results(after)["series"] == results(recorded)["series"]
+    orders = [[d["m2"]["orders"] for d in results(r)["decisions"]] for r in (recorded, after)]
+    assert orders[0] == orders[1]
