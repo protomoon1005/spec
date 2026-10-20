@@ -3,9 +3,10 @@
 // 최종 확인 — docs/frontend_milestone.md 7단계.
 //
 // 앞 단계 값을 한 화면에 모은다. 백테스트는 백테스트 화면이 이번 전략서로 접수한 실행을
-// GET /backtest/runs/{run_id} 로 다시 받아 보여 준다. 승인 주소(POST /portfolios/{id}/approve)는 아직 501 이고,
-// 승인할 포트폴리오를 만드는 단계도 없다. 그래서 포트폴리오 번호 자리에 0 을 넣어 부르고
-// 서버 응답을 그대로 보여 준다 — 인증은 통과하고 본체에서 501 이 난다.
+// GET /backtest/runs/{run_id} 로 다시 받아 보여 준다. 승인은 POST /specs/{spec_id}/approve 에
+// 그 실행 번호(run_id)를 실어 부른다 — 승인 기록 · 전략서 잠금 · 포트폴리오(가상 운용) · 관점
+// 가중치 1/3 이 한 번에 생긴다. 서버가 막으면(검증 미통과 · 옛 실행 · 이미 승인) 이유를 그대로 보여 준다.
+// 이미 승인한 전략서는 GET /specs/{spec_id} 의 status 로 알아보고 버튼을 끈다.
 //
 // 앞 단계 넷(성향 · 전략서 · 하드캡 검사 · 백테스트)을 통과 · 막힘 · 아직 으로 모으고, 줄마다
 // 그 화면으로 가는 링크를 둔다.
@@ -20,10 +21,17 @@ import { useEffect, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import { api, type BacktestRun, loadBacktestRun, loadCompileResult, loadValidation, type Session } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  approveSpec,
+  type BacktestRun,
+  loadBacktestRun,
+  loadCompileResult,
+  loadValidation,
+  type Session,
+} from "@/lib/api";
 import { PROFILE_LABEL } from "@/lib/policy";
-
-const PLACEHOLDER_PORTFOLIO_ID = 0;
 
 export default function ConfirmPage() {
   return (
@@ -43,7 +51,10 @@ function Summary({ session }: { session: Session }) {
   const [spec, setSpec] = useState<Item>({ label: "전략서", ok: null, text: "불러오는 중…" });
   const [hardcap, setHardcap] = useState<Item>({ label: "하드캡 검사", ok: null, text: "불러오는 중…" });
   const [backtest, setBacktest] = useState<Item>({ label: "백테스트", ok: null, text: "불러오는 중…" });
-  const [approval, setApproval] = useState<string | null>(null);
+  const [approval, setApproval] = useState<{ ok: boolean; text: string } | null>(null);
+  // 승인에 필요한 것 — 이번 탭의 전략서 · 그 전략서로 끝난 실행 · 아직 draft 인지
+  const [target, setTarget] = useState<{ specId: string; runId: number | null; draft: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api<{ risk_level: number }>("/profile/me")
@@ -67,15 +78,18 @@ function Summary({ session }: { session: Session }) {
       return;
     }
 
-    api<{ name: string; universe: unknown[] }>(`/specs/${id}`)
-      .then((s) =>
+    const saved = loadBacktestRun(id);
+    api<{ name: string; status: string; universe: unknown[] }>(`/specs/${id}`)
+      .then((s) => {
         setSpec({
           label: "전략서",
           ok: true,
-          text: `${s.name} · 종목 ${s.universe.length}개`,
+          text: `${s.name} · 종목 ${s.universe.length}개${s.status === "draft" ? "" : ` · ${s.status}`}`,
           link: { href: `/specs/view?id=${encodeURIComponent(id)}`, text: "보기" },
-        }),
-      )
+        });
+        setTarget({ specId: id, runId: saved?.run_id ?? null, draft: s.status === "draft" });
+        if (s.status !== "draft") setApproval({ ok: true, text: "이미 승인한 전략서예요. 고칠 수 없습니다." });
+      })
       .catch((err) => setSpec({ label: "전략서", ok: false, text: errorText(err) }));
 
     const v = loadValidation(id);
@@ -90,7 +104,6 @@ function Summary({ session }: { session: Session }) {
         : { label: "하드캡 검사", ok: null, text: "아직 확인 안 함", link: { href: "/hardcap", text: "하드캡 확인" } },
     );
 
-    const saved = loadBacktestRun(id);
     if (!saved) {
       setBacktest({ label: "백테스트", ok: null, text: "아직 돌리지 않음", link: { href: "/backtest", text: "백테스트" } });
       return;
@@ -101,14 +114,28 @@ function Summary({ session }: { session: Session }) {
   }, []);
 
   async function approve() {
-    setApproval("요청 중…");
+    if (!target || target.runId === null) return;
+    setBusy(true);
+    setApproval(null);
     try {
-      const res = await api<unknown>(`/portfolios/${PLACEHOLDER_PORTFOLIO_ID}/approve`, { method: "POST" });
-      setApproval(`승인됨: ${JSON.stringify(res)}`);
+      const p = await approveSpec(target.specId, target.runId);
+      setTarget({ ...target, draft: false });
+      const cash = p.initial_cash === null ? "" : ` · 시작 금액 ${p.initial_cash.toLocaleString("ko-KR")}원`;
+      setApproval({ ok: true, text: `승인했어요 — 포트폴리오 #${p.portfolio_id} (가상 운용${cash})` });
     } catch (err) {
-      setApproval(`승인 기능은 구현 예정입니다. 서버 응답 — ${errorText(err)}`);
+      // 409 · 422 의 detail 은 사용자에게 그대로 보여 줄 문장이다
+      const detail = err instanceof ApiError && typeof err.detail === "string" ? err.detail : errorText(err);
+      setApproval({ ok: false, text: `승인하지 못했어요 — ${detail}` });
+    } finally {
+      setBusy(false);
     }
   }
+
+  const blocker = !target
+    ? "이번 탭에서 만든 전략서가 없어요"
+    : target.runId === null
+      ? "백테스트를 먼저 돌려야 해요"
+      : null;
 
   return (
     <>
@@ -139,14 +166,14 @@ function Summary({ session }: { session: Session }) {
 
       <section className="flow-card" style={{ marginTop: 24, borderColor: "#e0a23c55" }}>
         <div className="flow-actions" style={{ justifyContent: "space-between" }}>
-          <span>승인하면 전략서를 고칠 수 없습니다.</span>
-          <button className="primary" onClick={approve}>
-            승인
+          <span>{blocker ?? "승인하면 전략서를 고칠 수 없습니다."}</span>
+          <button className="primary" onClick={approve} disabled={busy || blocker !== null || !target?.draft}>
+            {busy ? "승인 중…" : "승인"}
           </button>
         </div>
         {approval && (
-          <p className={approval.startsWith("승인됨") ? "flow-msg ok" : "flow-msg warn"} role="status">
-            {approval}
+          <p className={approval.ok ? "flow-msg ok" : "flow-msg warn"} role="status">
+            {approval.text}
           </p>
         )}
       </section>
