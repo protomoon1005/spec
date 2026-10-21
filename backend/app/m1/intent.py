@@ -79,13 +79,27 @@ def build_intent_schema() -> dict[str, Any]:
     }
 
 
-def build_prompt(user_text: str) -> str:
+def build_prompt(
+    user_text: str,
+    *,
+    asset_labels: dict[str, str] | None = None,
+    sector_labels: dict[str, str] | None = None,
+) -> str:
+    # 스키마에는 코드(BOND · COMMODITY · EQUITY)만 있어 어느 말이 어느 코드인지 모델이
+    # 짐작해야 했다 — "채권 위주" 를 세 번 모두 COMMODITY 로 옮겼다(2026-10-21, qwen3:8b).
+    # 코드마다 이름표(asset_groups.label)를 붙여 준다.
+    meanings = "".join(
+        f"{title} 코드의 뜻: " + ", ".join(f"{code}={label}" for code, label in labels.items()) + "\n"
+        for title, labels in (("asset_groups", asset_labels), ("sectors", sector_labels))
+        if labels
+    )
     return (
         "아래 투자 요청에서 다음을 뽑아라.\n"
         "- keywords: 요청의 성격을 나타내는 낱말 (목록에서만)\n"
         "- sectors: 특정 업종을 원하면 그 업종 (목록에서만)\n"
         "- asset_groups: 주식·채권·원자재 중 원하는 것 (목록에서만)\n"
-        "- mentioned_names: 사용자가 말한 종목 이름이나 코드를 들린 그대로\n\n"
+        "- mentioned_names: 사용자가 말한 종목 이름이나 코드를 들린 그대로\n"
+        f"{meanings}\n"
         f"요청: {user_text}"
     )
 
@@ -93,9 +107,9 @@ def build_prompt(user_text: str) -> str:
 def extract(user_text: str, client) -> Intent:
     # client 는 app.llm.client.LLMClient 다. 여기서 만들지 않고 받는다 —
     # 테스트가 가짜 클라이언트를 넣을 수 있어야 한다.
-    raw = client.generate_json(
-        build_prompt(user_text), build_intent_schema(), system=SYSTEM_PROMPT
-    )
+    sectors = {g: label for g, label in presets.list_group_labels(2).items() if g.startswith("SECTOR_")}
+    text = build_prompt(user_text, asset_labels=presets.list_group_labels(1), sector_labels=sectors)
+    raw = client.generate_json(text, build_intent_schema(), system=SYSTEM_PROMPT)
     return from_payload(raw)
 
 
