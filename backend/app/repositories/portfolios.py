@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import date
 
 from sqlalchemy import Connection, text
 
@@ -108,6 +109,24 @@ def activate(
         "user_comment": user_comment,
         "decided_at": approval.decided_at,
     }
+
+
+def list_active() -> list[int]:
+    """활성 포트폴리오 번호, 오래된 것부터. 매일 라이브 루프(app/scoring/live.run_live_day)가 돈다."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT portfolio_id FROM portfolios WHERE status = :s ORDER BY portfolio_id"), {"s": ACTIVE}
+        ).all()
+    return [row.portfolio_id for row in rows]
+
+
+def activation_date(portfolio_id: int) -> date | None:
+    """활성화일(KST). FN-409 초기 가중치가 이 날짜로 남는다. 활성화 시각이 없으면 None."""
+    with get_engine().connect() as conn:
+        return conn.execute(
+            text("SELECT (activated_at AT TIME ZONE :tz)::date FROM portfolios WHERE portfolio_id = :pid"),
+            {"pid": portfolio_id, "tz": KST},
+        ).scalar_one_or_none()
 
 
 def get_portfolio(portfolio_id: int) -> dict | None:

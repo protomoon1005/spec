@@ -190,3 +190,82 @@ def test_decision_records_the_model_version_the_scores_came_from(engine, portfol
             text("SELECT model_version FROM decision_records WHERE decision_id = :id"), {"id": decision_id}
         ).scalar_one()
     assert version == "market=market-lgbm-test,sentiment=real,regime=real"
+
+
+# ── 매일 루프 · 시계 하나 (2026-10-21) ────────────────────────────────
+
+
+def _activate_on(engine, portfolio_id: int, day: date) -> None:
+    # 활성화 시각을 그날 KST 10:00 으로 둔다. 승인 API 는 now() 를 쓰므로 여기서만 고정한다.
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE portfolios"
+                " SET activated_at = (CAST(:d AS date) + time '10:00') AT TIME ZONE 'Asia/Seoul'"
+                " WHERE portfolio_id = :pid"
+            ),
+            {"d": day, "pid": portfolio_id},
+        )
+
+
+def _live_decisions(engine, portfolio_id: int) -> int:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT count(*) FROM decision_records WHERE portfolio_id = :pid"), {"pid": portfolio_id}
+        ).scalar_one()
+
+
+def test_live_records_before_the_activation_day_are_refused(engine, portfolio):
+    # 데이터 시계(가격 날짜)로 갱신을 쌓으면 활성화일의 1/3 이 그 갱신을 가린다 — 아예 못 남긴다
+    _activate_on(engine, portfolio, DAYS[200])
+    live.init_view_weights(portfolio, as_of=DAYS[200])
+
+    with pytest.raises(ValueError, match="활성화일"):
+        live.daily_judge(portfolio, as_of=DAYS[150])
+    with pytest.raises(ValueError, match="활성화일"):
+        live.update_view_weights(portfolio, as_of=DAYS[150])
+    assert _live_decisions(engine, portfolio) == 0
+
+
+def test_live_day_on_the_activation_day_keeps_fn409_and_judges_once(engine, portfolio):
+    _activate_on(engine, portfolio, DAYS[200])
+    live.init_view_weights(portfolio, as_of=DAYS[200])
+
+    first = live._live_day(portfolio, as_of=DAYS[200])
+    again = live._live_day(portfolio, as_of=DAYS[200])
+
+    # 활성화일 가중치는 FN-409 1/3 그대로다(충돌 없이 건너뜀). 판단은 한 번만 쌓인다
+    assert first["weights"] == "skipped" and isinstance(first["judge"], int)
+    assert again == {"weights": "skipped", "judge": "skipped"}
+    assert _live_decisions(engine, portfolio) == 1
+    assert get_view_weights(portfolio, as_of=DAYS[201]) == pytest.approx(live.initial_weights())
+
+
+def test_live_day_after_activation_updates_weights_then_judges(engine, portfolio):
+    _activate_on(engine, portfolio, DAYS[200])
+    live.init_view_weights(portfolio, as_of=DAYS[200])
+
+    result = live._live_day(portfolio, as_of=DAYS[201])
+
+    assert sum(result["weights"].values()) == pytest.approx(1)
+    assert isinstance(result["judge"], int)
+    # 오늘 쓴 가중치는 오늘 판단에 못 쓴다(strict <) — 오늘 판단은 활성화일 1/3 을 읽는다
+    with engine.connect() as conn:
+        used = conn.execute(
+            text("SELECT view_weights_used FROM decision_records WHERE decision_id = :d"),
+            {"d": result["judge"]},
+        ).scalar_one()
+    assert used == pytest.approx(live.initial_weights())
+
+
+def test_run_live_day_uses_the_wall_clock_and_isolates_failures(engine, portfolio, monkeypatch):
+    _activate_on(engine, portfolio, DAYS[200])
+    live.init_view_weights(portfolio, as_of=DAYS[200])
+    monkeypatch.setattr(live, "live_today", lambda: DAYS[201])
+    monkeypatch.setattr(live.portfolios, "list_active", lambda: [-1, portfolio])
+
+    out = live.run_live_day()
+
+    assert out["as_of"] == DAYS[201].isoformat()
+    assert [p["portfolio_id"] for p in out["portfolios"]] == [portfolio]
+    assert [f["portfolio_id"] for f in out["failed"]] == [-1]

@@ -108,6 +108,18 @@ def insert_live_decision(
     return decision_id
 
 
+def has_live_decision(portfolio_id: int, *, as_of: date) -> bool:
+    """그 판단일(정확히 as_of)의 라이브 판단이 이미 있는가. 매일 루프가 같은 날 다시 돌 때 거른다."""
+    with get_engine().connect() as conn:
+        return conn.execute(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM decision_records"
+                " WHERE portfolio_id = :pid AND mode = :mode AND as_of = :as_of)"
+            ),
+            {"pid": portfolio_id, "mode": LIVE, "as_of": as_of},
+        ).scalar_one()
+
+
 def list_live_decisions(portfolio_id: int, *, as_of: date) -> list[dict]:
     """as_of '미만' 판단일의 라이브 판단. 판단일마다 가장 나중 기록 하나, 오래된 것부터.
 
