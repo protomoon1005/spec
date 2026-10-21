@@ -154,3 +154,18 @@ def test_extract_returns_vocabulary_values(engine):
     sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
     assert set(intent.keywords) <= allowed
     assert set(intent.sectors) <= sectors
+
+
+def test_prompt_tells_what_each_group_code_means(engine):
+    # 코드만 주면 "채권" 을 COMMODITY 로 옮겼다(2026-10-21, qwen3:8b 3회 중 3회)
+    seen: dict = {}
+
+    class Recorder:
+        def generate_json(self, prompt, schema, *, system=None):
+            seen["prompt"] = prompt
+            return {"keywords": [], "sectors": [], "asset_groups": [], "mentioned_names": []}
+
+    I.extract("안전하게 채권 위주로", Recorder())
+
+    assert "BOND=채권계" in seen["prompt"] and "COMMODITY=원자재계" in seen["prompt"]
+    assert "SECTOR_SEMICONDUCTOR=반도체" in seen["prompt"]

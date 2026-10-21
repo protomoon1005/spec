@@ -96,6 +96,7 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
         candidate_set=candidate_set,
         blocks=blocks,
         defaults=profiles.get_profile_defaults(candidate_set.preset_version, profile.risk_level),
+        rebalance_blocks=bbl.list_blocks("rebalance"),
     )
 
     raw = llm_client.generate_json(text, schema, system=prompt.SYSTEM_PROMPT)

@@ -9,7 +9,7 @@
 #
 #   universe        후보 종목만, 종목마다 그 성향의 허용 비중 범위로
 #   indicators      BBL 의 지표 블록 이름만
-#   trigger         BBL 의 리밸런싱 블록이 쓰는 방식·주기만
+#   rebalance       BBL 의 리밸런싱 블록 하나를 통째로 (방식 · 주기 · 날 · 간격 묶음)
 #   trend/vol index BBL 의 거시지표 블록만
 #   target_sectors  후보 종목들이 속한 업종만
 #
@@ -48,7 +48,9 @@ def build_compile_schema(candidate_set: CandidateSet) -> dict[str, Any]:
 
     schema["properties"]["universe"] = _universe_schema(candidate_set)
     _narrow_indicators(defs)
-    _narrow_trigger(defs)
+    rebalance = _rebalance_schema()
+    if rebalance is not None:
+        schema["properties"]["rebalance"] = rebalance
     _narrow_market_temperature(defs)
     _narrow_sectors(defs, candidate_set)
     return schema
@@ -97,20 +99,32 @@ def _narrow_indicators(defs: dict[str, Any]) -> None:
         defs["MarketAnalysisRule"]["properties"]["indicators"]["items"] = {"enum": names}
 
 
-def _narrow_trigger(defs: dict[str, Any]) -> None:
-    types: set[str] = set()
-    freqs: set[str] = set()
-    for block in bbl.list_blocks("rebalance"):
-        trigger = (block.params_schema or {}).get("trigger", {})
-        if trigger.get("type"):
-            types.add(trigger["type"])
-        if trigger.get("freq"):
-            freqs.add(trigger["freq"])
-    properties = defs["TriggerSpec"]["properties"]
-    if types:
-        properties["type"] = {"enum": sorted(types)}
-    if freqs:
-        properties["freq"] = {"enum": sorted(freqs)}
+def _rebalance_schema() -> dict[str, Any] | None:
+    # 리밸런싱은 블록 하나를 통째로 고르게 한다. 처음엔 방식(type)과 주기(freq)를 따로
+    # enum 으로 좁혔는데, 그러면 블록에 없는 조합이 통과했다 — "매달 초" 요청에
+    # monthly + threshold, "매주" 요청에 day 없는 weekly 가 나와 백테스트 러너가 거부했다
+    # (2026-10-21 데모 흐름 4회 중 4회, qwen3:8b). day · min_interval_days 도 블록 값으로 묶는다.
+    # 간격은 하드캡(min_interval_days)이 하한으로 다시 클램프한다.
+    options = [
+        _exactly(block.params_schema)
+        for block in bbl.list_blocks("rebalance")
+        if (block.params_schema or {}).get("trigger", {}).get("type")
+        and "min_interval_days" in block.params_schema
+    ]
+    return {"oneOf": options} if options else None
+
+
+def _exactly(value: Any) -> dict[str, Any]:
+    # 값 하나만 통과하는 스키마. 객체는 칸마다 같은 방식으로 내려간다 — const 대신 단일 enum 을
+    # 쓰는 이유는 universe 와 같은 문법 요소만 써서 제약 디코딩이 확실히 지원하게 하려는 것이다.
+    if isinstance(value, dict):
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": sorted(value),
+            "properties": {key: _exactly(item) for key, item in value.items()},
+        }
+    return {"enum": [value]}
 
 
 def _narrow_market_temperature(defs: dict[str, Any]) -> None:
