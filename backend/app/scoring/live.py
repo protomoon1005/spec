@@ -14,21 +14,50 @@
 # BacktestJudge 에 있다. 라이브와 백테스트가 다른 규칙으로 판단하면 백테스트가
 # 라이브를 대변하지 못하므로 복제하지 않고, 가중치 출처 한 곳(current_weights)만
 # 갈아 끼운다 — 백테스트는 인스턴스 안의 손실 이력, 라이브는 DB 의 as_of 미만 행.
+#
+# ── 시계는 하나 ──────────────────────────────────────────────────────
+# 라이브 기록(판단 · 가중치)의 as_of 는 벽시계(KST 날짜)다. 활성화일(FN-409 1/3)이 벽시계라
+# 가격 날짜(데이터 시계)로 갱신을 쌓으면 strict < 읽기에서 활성화일의 1/3 이 그 갱신을 가린다.
+# 그래서 활성화일보다 앞선 as_of 로는 라이브 기록을 남기지 않는다(_after_activation).
+# 매일 루프(run_live_day)는 as_of 를 live_today() 하나로 정해 갱신 · 판단에 같이 넘긴다.
+# 가격이 as_of 보다 늦게 끝나 있어도 판단은 돈다 — 그날까지의 마지막 거래일로 판단하고
+# data_snapshot_asof 에 그 날을 남긴다.
 from __future__ import annotations
 
 import bisect
+import logging
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import Connection
+from sqlalchemy.exc import IntegrityError
 
 from app.contracts.view_weights import VIEW_TYPES
-from app.repositories import decisions, price_daily, specs
+from app.repositories import decisions, portfolios, price_daily, specs
 from app.repositories.view_weights import get_view_weights, insert_view_weights
 from app.views.bridge import BacktestJudge, scorer_source
 from app.views.hedge import UPDATE_RULE_VERSION, brier_loss, rolling_weights
 from app.views.market.features import CURRENT_FEATURE_SET_VERSION, FEATURE_WARMUP_ROWS
 from app.views.market.labels import HORIZON, realized_outcome
+
+logger = logging.getLogger(__name__)
+# 같은 (포트폴리오, as_of) 가중치가 이미 있을 때 나는 유일 인덱스(db/init uq_view_weight)
+VIEW_WEIGHT_UNIQUE = "uq_view_weight"
+
+
+def live_today() -> date:
+    # 라이브 시계. 활성화일(portfolios.activation_date)과 같은 KST 날짜다.
+    return datetime.now(ZoneInfo(portfolios.KST)).date()
+
+
+def _after_activation(portfolio_id: int, as_of: date) -> None:
+    activated = portfolios.activation_date(portfolio_id)
+    if activated is not None and as_of < activated:
+        raise ValueError(
+            f"활성화일({activated}) 이전 날짜({as_of})로 라이브 기록을 남기지 않는다 — "
+            "라이브 시계는 벽시계(KST) 하나다"
+        )
 
 
 def initial_weights() -> dict[str, float]:
@@ -66,6 +95,7 @@ def _portfolio_tickers(portfolio_id: int) -> tuple[str, list[str]]:
 
 
 def daily_judge(portfolio_id: int, *, as_of: date) -> dict:
+    _after_activation(portfolio_id, as_of)
     spec_id, tickers = _portfolio_tickers(portfolio_id)
     prices = {
         ticker: price_daily.get_price_window(ticker, as_of=as_of, lookback_days=FEATURE_WARMUP_ROWS)
@@ -197,6 +227,8 @@ def grade_decisions(portfolio_id: int, *, as_of: date) -> list[dict]:
 def update_view_weights(portfolio_id: int, *, as_of: date) -> dict:
     # 같은 (portfolio, as_of) 를 두 번 돌리면 append-only 충돌(IntegrityError)이 그대로
     # 올라온다 — 저장소 방침(조용한 덮어쓰기 금지)을 따른다. 채점은 그 전에 멱등으로 끝난다.
+    # 활성화일도 같다 — FN-409 초기 가중치가 그 날짜로 이미 있다. 매일 루프가 둘을 건너뛴다.
+    _after_activation(portfolio_id, as_of)
     realized = grade_decisions(portfolio_id, as_of=as_of)
     # rolling_weights 가 뒤에서 60개(WINDOW_TRADING_DAYS)만 본다. 판단이 거래일마다
     # 하나라 "최근 60거래일" = "최근 60개 판단"이다.
@@ -225,3 +257,39 @@ def _save_weights(
         conn=conn,
     )
     return weights
+
+
+# ── 매일 루프 ─────────────────────────────────────────────────────────
+# Celery beat 가 평일 장 마감 뒤 한 번 부른다(app/workers/celery_app.py). 포트폴리오마다
+#   1) 가중치 갱신 — 어제까지 확정된 판단을 채점해 오늘 자 가중치를 남긴다. 오늘 자가 이미
+#      있으면(활성화일의 FN-409 1/3, 같은 날 다시 돈 루프) 건너뛴다. 오늘 판단은 strict < 라
+#      이 기록을 못 읽고 내일부터 읽는다
+#   2) 판단 — 오늘 자 판단이 이미 있으면 건너뛴다(같은 날 판단이 여러 번 쌓이지 않게)
+# 한 포트폴리오가 실패해도 나머지는 돈다. 실패는 결과의 failed 와 워커 로그에 남는다.
+
+
+def run_live_day(*, as_of: date | None = None) -> dict:
+    as_of = as_of or live_today()
+    out: dict = {"as_of": as_of.isoformat(), "portfolios": [], "failed": []}
+    for portfolio_id in portfolios.list_active():
+        try:
+            out["portfolios"].append({"portfolio_id": portfolio_id, **_live_day(portfolio_id, as_of=as_of)})
+        except Exception as exc:  # noqa: BLE001 — 한 포트폴리오 실패가 나머지를 막지 않게
+            logger.exception("라이브 루프 실패: portfolio_id=%s as_of=%s", portfolio_id, as_of)
+            out["failed"].append({"portfolio_id": portfolio_id, "reason": str(exc)})
+    return out
+
+
+def _live_day(portfolio_id: int, *, as_of: date) -> dict:
+    activated = portfolios.activation_date(portfolio_id)
+    if activated is not None and as_of < activated:
+        return {"weights": "skipped", "judge": "skipped", "reason": f"활성화일({activated}) 전"}
+    try:
+        weights = update_view_weights(portfolio_id, as_of=as_of)["weights"]
+    except IntegrityError as exc:
+        if getattr(getattr(exc.orig, "diag", None), "constraint_name", None) != VIEW_WEIGHT_UNIQUE:
+            raise
+        weights = "skipped"  # 오늘 자 가중치가 이미 있다
+    if decisions.has_live_decision(portfolio_id, as_of=as_of):
+        return {"weights": weights, "judge": "skipped"}
+    return {"weights": weights, "judge": daily_judge(portfolio_id, as_of=as_of)["decision_id"]}

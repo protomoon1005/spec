@@ -132,6 +132,8 @@ export type SpecMeta = {
   inputPrompt?: string | null;
   /** 실행 번호. 없으면 정적 데모 결과다 — 화면이 둘을 구분해 적는다 */
   runId?: number;
+  /** 전략서 상태(GET /specs/{id} 의 status). 정적 데모는 실제 전략서가 아니라 없다 */
+  specStatus?: string;
 };
 
 // 정적 데모 결과(data/backtest-result.json)의 전략서. 이 데모는 자연어로 만든 것이
@@ -619,6 +621,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
   };
   const inputPrompt = meta.inputPrompt ?? null;
   const runId = meta.runId ?? null;
+  const specStatus = meta.specStatus ?? null;
   const rebalanceLabel = `${FREQ_LABEL[trig.freq] ?? trig.freq} 리밸런싱`;
 
   // 낙폭 차트 Y축 눈금. 위는 항상 0(고점)이고 아래만 데이터에서 정한다.
@@ -734,6 +737,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     spec,
     inputPrompt,
     runId,
+    specStatus,
     rebalanceLabel,
     drawdownTicks,
     constraintResolved,

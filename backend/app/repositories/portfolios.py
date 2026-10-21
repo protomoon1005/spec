@@ -8,7 +8,7 @@
 트랜잭션이다(조립은 app/m2/approval.py). 그래서 쓰기 함수는 연결(conn)을 받고 커밋하지
 않는다. transaction() 이 연 연결을 넘겨 쓴다.
 
-순차 실행 뒤 보상으로는 못 되돌린다 — 트리거가 approved 전략서의 UPDATE 를 막으므로
+순차 실행 뒤 보상으로는 못 되돌린다 — 트리거가 approved → draft 되돌리기를 막으므로
 draft 로 되돌리는 보상 자체가 거부된다(2026-10-20 실측, 결정 기록 D3).
 
 ## 동시 승인
@@ -20,13 +20,14 @@ lock_spec 이 전략서 행을 SELECT … FOR UPDATE 로 잡는다. 같은 전�
 ## 상태 값
 
 portfolios.status 는 표에 CHECK 가 없어 여기 상수로 정한다. 지금 쓰는 값은 active 하나다.
-전략서는 approved 에서 더 못 간다(트리거, known-issues "승인한 전략서의 상태를 바꿀 수
-없음") — "운용 중"은 strategy_specs.status 가 아니라 이 표의 status 로 본다.
+전략서 상태는 승인 뒤 approved → running → closed 로 한 칸씩만 간다(db/migrate/003 트리거).
+승인 API 는 approved 까지만 올리고, 지금 "운용 중"은 이 표의 status(active)로 본다.
 """
 from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import date
 
 from sqlalchemy import Connection, text
 
@@ -108,6 +109,24 @@ def activate(
         "user_comment": user_comment,
         "decided_at": approval.decided_at,
     }
+
+
+def list_active() -> list[int]:
+    """활성 포트폴리오 번호, 오래된 것부터. 매일 라이브 루프(app/scoring/live.run_live_day)가 돈다."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT portfolio_id FROM portfolios WHERE status = :s ORDER BY portfolio_id"), {"s": ACTIVE}
+        ).all()
+    return [row.portfolio_id for row in rows]
+
+
+def activation_date(portfolio_id: int) -> date | None:
+    """활성화일(KST). FN-409 초기 가중치가 이 날짜로 남는다. 활성화 시각이 없으면 None."""
+    with get_engine().connect() as conn:
+        return conn.execute(
+            text("SELECT (activated_at AT TIME ZONE :tz)::date FROM portfolios WHERE portfolio_id = :pid"),
+            {"pid": portfolio_id, "tz": KST},
+        ).scalar_one_or_none()
 
 
 def get_portfolio(portfolio_id: int) -> dict | None:

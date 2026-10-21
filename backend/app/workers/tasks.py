@@ -9,6 +9,9 @@ run_backtest 는 M4 가 만든 러너를 API 에 잇는 배선이다(2026-09-28)
 daily_judge · train_model · update_view_weights 는 M3 판단 계층 본체다(2026-10-05,
 app/scoring/). 판단은 IntegratedSignal 에서 멈추고 RiskSizer 는 부르지 않는다.
 
+run_live_day 는 위 둘을 활성 포트폴리오마다 벽시계(KST) 날짜 하나로 돌리는 매일 루프다
+(2026-10-21, beat 가 평일 16:00 KST 에 부른다 — app/workers/celery_app.py).
+
 ingest_market 만 이름뿐이다(docs/infra-spec.md 9장: 수집기 본체는 안 만든다).
 가격은 scripts/ingest_prices.py 로 적재한다.
 """
@@ -151,6 +154,14 @@ def train_model(as_of: str) -> dict:
         artifact_uri=uri,
     )
     return {"status": "registered", "model_version": model.version, "artifact_uri": uri, **model.metrics}
+
+
+@celery_app.task(name="run_live_day")
+def run_live_day(as_of: str | None = None) -> dict:
+    """활성 포트폴리오마다 가중치 갱신 → 판단. as_of 를 비우면 오늘(KST)이다."""
+    from app.scoring import live
+
+    return live.run_live_day(as_of=date.fromisoformat(as_of) if as_of else None)
 
 
 @celery_app.task(name="update_view_weights")

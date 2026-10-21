@@ -78,5 +78,5 @@ docker compose logs -f                      # 로그
 - **백테스트 접합**: `backtest/runner.py` → `views/bridge.py` 단방향. 스코어러 교체는 `bridge.SCORERS` 한 곳(실물은 지연 import). DB 없는 테스트는 `bridge.MOCK_SCORERS`로 고정한다.
 - **정책 값 3중 사본**: `db/seeds/` ↔ `backtest/policy.py` ↔ `frontend/lib/policy.ts`. 수치가 같아야 한다.
 - **DB**: `db/init/`은 빈 DB 부트스트랩 전용 — 고치지 않는다. 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후
-  `docker compose exec api python /repo/scripts/apply_migrations.py` (멱등, `schema_migrations`에 이력). Alembic은 쓰지 않는다. 트리거가 approved Spec과 view_weights UPDATE를 막는다. 스키마 정본은 `docs/db-erd.md`.
+  `docker compose exec api python /repo/scripts/apply_migrations.py` (멱등, `schema_migrations`에 이력). Alembic은 쓰지 않는다. 트리거가 view_weights UPDATE와 승인된 Spec의 내용 UPDATE를 막는다(상태만 approved→running→closed, `db/migrate/003`). 스키마 정본은 `docs/db-erd.md`.
 - 알려진 설계 구멍은 `docs/known-issues.md`에 기록. 컬럼을 임의 추가하지 않는다.
