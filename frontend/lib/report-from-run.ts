@@ -36,7 +36,7 @@ export type RunDetail = {
   decisions: Decision[] | null;
   control_decisions: Decision[] | null;
   /** M2 체인이 쓴 확정값. 체인 전 실행에는 없다 */
-  m2?: { bounds?: Record<string, [number, number]> } | null;
+  m2?: { bounds?: Record<string, [number, number]>; cash_target?: number } | null;
   reason: string | null;
 };
 
@@ -92,6 +92,8 @@ export function resultFromRun(run: RunDetail): BacktestResult {
     universe,
     // 체인이 쓴 범위. 종목이 하나라도 빠지면 그 실행의 기록이 아니므로 쓰지 않고 정책 계산으로 둔다
     confirmed_bounds: confirmedBounds(run),
+    // 체인이 맞춘 현금 목표. 범위 보정(case B)이 하한보다 올릴 수 있다
+    confirmed_cash_target: confirmedBounds(run) ? run.m2?.cash_target : undefined,
     caps: capsFor(riskLevel).group,
     series,
     decisions,

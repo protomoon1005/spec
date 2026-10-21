@@ -92,6 +92,8 @@ export type BacktestResult = {
    * 있으면 비중 표가 이 값을 그린다. 정적 데모(TS 러너)와 체인 전 실행에는 없어서 정책으로 계산한다.
    */
   confirmed_bounds?: Record<string, [number, number]>;
+  /** 체인이 맞춘 현금 목표(m2.cash_target). 범위 보정 case B 가 성향 하한보다 올릴 수 있다. 없으면 하한을 목표로 본다 */
+  confirmed_cash_target?: number;
   caps: Record<string, number>;
   series: Point[];
   decisions: Decision[];
@@ -509,6 +511,30 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
   /** 비중 범위를 어디서 얻었는지. 검증 확정값이면 "validated", 정책으로 계산했으면 "computed" */
   const boundsSource: "validated" | "computed" = confirmed ? "validated" : "computed";
 
+  // 범위 실행가능성(docs/m2-algorithms.md 1장): Σ weight_min ≤ 1 − cash_min ≤ Σ weight_max.
+  // 확정값이 있으면 Validator 가 실제로 보정했는지를 정책 계산과의 차이 · 현금 목표로 알아본다.
+  // 확정값이 없으면(정적 데모) 정책 범위가 조건을 지키는지만 적는다.
+  const cashMin = PROFILE.cashMin;
+  const cashTarget = result.confirmed_cash_target ?? null;
+  const sumMin = universe.reduce((s, a) => s + bounds[a.ticker].min, 0);
+  const sumMax = universe.reduce((s, a) => s + bounds[a.ticker].max, 0);
+  const rangesAdjusted = confirmed
+    ? universe.filter(
+        (a) =>
+          Math.abs(bounds[a.ticker].min - computedBounds[a.ticker].min) > 1e-9 ||
+          Math.abs(bounds[a.ticker].max - computedBounds[a.ticker].max) > 1e-9,
+      ).length
+    : 0;
+  const cashRaised = cashTarget !== null && cashTarget > cashMin + 1e-9;
+  const feasibility = {
+    sumMin,
+    sumMax,
+    investable: 1 - cashMin,
+    holds: sumMin <= 1 - cashMin + 1e-9 && 1 - cashMin <= sumMax + 1e-9,
+    /** 확정값으로 돈 실행에서만 안다. null 이면 보정 여부를 모른다(정적 데모) */
+    adjusted: confirmed ? { ranges: rangesAdjusted, cashFrom: cashMin, cashTo: cashTarget ?? cashMin, cashRaised } : null,
+  };
+
   const cappedBy = new Map<string, string[]>();
   for (const app of lastDecision.capApplications) {
     for (const a of universe) {
@@ -719,6 +745,8 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     universe,
     bounds,
     boundsSource,
+    cashTarget,
+    feasibility,
     weightRows,
     targetCash,
     capLogs,

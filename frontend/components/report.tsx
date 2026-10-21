@@ -52,6 +52,23 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+// 범위 실행가능성 패널의 "자동 보정" 줄. 확정값으로 돈 실행이면 Validator 가 실제로 고친 것(범위 · 현금
+// 목표)을, 정적 데모면 정책 범위가 조건을 지키는지만 적는다(docs/m2-algorithms.md 1장 case A · B).
+function autoCorrection(f: ReportData["feasibility"]): [string, string, string] {
+  if (f.adjusted === null) {
+    return f.holds
+      ? ["자동 보정", "없음 (조건 충족)", C.profit]
+      : ["자동 보정", "조건 불충족 — 이 결과에는 보정 기록이 없습니다", C.warn];
+  }
+  const parts = [
+    f.adjusted.ranges > 0 && `범위 ${f.adjusted.ranges}종목 조정`,
+    f.adjusted.cashRaised && `현금 목표 ${pctPlain(f.adjusted.cashFrom, 0)} → ${pctPlain(f.adjusted.cashTo, 0)}`,
+  ].filter(Boolean);
+  return parts.length
+    ? ["자동 보정", `있음 — ${parts.join(" · ")}`, C.warn]
+    : ["자동 보정", "없음 (조건 충족)", C.profit];
+}
+
 // --- 화면 --------------------------------------------------------------------
 // report 를 넘기지 않으면 정적 데모 결과(data/backtest-result.json)를 그린다.
 // /report?run_id= 는 lib/report-from-run.ts 로 만든 실행 결과를 넘긴다.
@@ -96,6 +113,8 @@ export default function Report({ report = defaultReport }: { report?: ReportData
     inputPrompt,
     rebalanceLabel,
     boundsSource,
+    cashTarget,
+    feasibility,
   } = report;
   const [tab, setTab] = useState<TabId>("overview");
   const [note, setNote] = useState("");
@@ -455,7 +474,10 @@ export default function Report({ report = defaultReport }: { report?: ReportData
                   <Cel align="left" color={C.dim}>
                     —
                   </Cel>
-                  <Cel color={C.muted}>하한 {pctPlain(PROFILE.cashMin, 0)}</Cel>
+                  <Cel color={C.muted}>
+                    하한 {pctPlain(PROFILE.cashMin, 0)}
+                    {cashTarget !== null && ` · 목표 ${pctPlain(cashTarget, 0)}`}
+                  </Cel>
                   <Cel color={C.dim}>—</Cel>
                   <Cel bold color={C.bright}>
                     {pctPlain(targetCash)}
@@ -494,8 +516,10 @@ export default function Report({ report = defaultReport }: { report?: ReportData
                       </div>
                     </div>
                   ))}
+                  {/* 현금에는 목표치 · 캡 축소분 · 위험 한도 축소분이 함께 들어 있어 캡 몫만 따로 떼어 적지 않는다 */}
                   <div style={{ fontFamily: SANS, fontSize: 13, color: C.muted }}>
-                    축소로 남은 {pctPlain(targetCash - PROFILE.cashMin)}는 현금으로 보냈습니다. 현금 하한{" "}
+                    줄어든 몫은 현금으로 보냈습니다. 최종 현금 {pctPlain(targetCash)} —{" "}
+                    {cashTarget !== null && `현금 목표 ${pctPlain(cashTarget, 0)} 이상, `}현금 하한{" "}
                     {pctPlain(PROFILE.cashMin, 0)}을 만족합니다.
                   </div>
                 </div>
@@ -509,10 +533,10 @@ export default function Report({ report = defaultReport }: { report?: ReportData
             >
               <KeyValue
                 rows={[
-                  ["Σ weight_min", pctPlain(weightRows.reduce((s, r) => s + r.bound.min, 0)), C.text],
-                  ["1 − cash_min", pctPlain(1 - PROFILE.cashMin), C.text],
-                  ["Σ weight_max", pctPlain(weightRows.reduce((s, r) => s + r.bound.max, 0)), C.text],
-                  ["자동 보정", "없음 (조건 충족)", C.profit],
+                  ["Σ weight_min", pctPlain(feasibility.sumMin), C.text],
+                  ["1 − cash_min", pctPlain(feasibility.investable), C.text],
+                  ["Σ weight_max", pctPlain(feasibility.sumMax), C.text],
+                  autoCorrection(feasibility),
                 ]}
               />
             </Panel>
