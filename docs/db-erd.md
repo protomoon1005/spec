@@ -426,7 +426,7 @@ erDiagram
 </tr>
 <tr>
 <td>**Spec 불변**</td>
-<td>STRATEGY_SPECS와 SPEC_UNIVERSE는 승인 후 UPDATE 금지</td>
+<td>STRATEGY_SPECS와 SPEC_UNIVERSE는 승인 후 UPDATE 금지. 상태만 approved → running → closed 로 한 칸씩 간다(db/migrate/003, 2026-10-21)</td>
 <td>수정이 필요하면 새 spec_version을 발행한다. 사후 감사의 기준점을 보존하기 위함</td>
 </tr>
 <tr>

@@ -54,14 +54,13 @@
 
 ### 전략서와 승인
 
-- **승인한 전략서의 상태를 바꿀 수 없음**
-  - 승인 뒤에는 고치지 못하게 데이터베이스가 막아 놨음
-  - 그 잠금이 "상태" 칸까지 얼려서 `승인 → 운용중 → 종료` 로 넘어가는 것 자체가 안 됨
-  - 얼려야 할 건 종목과 비중이지 상태는 아닐 가능성이 크지만, **팀 확정 전이라 코드를 안 바꿈**
-  - 우회 (2026-10-20 승인 API) — 승인한 전략서는 `approved` 에 머물고, "운용 중"은
-    `portfolios.status = 'active'` 로 본다. `draft → running` 으로 바로 보내는 길은 쓰지 않았다 —
-    트리거가 `approved` 만 막으므로 `running` 전략서는 다시 고칠 수 있게 되어 Spec 불변이 깨진다
-  - 같은 이유로 승인을 되돌리는(approved → draft) 보상 처리가 불가능하다. 승인 흐름은 한 트랜잭션이다
+- (해결 2026-10-21) **승인한 전략서의 상태를 바꿀 수 없음** — `db/migrate/003` 이 트리거를 고쳤다
+  - 승인 뒤(approved · running · closed)에는 status 말고 어떤 칸도 못 바꾼다. status 는 approved → running → closed
+    한 칸씩만 간다(건너뛰기 · 되돌리기 금지). spec_universe 잠금도 세 상태 전부로 넓혔다 — 전에는 approved 만 막아
+    running 으로 넘기면 종목 · 비중이 다시 열렸다
+  - **남은 것**: 승인 API 는 지금도 approved 까지만 올리고 "운용 중"은 `portfolios.status = 'active'` 로 본다.
+    언제 running · closed 로 넘길지(포트폴리오 활성화 = running? 정지 = closed?)는 포트폴리오 상태 값을 정할 때 함께 정한다
+  - 승인을 되돌리는(approved → draft) 보상 처리는 여전히 불가능하다. 승인 흐름은 한 트랜잭션이다
 
 - **승인 · 포트폴리오 표의 스키마 판단이 남아 있음** (2026-10-20 기록, 2026-10-21 중복 승인 인덱스는 해결)
   - `approvals` ↔ `portfolios` 를 잇는 칸이 없다. ERD 는 1:1(APPROVALS activates PORTFOLIOS)인데

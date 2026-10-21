@@ -53,7 +53,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 // 머리 배지 — 전략서 상태(strategy_specs.status). 정적 데모는 실제 전략서가 아니라 달지 않는다.
-// 승인한 전략서는 approved 에 머물고 운용 여부는 포트폴리오가 갖는다(docs/known-issues.md).
+// 승인 뒤 상태는 approved → running → closed 로만 간다(db/migrate/003). 승인 API 는 approved 까지 올린다.
 const SPEC_STATUS_TAG: Record<string, { text: string; color: string }> = {
   draft: { text: "승인 대기", color: C.warn },
   approved: { text: "승인됨", color: C.profit },
