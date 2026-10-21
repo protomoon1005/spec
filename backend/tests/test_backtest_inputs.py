@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
-from app.repositories import presets, profiles, specs
+from app.repositories import specs
 
 pytestmark = pytest.mark.requires_backtest
 pd = pytest.importorskip("pandas")
@@ -50,62 +50,13 @@ def _build(spec_id: str):
 
 
 @pytest.fixture
-def make_spec(engine, make_user):
+def make_spec(make_draft_spec):
     """(universe, rebalance) -> spec_id. 성향 4(스크립트 기본값)로 draft 전략서를 만든다."""
-    _email, user_id = make_user("retail")
-    version = presets.active_preset_version()
-    profile = profiles.insert_profile(
-        user_id=user_id,
-        risk_level=4,
-        preset_version=version,
-        defaults=profiles.get_profile_defaults(version, 4),
-        provenance={},
-    )
-    bounds = presets.get_asset_bounds(4)
-    hardcap = presets.get_active_hardcap()["hardcap_version"]
-
     def _make(universe, rebalance) -> str:
-        tickers = [t for t, _lo, _hi in universe]
-        with engine.connect() as conn:
-            tags = dict(
-                conn.execute(
-                    text("SELECT ticker, risk_tag FROM etf_master WHERE ticker = ANY(:t)"), {"t": tickers}
-                ).all()
-            )
-        rows = [
-            {
-                "ticker": t,
-                "preset_id": bounds[tags[t]].preset_id,
-                "weight_min": lo,
-                "weight_max": hi,
-                "weight_min_raw": lo,
-                "weight_max_raw": hi,
-                "was_adjusted": False,
-            }
-            for t, lo, hi in universe
-        ]
-        return specs.insert_spec(
-            spec_id=specs.new_spec_id(),
-            user_id=user_id,
-            profile_id=profile.profile_id,
-            hardcap_version=hardcap,
-            spec_version="0.1",
-            name="백테스트 입력 테스트",
-            input_prompt=None,
-            rebalance=rebalance,
-            signal_rules={},
-            constraint={},
-            universe=rows,
-        ).spec_id
+        return make_draft_spec(universe, rebalance=rebalance, name="백테스트 입력 테스트",
+                               signal_rules={}, constraint={})
 
-    yield _make
-
-    with engine.begin() as conn:
-        mine = "(SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
-        conn.execute(text(f"DELETE FROM validation_logs WHERE spec_id IN {mine}"), {"u": user_id})
-        conn.execute(text(f"DELETE FROM spec_universe WHERE spec_id IN {mine}"), {"u": user_id})
-        conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
-        conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
+    return _make
 
 
 @pytest.fixture

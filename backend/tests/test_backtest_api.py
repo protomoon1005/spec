@@ -9,10 +9,9 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from sqlalchemy import text
 
 from app.backtest import service
-from app.repositories import backtests, presets, profiles, specs
+from app.repositories import backtests
 from app.workers import tasks
 
 MONTHLY_FIRST = {"trigger": {"type": "calendar", "freq": "monthly", "day": 1}, "min_interval_days": 20}
@@ -66,40 +65,11 @@ def _auth(client, username: str) -> dict:
 
 
 @pytest.fixture
-def owner(engine, make_user):
+def owner(make_draft_spec):
     """성향 4 사용자 하나와 그 사람의 draft 전략서 하나. (email, spec_id)."""
-    email, user_id = make_user("retail")
-    version = presets.active_preset_version()
-    profile = profiles.insert_profile(
-        user_id=user_id, risk_level=4, preset_version=version,
-        defaults=profiles.get_profile_defaults(version, 4), provenance={},
-    )
-    bounds = presets.get_asset_bounds(4)
-    tickers = [t for t, _lo, _hi in DEMO_UNIVERSE]
-    with engine.connect() as conn:
-        tags = dict(conn.execute(
-            text("SELECT ticker, risk_tag FROM etf_master WHERE ticker = ANY(:t)"), {"t": tickers}
-        ).all())
-    spec_id = specs.insert_spec(
-        spec_id=specs.new_spec_id(), user_id=user_id, profile_id=profile.profile_id,
-        hardcap_version=presets.get_active_hardcap()["hardcap_version"], spec_version="0.1",
-        name="백테스트 API 테스트", input_prompt=None, rebalance=MONTHLY_FIRST,
-        signal_rules=SIGNAL_RULES, constraint=CONSTRAINT,
-        universe=[
-            {"ticker": t, "preset_id": bounds[tags[t]].preset_id, "weight_min": lo, "weight_max": hi,
-             "weight_min_raw": lo, "weight_max_raw": hi, "was_adjusted": False}
-            for t, lo, hi in DEMO_UNIVERSE
-        ],
-    ).spec_id
-
-    yield email, spec_id
-
-    with engine.begin() as conn:
-        runs = "(SELECT run_id FROM backtest_runs WHERE spec_id = :s)"
-        conn.execute(text(f"DELETE FROM backtest_metrics WHERE run_id IN {runs}"), {"s": spec_id})
-        for table in ("backtest_runs", "spec_universe", "strategy_specs"):
-            conn.execute(text(f"DELETE FROM {table} WHERE spec_id = :s"), {"s": spec_id})
-        conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
+    spec_id = make_draft_spec(DEMO_UNIVERSE, rebalance=MONTHLY_FIRST, name="백테스트 API 테스트",
+                              signal_rules=SIGNAL_RULES, constraint=CONSTRAINT)
+    return make_draft_spec.email, spec_id
 
 
 @pytest.fixture
