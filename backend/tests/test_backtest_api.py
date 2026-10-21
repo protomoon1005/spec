@@ -9,10 +9,9 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from sqlalchemy import text
 
 from app.backtest import service
-from app.repositories import backtests, presets, profiles, specs
+from app.repositories import backtests
 from app.workers import tasks
 
 MONTHLY_FIRST = {"trigger": {"type": "calendar", "freq": "monthly", "day": 1}, "min_interval_days": 20}
@@ -66,40 +65,11 @@ def _auth(client, username: str) -> dict:
 
 
 @pytest.fixture
-def owner(engine, make_user):
+def owner(make_draft_spec):
     """성향 4 사용자 하나와 그 사람의 draft 전략서 하나. (email, spec_id)."""
-    email, user_id = make_user("retail")
-    version = presets.active_preset_version()
-    profile = profiles.insert_profile(
-        user_id=user_id, risk_level=4, preset_version=version,
-        defaults=profiles.get_profile_defaults(version, 4), provenance={},
-    )
-    bounds = presets.get_asset_bounds(4)
-    tickers = [t for t, _lo, _hi in DEMO_UNIVERSE]
-    with engine.connect() as conn:
-        tags = dict(conn.execute(
-            text("SELECT ticker, risk_tag FROM etf_master WHERE ticker = ANY(:t)"), {"t": tickers}
-        ).all())
-    spec_id = specs.insert_spec(
-        spec_id=specs.new_spec_id(), user_id=user_id, profile_id=profile.profile_id,
-        hardcap_version=presets.get_active_hardcap()["hardcap_version"], spec_version="0.1",
-        name="백테스트 API 테스트", input_prompt=None, rebalance=MONTHLY_FIRST,
-        signal_rules=SIGNAL_RULES, constraint=CONSTRAINT,
-        universe=[
-            {"ticker": t, "preset_id": bounds[tags[t]].preset_id, "weight_min": lo, "weight_max": hi,
-             "weight_min_raw": lo, "weight_max_raw": hi, "was_adjusted": False}
-            for t, lo, hi in DEMO_UNIVERSE
-        ],
-    ).spec_id
-
-    yield email, spec_id
-
-    with engine.begin() as conn:
-        runs = "(SELECT run_id FROM backtest_runs WHERE spec_id = :s)"
-        conn.execute(text(f"DELETE FROM backtest_metrics WHERE run_id IN {runs}"), {"s": spec_id})
-        for table in ("backtest_runs", "spec_universe", "strategy_specs"):
-            conn.execute(text(f"DELETE FROM {table} WHERE spec_id = :s"), {"s": spec_id})
-        conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
+    spec_id = make_draft_spec(DEMO_UNIVERSE, rebalance=MONTHLY_FIRST, name="백테스트 API 테스트",
+                              signal_rules=SIGNAL_RULES, constraint=CONSTRAINT)
+    return make_draft_spec.email, spec_id
 
 
 @pytest.fixture
@@ -153,6 +123,8 @@ def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, f
     assert got["universe"] == results["universe"]
     assert got["decisions"] == results["decisions"]
     assert got["control_decisions"] == results["control_decisions"]
+    # 체인 전 경로 결과라 확정값 기록이 없다 — 리포트는 정책으로 범위를 다시 계산한다
+    assert got["m2"] is None
     # 재현 조건
     assert got["feature_set_version"] == "v0.1-ta9"
     assert (got["seed_money"], got["fee_rate"], got["tax_rate"], got["slippage_bp"]) == (
@@ -243,6 +215,20 @@ def test_metrics_follow_the_frontend_definition():
 
 
 # ── 재현성: 같은 spec_id 를 두 번 돌리면 지표와 목표 비중이 같다 ────────
+
+
+def test_get_exposes_the_bounds_the_chain_used(client, owner, fake_runner, monkeypatch):
+    # 리포트 화면이 비중 범위를 다시 계산하지 않고 체인이 쓴 확정값을 그리도록 내보낸다
+    email, spec_id = owner
+    m2 = {"source": "revalidated", "hardcap_version": "v0.1", "cash_target": 0.05,
+          "max_loss_per_trade": 0.05, "min_interval_days": 20, "bounds": {"069500": [0.05, 0.3]},
+          "risk_sizer": {"version": "v0.1", "atr_multiple": 2, "horizon_days": 20}}
+    result = {**FAKE_RESULT, "window_results": {**FAKE_RESULT["window_results"], "m2": m2}}
+    monkeypatch.setattr(service, "run_spec_backtest", lambda spec_id, **kwargs: result)
+
+    got = _get(client, email, _post(client, email, spec_id).json()["run_id"]).json()
+
+    assert got["m2"] == m2
 
 
 @pytest.mark.requires_backtest

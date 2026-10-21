@@ -65,6 +65,9 @@ class BacktestRunDetail(BacktestRunResponse):
     # 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지. status: passed · failed · none.
     # 2026-10-05 이전 실행에는 없다(그때는 늘 AI 원래 범위로 돌았다)
     validation: dict | None = None
+    # M2 체인이 실제로 쓴 확정값(범위 · 현금 목표 · 1회 손실 · 간격 · RiskSizer 상수). 리포트 화면이
+    # 비중 범위를 프론트에서 다시 계산하지 않고 이 값을 그린다. 체인 전 실행에는 없다
+    m2: dict | None = None
     reason: str | None  # failed 일 때만
     # 아래는 done 일 때만. 리포트 화면(/report?run_id=)이 비중 표·캡 로그·리밸런싱
     # 이력을 이 실행 그대로 그리는 데 쓴다. 저장은 전부터 하고 있었고 내보내지만
@@ -128,6 +131,7 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
         schedule=results.get("schedule"),
         weight_path=results.get("weight_path"),
         validation=results.get("validation"),
+        m2=results.get("m2"),
         reason=results.get("error"),
         risk_level=results.get("risk_level"),
         # universe 는 2026-09-29 이전 실행에는 없다(그때는 저장하지 않았다). 없으면 None.
