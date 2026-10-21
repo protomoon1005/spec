@@ -47,6 +47,8 @@ export type SpecDetail = {
   user_id: number;
   name: string;
   created_at: string;
+  /** draft · approved · running · closed (db/init strategy_specs.status) */
+  status: string;
   input_prompt: string | null;
   rebalance: RebalanceRule | null;
   signal_rules: SignalRulesView | null;
@@ -120,5 +122,6 @@ export function metaFromSpec(spec: SpecDetail, run: RunDetail): SpecMeta {
     constraint: spec.constraint_user,
     inputPrompt: spec.input_prompt,
     runId: run.run_id,
+    specStatus: spec.status,
   };
 }

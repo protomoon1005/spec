@@ -52,6 +52,15 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+// 머리 배지 — 전략서 상태(strategy_specs.status). 정적 데모는 실제 전략서가 아니라 달지 않는다.
+// 승인한 전략서는 approved 에 머물고 운용 여부는 포트폴리오가 갖는다(docs/known-issues.md).
+const SPEC_STATUS_TAG: Record<string, { text: string; color: string }> = {
+  draft: { text: "승인 대기", color: C.warn },
+  approved: { text: "승인됨", color: C.profit },
+  running: { text: "운용 중", color: C.profit },
+  closed: { text: "종료", color: C.muted },
+};
+
 // --- 화면 --------------------------------------------------------------------
 // report 를 넘기지 않으면 정적 데모 결과(data/backtest-result.json)를 그린다.
 // /report?run_id= 는 lib/report-from-run.ts 로 만든 실행 결과를 넘긴다.
@@ -96,6 +105,7 @@ export default function Report({ report = defaultReport }: { report?: ReportData
     inputPrompt,
     rebalanceLabel,
     boundsSource,
+    specStatus,
   } = report;
   const [tab, setTab] = useState<TabId>("overview");
   const [note, setNote] = useState("");
@@ -152,7 +162,9 @@ export default function Report({ report = defaultReport }: { report?: ReportData
                 ) : (
                   <Tag text="데모 결과" color={C.muted} />
                 )}
-                <Tag text={`승인 대기`} color={C.warn} />
+                {specStatus && SPEC_STATUS_TAG[specStatus] && (
+                  <Tag text={SPEC_STATUS_TAG[specStatus].text} color={SPEC_STATUS_TAG[specStatus].color} />
+                )}
               </div>
               <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, marginTop: 5 }}>
                 {PERIOD_START} → {PERIOD_END} · 국내 상장 ETF {weightRows.length}종목 · {rebalanceLabel} · {PROFILE.label}
