@@ -37,7 +37,9 @@ TREND_SLOT = "signal_rules.market_temperature.trend_index"
 VOLATILITY_SLOT = "signal_rules.market_temperature.volatility_index"
 
 
-def build_compile_schema(candidate_set: CandidateSet) -> dict[str, Any]:
+def build_compile_schema(
+    candidate_set: CandidateSet, *, rebalance_block_ids: tuple[str, ...] | list[str] = ()
+) -> dict[str, Any]:
     # 후보가 없으면 만들 수 있는 전략서가 없다. 빈 스키마를 주면 LLM 이
     # 아무거나 지어내거나 빈 배열을 내고, 어느 쪽이든 원인을 알기 어렵다.
     if not candidate_set.candidates:
@@ -48,7 +50,7 @@ def build_compile_schema(candidate_set: CandidateSet) -> dict[str, Any]:
 
     schema["properties"]["universe"] = _universe_schema(candidate_set)
     _narrow_indicators(defs)
-    rebalance = _rebalance_schema()
+    rebalance = _rebalance_schema(rebalance_block_ids)
     if rebalance is not None:
         schema["properties"]["rebalance"] = rebalance
     _narrow_market_temperature(defs)
@@ -99,19 +101,26 @@ def _narrow_indicators(defs: dict[str, Any]) -> None:
         defs["MarketAnalysisRule"]["properties"]["indicators"]["items"] = {"enum": names}
 
 
-def _rebalance_schema() -> dict[str, Any] | None:
+def _rebalance_schema(only: tuple[str, ...] | list[str] = ()) -> dict[str, Any] | None:
     # 리밸런싱은 블록 하나를 통째로 고르게 한다. 처음엔 방식(type)과 주기(freq)를 따로
     # enum 으로 좁혔는데, 그러면 블록에 없는 조합이 통과했다 — "매달 초" 요청에
     # monthly + threshold, "매주" 요청에 day 없는 weekly 가 나와 백테스트 러너가 거부했다
     # (2026-10-21 데모 흐름 4회 중 4회, qwen3:8b). day · min_interval_days 도 블록 값으로 묶는다.
     # 간격은 하드캡(min_interval_days)이 하한으로 다시 클램프한다.
+    # only 를 주면(사용자 말에 걸린 블록, intent.rebalance_block_ids) 그 블록들로만 좁힌다.
     options = [
         _exactly(block.params_schema)
-        for block in bbl.list_blocks("rebalance")
+        for block in rebalance_blocks(only)
         if (block.params_schema or {}).get("trigger", {}).get("type")
         and "min_interval_days" in block.params_schema
     ]
     return {"oneOf": options} if options else None
+
+
+def rebalance_blocks(only: tuple[str, ...] | list[str] = ()) -> list[bbl.Block]:
+    # 스키마와 프롬프트가 같은 목록을 보게 한 곳에서 고른다.
+    blocks = bbl.list_blocks("rebalance")
+    return [block for block in blocks if block.block_id in only] if only else blocks
 
 
 def _exactly(value: Any) -> dict[str, Any]:

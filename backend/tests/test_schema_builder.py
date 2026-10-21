@@ -235,3 +235,16 @@ def test_same_request_gives_the_same_schema(engine):
     second = S.build_compile_schema(C.select(**kwargs))
 
     assert first == second
+
+
+def test_rebalance_can_be_narrowed_to_the_spoken_blocks(engine):
+    import jsonschema
+
+    only = ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
+    schema = S.build_compile_schema(C.select(risk_level=3, target=3), rebalance_block_ids=only)
+    rebalance = schema["properties"]["rebalance"]
+
+    assert len(rebalance["oneOf"]) == 2
+    jsonschema.validate(bbl.get_block("RB_MONTHLY_FIRST").params_schema, rebalance)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bbl.get_block("RB_THRESHOLD_5").params_schema, rebalance)

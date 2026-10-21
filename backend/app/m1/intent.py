@@ -26,7 +26,7 @@
 # 성향 판정이 의미가 없다.
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from app.repositories import bbl, etf_master, presets
@@ -54,6 +54,10 @@ class ResolvedIntent:
     tag_queries: tuple[str, ...]  # BBL 검색에 넣을 태그
     requested_tickers: tuple[str, ...]  # 이름으로 찾아낸 종목
     unresolved_names: tuple[str, ...] = field(default=())  # 못 찾은 이름
+    # 사용자 말(kw:)에 걸린 ETF 특성 블록의 (이름, 종목명 정규식). 후보를 고를 때 이 종목을 앞에 둔다
+    traits: tuple[tuple[str, str], ...] = field(default=())
+    # 사용자 말(kw:)에 걸린 리밸런싱 블록. 비어 있으면 전략서 작성이 블록 전부에서 고른다
+    rebalance_block_ids: tuple[str, ...] = field(default=())
 
 
 def build_intent_schema() -> dict[str, Any]:
@@ -110,7 +114,15 @@ def extract(user_text: str, client) -> Intent:
     sectors = {g: label for g, label in presets.list_group_labels(2).items() if g.startswith("SECTOR_")}
     text = build_prompt(user_text, asset_labels=presets.list_group_labels(1), sector_labels=sectors)
     raw = client.generate_json(text, build_intent_schema(), system=SYSTEM_PROMPT)
-    return from_payload(raw)
+    return _with_spoken_keywords(from_payload(raw), user_text)
+
+
+def _with_spoken_keywords(parsed: Intent, user_text: str) -> Intent:
+    # 문장에 낱말이 그대로 있는데 LLM 이 빠뜨린 키워드를 더한다. "배당 나오는 ETF 위주로" 에서
+    # keywords 를 두 번 다 비워 냈다(2026-10-21, qwen3:8b). 목록 낱말과의 글자 일치라 같은
+    # 문장이면 늘 같다. LLM 이 고른 것은 그대로 두고 뒤에 붙인다.
+    spoken = [kw for kw in bbl.list_tags("kw:") if kw in user_text and kw not in parsed.keywords]
+    return replace(parsed, keywords=parsed.keywords + tuple(spoken)) if spoken else parsed
 
 
 def from_payload(raw: dict) -> Intent:
@@ -149,6 +161,28 @@ def resolve(intent: Intent) -> ResolvedIntent:
         tag_queries=tuple(dict.fromkeys(tags)),
         requested_tickers=tuple(tickers),
         unresolved_names=tuple(unresolved),
+        traits=_traits(intent.keywords),
+        rebalance_block_ids=_rebalance_blocks(intent.keywords),
+    )
+
+
+def _rebalance_blocks(keywords: tuple[str, ...]) -> tuple[str, ...]:
+    # "매달 초에 맞춰줘" 에 블록 6개를 다 주면 비중 이탈 블록을 고르기도 했다(2026-10-21).
+    # 사용자 말이 블록 태그(kw:매달 · kw:주간 …)에 걸리면 그 블록들로만 좁힌다.
+    said = {f"kw:{value}" for value in keywords}
+    return tuple(block.block_id for block in bbl.list_blocks("rebalance") if said & set(block.tags))
+
+
+def _traits(keywords: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
+    # "배당 나오는 ETF" 의 배당은 업종도 자산군도 아니라 종목 이름에서 읽히는 성격이다
+    # (docs/m1_milestone.md ④). 블록이 이름 정규식을 들고 있는데 후보 선정에 이어지지 않아
+    # 배당 요청에 시장대표 ETF 만 담겼다(2026-10-21). 사용자 말(kw:)로 걸린 블록만 쓴다 —
+    # asset:bond 같은 태그까지 쓰면 채권 요청마다 국채 블록이 걸린다.
+    said = {f"kw:{value}" for value in keywords}
+    return tuple(
+        (block.title or block.block_id, block.params_schema["name_pattern"])
+        for block in bbl.list_blocks("etf_trait")
+        if said & set(block.tags) and (block.params_schema or {}).get("name_pattern")
     )
 
 

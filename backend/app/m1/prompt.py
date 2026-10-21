@@ -55,7 +55,11 @@ def build_compile_prompt(
         "고를 수 있는 종목과 비중 범위:",
     ]
     for candidate in candidate_set.candidates:
-        mark = " (사용자가 직접 지목함)" if candidate.requested else ""
+        mark = (
+            " (사용자가 직접 지목함)"
+            if candidate.requested
+            else f" (요청한 특성: {candidate.trait})" if candidate.trait else ""
+        )
         lines.append(
             f"  - {candidate.ticker} {candidate.name} "
             f"[{candidate.weight_min:.2f} ~ {candidate.weight_max:.2f}]{mark}"
@@ -100,4 +104,6 @@ def build_compile_prompt(
         "  - 후보가 여럿이면 한 종목에 몰지 말고 나눠 담아라",
         "  - name 은 전략을 한눈에 알아볼 수 있는 짧은 한국어 이름으로 지어라",
     ]
+    if any(candidate.trait for candidate in candidate_set.candidates):
+        lines.append("  - '요청한 특성' 표시가 있는 종목은 사용자가 원한 성격이다. 빼지 말고 담아라")
     return "\n".join(lines)
