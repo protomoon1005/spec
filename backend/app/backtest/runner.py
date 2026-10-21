@@ -119,23 +119,20 @@ def run(
     initial_cash: float,
     use_signals: bool = True,
     *,
-    bounds: dict[str, tuple[float, float]] | None = None,
-    cash_min: float | None = None,
+    weigh=None,
 ) -> dict:
     """vectorbt 로 한 계열을 돌린다.
 
     use_signals=False 면 s=0 (허용범위 정중앙) — 신호만 뺀 대조군이다.
-    bounds · cash_min 은 검증 확정값(app/backtest/inputs.py). 안 주면 예전처럼 _raw 를
-    resolve_bounds 로 접고 성향 기본 현금을 쓴다 — 데모 스크립트 · TS 러너 대조는 이 경로다.
+    weigh 를 주면 비중 계산을 weigh(date, signals) 로 바꿔 끼운다(M2 체인, service 경로).
+    반환은 map_signals_to_weights 와 같은 4-튜플이어야 한다. None 이면 _raw 를 resolve_bounds 로 접고
+    성향 기본 현금을 쓰는 기본 경로다 — 데모 스크립트 · TS 러너 대조 · 검증에서 막힌 전략서가 쓴다.
     """
     import vectorbt as vbt  # import 에 10초 넘게 걸려서 호출 시점으로 미룬다
 
     profile = profile_for(risk_level)
     caps = caps_for(risk_level)
-    if bounds is None:
-        bounds = resolve_bounds(holdings, profile["grade_cap"])
-    if cash_min is None:
-        cash_min = profile["cash_min"]
+    bounds = resolve_bounds(holdings, profile["grade_cap"])
     tickers = [h["ticker"] for h in holdings]
     rebal = set(rebalance_dates)
     judge = BacktestJudge(tickers)
@@ -159,7 +156,12 @@ def run(
             signals = dict(judge.judge(prices_wide, as_of=d).signals)
         else:
             signals = {t: 0.0 for t in tickers}
-        mapped, tgt, cash, apps = map_signals_to_weights(holdings, bounds, signals, cash_min, caps)
+        if weigh is None:
+            mapped, tgt, cash, apps = map_signals_to_weights(
+                holdings, bounds, signals, profile["cash_min"], caps
+            )
+        else:
+            mapped, tgt, cash, apps = weigh(d, signals)
         target.loc[d] = [tgt[t] for t in tickers]
         decision = {
             "date": d,

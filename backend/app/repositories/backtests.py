@@ -16,9 +16,9 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
-from app.core.db import get_engine
+from app.core.db import get_engine, reading
 
 QUEUED = "queued"
 RUNNING = "running"
@@ -59,12 +59,13 @@ def create_run(
     return dict(row._mapping)
 
 
-def get_run(run_id: int) -> dict | None:
+def get_run(run_id: int, *, conn: Connection | None = None) -> dict | None:
     """실행 기록 + 결과 + 전략서 소유자(user_id). 없으면 None.
 
     결과 행이 아직 없으면 지표 칸과 window_results 는 None 이다.
+    conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
     """
-    with get_engine().connect() as conn:
+    with reading(conn) as conn:
         row = conn.execute(
             text(
                 """
