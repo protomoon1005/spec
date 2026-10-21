@@ -87,6 +87,11 @@ export type BacktestResult = {
   data_source: string;
   price_field: string;
   universe: UniverseItem[];
+  /**
+   * 백엔드 M2 체인이 실제로 쓴 종목별 [하한, 상한](GET /backtest/runs/{id} 의 m2.bounds).
+   * 있으면 비중 표가 이 값을 그린다. 정적 데모(TS 러너)와 체인 전 실행에는 없어서 정책으로 계산한다.
+   */
+  confirmed_bounds?: Record<string, [number, number]>;
   caps: Record<string, number>;
   series: Point[];
   decisions: Decision[];
@@ -480,7 +485,9 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     signal: lastDecision.signals[u.ticker] ?? 0,
   }));
 
-  const bounds: Record<string, Bound> = resolveBounds(
+  // 범위는 실행이 쓴 확정값이 정본이다. 프론트 계산(resolveBounds)은 프리셋 · 하드캡만 보고
+  // Validator 의 범위 보정을 모르므로, 확정값이 있으면 그것을 그린다.
+  const computedBounds: Record<string, Bound> = resolveBounds(
     universe.map((a) => ({
       ticker: a.ticker,
       grade: a.grade as Grade,
@@ -490,6 +497,17 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     PROFILE,
     HARDCAP.maxWeightPerAsset,
   );
+  const confirmed = result.confirmed_bounds;
+  const bounds: Record<string, Bound> = confirmed
+    ? Object.fromEntries(
+        universe.map((a) => {
+          const [min, max] = confirmed[a.ticker];
+          return [a.ticker, { min, max, clampedBy: max < a.maxRaw - 1e-9 ? "검증" : null }];
+        }),
+      )
+    : computedBounds;
+  /** 비중 범위를 어디서 얻었는지. 검증 확정값이면 "validated", 정책으로 계산했으면 "computed" */
+  const boundsSource: "validated" | "computed" = confirmed ? "validated" : "computed";
 
   const cappedBy = new Map<string, string[]>();
   for (const app of lastDecision.capApplications) {
@@ -700,6 +718,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     folds,
     universe,
     bounds,
+    boundsSource,
     weightRows,
     targetCash,
     capLogs,

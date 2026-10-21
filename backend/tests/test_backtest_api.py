@@ -153,6 +153,8 @@ def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, f
     assert got["universe"] == results["universe"]
     assert got["decisions"] == results["decisions"]
     assert got["control_decisions"] == results["control_decisions"]
+    # 체인 전 경로 결과라 확정값 기록이 없다 — 리포트는 정책으로 범위를 다시 계산한다
+    assert got["m2"] is None
     # 재현 조건
     assert got["feature_set_version"] == "v0.1-ta9"
     assert (got["seed_money"], got["fee_rate"], got["tax_rate"], got["slippage_bp"]) == (
@@ -243,6 +245,20 @@ def test_metrics_follow_the_frontend_definition():
 
 
 # ── 재현성: 같은 spec_id 를 두 번 돌리면 지표와 목표 비중이 같다 ────────
+
+
+def test_get_exposes_the_bounds_the_chain_used(client, owner, fake_runner, monkeypatch):
+    # 리포트 화면이 비중 범위를 다시 계산하지 않고 체인이 쓴 확정값을 그리도록 내보낸다
+    email, spec_id = owner
+    m2 = {"source": "revalidated", "hardcap_version": "v0.1", "cash_target": 0.05,
+          "max_loss_per_trade": 0.05, "min_interval_days": 20, "bounds": {"069500": [0.05, 0.3]},
+          "risk_sizer": {"version": "v0.1", "atr_multiple": 2, "horizon_days": 20}}
+    result = {**FAKE_RESULT, "window_results": {**FAKE_RESULT["window_results"], "m2": m2}}
+    monkeypatch.setattr(service, "run_spec_backtest", lambda spec_id, **kwargs: result)
+
+    got = _get(client, email, _post(client, email, spec_id).json()["run_id"]).json()
+
+    assert got["m2"] == m2
 
 
 @pytest.mark.requires_backtest

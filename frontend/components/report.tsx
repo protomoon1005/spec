@@ -95,6 +95,7 @@ export default function Report({ report = defaultReport }: { report?: ReportData
     runId,
     inputPrompt,
     rebalanceLabel,
+    boundsSource,
   } = report;
   const [tab, setTab] = useState<TabId>("overview");
   const [note, setNote] = useState("");
@@ -382,7 +383,7 @@ export default function Report({ report = defaultReport }: { report?: ReportData
             <Panel
               title="허용범위와 목표비중"
               sub={`${PROFILE.label} · 1단 사전 허용범위 안에서 2단 Spec 범위, 그 안에서 신호가 결정한 지점`}
-              source={`1단 출처: ${PROFILE.source} · 2단: ${spec.spec_id} v${spec.spec_version} · 신호 기준시점 ${SNAPSHOT}`}
+              source={`1단 출처: ${PROFILE.source} · 2단: ${spec.spec_id} v${spec.spec_version} · 범위: ${boundsSource === "validated" ? "이 실행이 쓴 검증 확정값" : "정책으로 계산(확정값 기록 없음)"} · 신호 기준시점 ${SNAPSHOT}`}
             >
               <div className="flex items-center gap-5 flex-wrap" style={{ fontFamily: MONO, fontSize: 10, color: C.muted, marginBottom: 14 }}>
                 <span className="flex items-center gap-2">

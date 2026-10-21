@@ -89,8 +89,8 @@
   - 확정값이 있는 실행의 비중은 M2 체인(`app/m2/weights.py`, `app/backtest/m2_chain.py`)이 낸다(2026-10-04 구현, 2026-10-20 main 합류).
     그룹캡 적용 내역도 `group_cap_applications` 표가 아니라 여기 `decisions[].m2` 에 있다 — 표는 `decision_id` 가 필요한데
     백테스트 결정은 DB 행이 아니다. decision_records 연결은 데모 후
-  - `window_results.m2`(체인 입력: 출처·1회 손실·간격·RiskSizer 상수)는 `GET /backtest/runs/{id}` 가 내보내지 않는다.
-    `decisions[].m2` 는 결정 목록에 섞여 나간다
+  - `window_results.m2`(체인 입력: 범위·출처·1회 손실·간격·RiskSizer 상수)는 2026-10-21 부터 `GET /backtest/runs/{id}` 의
+    `m2` 로 나간다(리포트가 범위를 읽는다). `decisions[].m2` 는 결정 목록에 섞여 나간다
 
 - **백테스트가 Validator 결과를 쓰는 방식** (2026-10-04 확인 → 810665a · c1f2501 를 2026-10-20 합침. 남은 것만)
   - `service.run_spec_backtest` 경로만 해당한다. `scripts/run_backtest_vbt.py`·TS 대조는 두 러너 일치를 보려고
@@ -123,9 +123,10 @@
     범위 보정이 긴 소수를 만들면 메모리 재검증 실행과 기록 · 승인 뒤 실행이 마지막 자리에서 갈릴 수 있다.
     승인 대조는 1e-9 허용 오차라 영향이 없다. 지금 픽스처(0.0 · 0.3 류)에서는 결과 차이가 재현되지 않았다
   - 낙폭 상한(`max_drawdown`)은 체인에서 쓰지 않는다. 운용 중 낙폭 통제는 데모 범위 밖
-  - **리포트 화면은 확정값을 모른다** — `frontend/lib/data.ts` 가 비중 범위를 실행 기록의 `weight_*_raw` + `resolveBounds` 로,
-    현금 하한을 성향 기본값으로 다시 만든다. 확정값으로 돈 실행이면 리포트의 범위·현금 표시가 실제 실행과 다를 수 있다
-    (`universe[].weight_min/max` · `validation.cash_target` 은 실행 기록에 있다)
+  - **리포트 화면의 범위는 실행이 쓴 확정값을 그린다** (2026-10-21) — `frontend/lib/data.ts` 가 `m2.bounds` 가 있으면 그 값을,
+    없으면(정적 데모 · 체인 전 실행) 예전처럼 `weight_*_raw` + `resolveBounds` 로 계산한다. 비중 표 출처 줄에 어느 쪽인지 적는다.
+    현금 줄의 "하한" 은 아직 전략서 `cash_min`(없으면 성향 기본값)이다 — 체인이 쓴 현금 목표(`m2.cash_target`)는
+    하한과 뜻이 달라 바꾸지 않았다
 
 - **러너 기본 경로(`runner.map_signals_to_weights`)는 cash_min · weight_min 을 끝까지 지키지 않음** (2026-10-04 · 10-20 확인)
   - 정규화·클램프를 3회로 끊는데, 클램프가 종목을 weight_min 으로 끌어올리면 합이 다시 1 − cash_min 을 넘은 채 끝난다

@@ -35,6 +35,8 @@ export type RunDetail = {
   universe: UniverseItem[] | null;
   decisions: Decision[] | null;
   control_decisions: Decision[] | null;
+  /** M2 체인이 쓴 확정값. 체인 전 실행에는 없다 */
+  m2?: { bounds?: Record<string, [number, number]> } | null;
   reason: string | null;
 };
 
@@ -88,11 +90,19 @@ export function resultFromRun(run: RunDetail): BacktestResult {
     data_source: "price_daily",
     price_field: "종가 (시장가격, NAV 아님)",
     universe,
+    // 체인이 쓴 범위. 종목이 하나라도 빠지면 그 실행의 기록이 아니므로 쓰지 않고 정책 계산으로 둔다
+    confirmed_bounds: confirmedBounds(run),
     caps: capsFor(riskLevel).group,
     series,
     decisions,
     control_decisions: controlDecisions,
   };
+}
+
+function confirmedBounds(run: RunDetail): Record<string, [number, number]> | undefined {
+  const bounds = run.m2?.bounds;
+  if (!bounds || !run.universe?.every((u) => bounds[u.ticker]?.length === 2)) return undefined;
+  return bounds;
 }
 
 export function metaFromSpec(spec: SpecDetail, run: RunDetail): SpecMeta {
