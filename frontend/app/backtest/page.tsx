@@ -271,9 +271,8 @@ function Result({ run }: { run: BacktestRun }) {
         <dt>비중 계산</dt>
         <dd>{run.weight_path}</dd>
         <dt>서버 지표</dt>
-        <dd style={{ wordBreak: "break-all" }}>
-          <span className="flow-hint">전략 기준, benchmark_cagr 은 시장 </span>
-          {JSON.stringify(run.metrics)}
+        <dd>
+          <ServerMetrics m={run.metrics} />
         </dd>
       </dl>
       {/* 리포트는 이 실행 번호로 같은 결과를 받아 그린다. 예전에는 /report 가 늘 데모 결과를
@@ -348,6 +347,20 @@ function SeriesTable({ totals }: { totals: SeriesTotals }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+// 서버가 계산한 연환산 지표(backtest_metrics). 전략 기준이고 시장 CAGR 만 시장(KODEX 200) 것이다.
+// 승률은 정의가 문서에 없어 비어 있다(backend/app/backtest/service.py).
+function ServerMetrics({ m }: { m: BacktestRun["metrics"] }) {
+  if (!m) return <span className="flow-hint">없음</span>;
+  const num = (v: number | null, f: (x: number) => string) => (v == null ? "—" : f(v));
+  const ratio = (v: number) => v.toFixed(2);
+  return (
+    <span className="mono">
+      CAGR {num(m.cagr, pct)} · 샤프 {num(m.sharpe, ratio)} · 소르티노 {num(m.sortino, ratio)} · MDD{" "}
+      {num(m.mdd, pct)} <span className="flow-hint">· 시장 CAGR {num(m.benchmark_cagr, pct)}</span>
+    </span>
   );
 }
 
