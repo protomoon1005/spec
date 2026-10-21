@@ -83,6 +83,16 @@ def list_group_ids(group_level: int) -> list[str]:
     return [row.group_id for row in rows]
 
 
+def list_group_labels(group_level: int) -> dict[str, str]:
+    """묶음 이름 → 한국어 이름표(asset_groups.label). 이름 순."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT group_id, label FROM asset_groups WHERE group_level = :lv ORDER BY group_id"),
+            {"lv": group_level},
+        ).all()
+    return {row.group_id: row.label for row in rows}
+
+
 def get_asset_bounds(risk_level: int, *, preset_version: str | None = None) -> dict[str, AssetBound]:
     """한 성향의 등급별 허용범위 전부. {등급: 범위}.
 

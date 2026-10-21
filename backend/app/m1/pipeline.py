@@ -80,6 +80,7 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
         sectors=list(parsed.sectors),
         group_ids=list(parsed.asset_groups),
         preset_version=profile.preset_version,
+        traits=list(resolved.traits),
     )
     if not candidate_set.candidates:
         # 같은 질문을 두 번 묻지 않는다. 두 번째에도 담을 게 없으면 포기하고
@@ -90,12 +91,15 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
         return _ask(state, empty)
 
     blocks = bbl.search_blocks(list(resolved.tag_queries), limit=MAX_BLOCKS_IN_PROMPT)
-    schema = schema_builder.build_compile_schema(candidate_set)
+    schema = schema_builder.build_compile_schema(
+        candidate_set, rebalance_block_ids=resolved.rebalance_block_ids
+    )
     text = prompt.build_compile_prompt(
         user_text=user_text,
         candidate_set=candidate_set,
         blocks=blocks,
         defaults=profiles.get_profile_defaults(candidate_set.preset_version, profile.risk_level),
+        rebalance_blocks=schema_builder.rebalance_blocks(resolved.rebalance_block_ids),
     )
 
     raw = llm_client.generate_json(text, schema, system=prompt.SYSTEM_PROMPT)
