@@ -1,18 +1,20 @@
 """spec 라우터. POST /specs/compile (202 + job_id -> GET /jobs/{job_id}/stream),
-GET /specs (내 목록), GET /specs/{spec_id}, DELETE /specs/{spec_id} (draft 만) 가 실제로
-동작한다. 나머지는 경로·응답모델·인증만 열어두고 501이다
+GET /specs (내 목록), GET /specs/{spec_id}, DELETE /specs/{spec_id} (draft 만),
+POST /specs/{spec_id}/validate (draft 만) 가 실제로 동작한다. 나머지는 경로·응답모델·인증만 열어두고 501이다
 (docs/infra-spec.md 7단계, 9장).
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.errors import raise_not_implemented
 from app.core.security import AuthUser, require_any_role
-from app.repositories import specs
+from app.m2 import validator
+from app.m2.stages import ValidationResult
+from app.repositories import presets, specs
 from app.workers.tasks import compile_spec
 
 router = APIRouter(prefix="/specs", tags=["spec"])
@@ -31,13 +33,23 @@ class CompileSpecAccepted(BaseModel):
 
 
 class SpecUniverseItem(BaseModel):
-    """SPEC_UNIVERSE 한 줄 + etf_master 의 종목명."""
+    """SPEC_UNIVERSE 한 줄 + etf_master 의 종목명 + 그 종목에 적용된 기준표 행.
+
+    weight_min_raw · weight_max_raw 는 AI 가 낸 범위, weight_min · weight_max 는 검증기가
+    고친 뒤의 확정 범위(검증 전에는 둘이 같다). allowed_min · allowed_max 는 전략서를 만들 때
+    양식에 들어간 허용범위(preset_id 의 기준표 행) — 전략 초안 이중막대(U05)가 쓴다.
+    """
 
     ticker: str
     name: str
     weight_min: float | None
     weight_max: float | None
+    weight_min_raw: float | None = None
+    weight_max_raw: float | None = None
     was_adjusted: bool
+    risk_tag: str | None = None
+    allowed_min: float | None = None
+    allowed_max: float | None = None
 
 
 class SpecResponse(BaseModel):
@@ -68,7 +80,125 @@ class SpecDetailResponse(SpecResponse):
     rebalance: dict | None
     signal_rules: dict | None
     constraint_user: dict | None
+    # 전략서가 만들어질 때의 성향 등급(사용자의 최신 성향이 아님)
+    risk_level: int | None = None
     universe: list[SpecUniverseItem]
+
+
+class ViolationItem(BaseModel):
+    """위반 한 건. `code` 는 화면이 분기할 때, `message` 는 그대로 보여 줄 때 쓴다."""
+
+    code: str
+    message: str
+    ticker: str | None
+    field: str | None
+    detail: dict
+
+
+class ClampedField(BaseModel):
+    """하드캡으로 깎인 값 하나. `field` 예: `universe.069500.weight_max`, `constraint.max_drawdown`."""
+
+    field: str
+    requested: float
+    applied: float
+    limit: str
+
+
+class AdjustedItem(BaseModel):
+    ticker: str
+    ceiling: float
+    min_before: float
+    min_after: float
+    max_before: float
+    max_after: float
+
+
+class AdjustedBounds(BaseModel):
+    """범위 보정 내역(docs/m2-algorithms.md 1장). `case` 가 null 이면 보정이 필요 없었다."""
+
+    case: str | None
+    cash_min: float
+    cash_target: float
+    scale: float | None
+    sum_min_before: float
+    sum_max_before: float
+    sum_min_after: float
+    sum_max_after: float
+    reduce_universe: bool
+    items: list[AdjustedItem]
+
+
+class StageResultItem(BaseModel):
+    """단계 하나. `status` 는 passed · failed · not_run(앞 단계에서 막힘)."""
+
+    stage: int
+    name: str
+    status: str
+    violations: list[ViolationItem]
+    adjusted_bounds: AdjustedBounds | None = None
+    clamped_fields: list[ClampedField] | None = None
+
+
+class RegenerationInfo(BaseModel):
+    required: bool
+    reasons: list[dict]
+
+
+class ValidatedBound(BaseModel):
+    ticker: str
+    weight_min_raw: float
+    weight_max_raw: float
+    weight_min: float
+    weight_max: float
+    was_adjusted: bool
+
+
+class ValidationResponse(BaseModel):
+    spec_id: str
+    hardcap_version: str
+    as_of: date
+    passed: bool
+    blocked_at: int | None
+    regeneration: RegenerationInfo
+    cash_target: float | None
+    stages: list[StageResultItem]
+    universe: list[ValidatedBound]
+
+    @classmethod
+    def from_result(cls, r: ValidationResult) -> ValidationResponse:
+        return cls(
+            spec_id=r.spec_id,
+            hardcap_version=r.hardcap_version,
+            as_of=r.as_of,
+            passed=r.passed,
+            blocked_at=r.blocked_at,
+            regeneration=RegenerationInfo(
+                required=r.regeneration.required, reasons=list(r.regeneration.reasons)
+            ),
+            cash_target=r.cash_target,
+            stages=[
+                StageResultItem(
+                    stage=s.stage,
+                    name=s.name,
+                    status=s.status,
+                    violations=[ViolationItem(**v.as_dict()) for v in s.violations],
+                    adjusted_bounds=s.adjusted_bounds,
+                    clamped_fields=list(s.clamped_fields) if s.clamped_fields is not None else None,
+                )
+                for s in r.stages
+            ],
+            universe=[
+                ValidatedBound(
+                    ticker=b.ticker,
+                    weight_min_raw=b.weight_min_raw,
+                    weight_max_raw=b.weight_max_raw,
+                    weight_min=b.weight_min,
+                    weight_max=b.weight_max,
+                    was_adjusted=b.was_adjusted,
+                )
+                for b in r.universe
+            ],
+        )
 
 
 @router.post("/compile", status_code=status.HTTP_202_ACCEPTED, response_model=CompileSpecAccepted,
@@ -139,7 +269,21 @@ def get_spec(spec_id: str, user: AuthUser = Depends(require_any_role)) -> SpecDe
     spec = specs.get_spec(spec_id)
     if spec is None or spec["user_id"] != user.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
-    return SpecDetailResponse(**spec, universe=specs.get_spec_universe(spec_id))
+    universe = specs.get_spec_universe(spec_id)
+    preset_ids = [row["preset_id"] for row in universe if row.get("preset_id") is not None]
+    bounds = presets.get_bounds_by_ids(preset_ids)
+    items = []
+    for row in universe:
+        bound = bounds.get(row.get("preset_id"))
+        items.append(
+            SpecUniverseItem(
+                **row,
+                risk_tag=bound.risk_tag if bound else None,
+                allowed_min=bound.allowed_min if bound else None,
+                allowed_max=bound.allowed_max if bound else None,
+            )
+        )
+    return SpecDetailResponse(**spec, risk_level=specs.get_spec_risk_level(spec_id), universe=items)
 
 
 @router.delete("/{spec_id}", status_code=status.HTTP_204_NO_CONTENT, summary="전략서 지우기 (draft 만)")
@@ -160,3 +304,28 @@ def delete_spec(spec_id: str, user: AuthUser = Depends(require_any_role)) -> Non
             status_code=status.HTTP_409_CONFLICT,
             detail="백테스트·승인·포트폴리오 기록이 붙은 전략서는 지울 수 없다",
         )
+
+
+@router.post("/{spec_id}/validate", response_model=ValidationResponse, summary="전략서 검증 (draft 만)")
+def validate_spec(spec_id: str, user: AuthUser = Depends(require_any_role)) -> ValidationResponse:
+    """전략서를 4단으로 검사한다 — 스키마 → 참조 → 논리(+범위 보정) → 하드캡.
+
+    - 앞 세 단계 중 하나에서 막히면 `blocked_at` 에 그 단계가 오고 뒤 단계는 `not_run` 이다
+    - 비중 범위가 서로 맞지 않으면 되묻지 않고 자동으로 고친다. 내역은 3단의 `adjusted_bounds`
+    - 시스템 상한(하드캡)을 넘는 값은 깎는다. 내역은 4단의 `clamped_fields`
+    - `regeneration.required` 가 true 면 전략서를 다시 만들어야 한다(스키마·참조 실패)
+
+    검사 기준일(`as_of`)은 가격 데이터의 마지막 거래일이다. 오늘이 아니다.
+    여러 번 불러도 결과가 같다. 고친 범위는 전략서에 저장되고 원래 값은 그대로 남는다.
+
+    자기 전략서만 된다. 없거나 남의 것이면 404, draft 가 아니면 409.
+    """
+    spec = specs.get_spec(spec_id)
+    if spec is None or spec["user_id"] != user.user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
+    if spec["status"] != specs.DRAFT:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="draft 전략서만 검증할 수 있다")
+    as_of = validator.period_end()
+    if as_of is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="가격 데이터가 없어 검증할 수 없다")
+    return ValidationResponse.from_result(validator.validate(spec_id, as_of=as_of))

@@ -142,3 +142,27 @@ def test_spec_risk_level_is_the_one_at_creation(engine, owner):
 
     assert specs.get_spec_risk_level(spec_id) == 5
     assert specs.get_spec_risk_level("STR-없는전략서") is None
+
+
+def test_detail_carries_raw_range_and_allowed_band(engine, client, owner):
+    """전략 초안 이중막대(U05)가 쓰는 칸 — AI 원래 범위 · 기준표 허용범위 · 성향.
+
+    허용범위는 종목이 저장될 때의 preset_id 행이다. 후보 판정이 낸 범위와 같아야 한다.
+    """
+    email, profile = owner
+    spec_id = _save_spec(profile)
+    allowed = {c.ticker: c for c in C.select(risk_level=5, target=3).candidates}
+
+    body = client.get(f"/specs/{spec_id}", headers=_auth(client, email)).json()
+
+    assert body["risk_level"] == 5
+    assert len(body["universe"]) == 3
+    for item in body["universe"]:
+        candidate = allowed[item["ticker"]]
+        assert item["allowed_min"] == candidate.weight_min
+        assert item["allowed_max"] == candidate.weight_max
+        assert item["risk_tag"] == candidate.risk_tag
+        # 검증 전이라 원래 범위와 확정 범위가 같다
+        assert item["weight_min_raw"] == item["weight_min"]
+        assert item["weight_max_raw"] == item["weight_max"]
+        assert item["allowed_min"] <= item["weight_min_raw"] <= item["weight_max_raw"] <= item["allowed_max"]

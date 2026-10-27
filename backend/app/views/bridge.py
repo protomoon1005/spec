@@ -38,8 +38,11 @@
 # 결측을 어떻게 다룰지는 스코어러 몫이다. OHLCV 가 갖춰져 들어오면 그대로 둔다.
 #
 # ── 스코어러 교체 지점은 SCORERS 한 곳이다 ───────────────────────────
-# 시장분석·온도 실물은 아직 없다(시장분석은 price_daily 대기, 온도는 etf_master
-# 대기). 그때까지 계약 ② 의 고정 시드 목업으로 채운다.
+# 시장분석(app/scoring/market.py)·온도(app/scoring/regime.py)는 실물이다. 둘 다
+# 저장소·LightGBM 을 읽으므로 호출 시점에 지연 import 한다 — 이 모듈을 import 하는
+# 것만으로 DB·ML 의존성이 끌려오지 않게.
+# 목업(MOCK_SCORERS)은 남겨 둔다. DB 없는 bridge 회귀 테스트와, LightGBM 을 못 돌리는
+# TS 러너와의 대조가 쓴다.
 # 감성은 과거 뉴스 확보 불가 판정(docs/news-archive-feasibility.md)으로 목업이
 # 아니라 중립 고정이다 — 관점은 남기고 항상 "모른다"를 낸다.
 # 실물이 나오면 SCORERS dict 의 한 줄만 바뀐다.
@@ -49,6 +52,7 @@ import logging
 import math
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime
+from importlib import import_module
 
 from app.contracts.integrated_signal import IntegratedSignal
 from app.contracts.view_score import ViewScore, ViewType, mock_view_scores
@@ -100,11 +104,24 @@ def _neutral_scorer(view_type: ViewType) -> ScorerFn:
     return scorer
 
 
-# ★ 실물 스코어러가 나오면 여기 한 줄씩만 바뀐다.
-SCORERS: dict[str, ScorerFn] = {
+def _real_scorer(module: str) -> ScorerFn:
+    def scorer(tickers: list[str], *, as_of: date, features: dict) -> list[ViewScore]:
+        return import_module(module).score(tickers, as_of=as_of, features=features)
+
+    return scorer
+
+
+MOCK_SCORERS: dict[str, ScorerFn] = {
     "market": _mock_scorer("market"),
     "sentiment": _neutral_scorer("sentiment"),
     "regime": _mock_scorer("regime"),
+}
+
+# ★ 스코어러 교체 지점. 관점 하나를 바꾸려면 여기 한 줄만 바꾼다.
+SCORERS: dict[str, ScorerFn] = {
+    "market": _real_scorer("app.scoring.market"),
+    "sentiment": MOCK_SCORERS["sentiment"],
+    "regime": _real_scorer("app.scoring.regime"),
 }
 
 
@@ -146,6 +163,7 @@ class BacktestJudge:
         self._losses: dict[str, list[float]] = {view_type: [] for view_type in VIEW_TYPES}
         self._pending: tuple[date, dict[str, dict[str, float]]] | None = None
         self.last_scores: list[ViewScore] = []
+        self.last_weights: dict[str, float] = {}
 
         mocked = sorted(vt for vt in VIEW_TYPES if scorer_source(self._scorers[vt]) == MOCK_SOURCE)
         if mocked:
@@ -162,6 +180,12 @@ class BacktestJudge:
     def scorer_sources(self) -> dict[str, str]:
         # 리포트/로그가 "이게 아직 목업인가"를 물을 수 있게 하는 자리다.
         return {view_type: scorer_source(self._scorers[view_type]) for view_type in VIEW_TYPES}
+
+    def last_views(self) -> dict:
+        # 직전 판단에 쓴 관점 가중치와 관점별 보정 확률. U09 브리핑이 리밸런싱마다
+        # "가중치가 실적으로 어떻게 움직였는가"를 그리는 재료다.
+        probs = self._pending[1] if self._pending else {}
+        return {"weights": dict(self.last_weights), "probs": probs}
 
     def loss_history(self) -> dict[str, list[float]]:
         return {view_type: list(values) for view_type, values in self._losses.items()}
@@ -210,6 +234,7 @@ class BacktestJudge:
         signal = integrate(scores, as_of=day, weights=weights)
 
         self.last_scores = scores
+        self.last_weights = weights
         # 다음 record_outcome 이 채점할 대상. calibrated_prob 만 남긴다 —
         # Brier 채점에 쓰는 값이 그거다 (raw_score 는 integrate 몫).
         self._pending = (

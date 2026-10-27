@@ -52,6 +52,7 @@ class Candidate:
     weight_max: float
     preset_id: int
     requested: bool  # 사용자가 직접 지목했는가
+    trait: str | None = None  # 요청한 ETF 특성(배당 등)에 맞아 앞에 둔 종목이면 그 특성 이름
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,7 @@ def select(
     name_pattern: str | None = None,
     target: int = DEFAULT_TARGET,
     preset_version: str | None = None,
+    traits: list[tuple[str, str]] | None = None,
 ) -> CandidateSet:
     # 지목한 종목을 먼저 판정하고, 모자라면 같은 조건으로 보충한다.
     version = preset_version or presets.active_preset_version()
@@ -108,6 +110,21 @@ def select(
 
     # 보충 — 지목한 종목이 있으면 그 업종을 이어서 채운다(사용자 의도에 가깝다).
     fill_sectors = sectors or _sectors_of(candidates) or None
+
+    # 요청한 특성(배당 등)에 맞는 종목을 먼저 둔다. 걸러 내지 않고 앞에 둘 뿐이다 — 특성과
+    # 업종이 겹치지 않는 요청("안전하게" + 반도체)에서 후보가 비지 않게. 특성마다 따로 찾는 건
+    # 정규식이 Postgres 문법이라 여기서 다시 판정하지 않으려는 것이다.
+    for title, pattern in traits or []:
+        for record in etf_master.search(
+            group_ids=group_ids, sectors=fill_sectors, name_pattern=pattern, include_leveraged=False
+        ):
+            if len(candidates) >= target:
+                break
+            if record.ticker in seen or _blocked_reason(record, bounds, leverage_allowed=leverage_allowed):
+                continue
+            seen.add(record.ticker)
+            candidates.append(_as_candidate(record, bounds, requested=False, trait=title))
+
     if len(candidates) < target:
         for record in etf_master.search(
             group_ids=group_ids,
@@ -153,7 +170,7 @@ def _blocked_reason(record, bounds, *, leverage_allowed: bool) -> str | None:
     return None
 
 
-def _as_candidate(record, bounds, *, requested: bool) -> Candidate:
+def _as_candidate(record, bounds, *, requested: bool, trait: str | None = None) -> Candidate:
     bound = bounds[record.risk_tag]
     return Candidate(
         ticker=record.ticker,
@@ -166,6 +183,7 @@ def _as_candidate(record, bounds, *, requested: bool) -> Candidate:
         weight_max=bound.allowed_max,
         preset_id=bound.preset_id,
         requested=requested,
+        trait=trait,
     )
 
 

@@ -154,3 +154,39 @@ def test_extract_returns_vocabulary_values(engine):
     sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
     assert set(intent.keywords) <= allowed
     assert set(intent.sectors) <= sectors
+
+
+def test_prompt_tells_what_each_group_code_means(engine):
+    # 코드만 주면 "채권" 을 COMMODITY 로 옮겼다(2026-10-21, qwen3:8b 3회 중 3회)
+    seen: dict = {}
+
+    class Recorder:
+        def generate_json(self, prompt, schema, *, system=None):
+            seen["prompt"] = prompt
+            return {"keywords": [], "sectors": [], "asset_groups": [], "mentioned_names": []}
+
+    I.extract("안전하게 채권 위주로", Recorder())
+
+    assert "BOND=채권계" in seen["prompt"] and "COMMODITY=원자재계" in seen["prompt"]
+    assert "SECTOR_SEMICONDUCTOR=반도체" in seen["prompt"]
+
+
+def test_keywords_spoken_in_the_sentence_are_kept_even_if_the_llm_drops_them(engine):
+    # "배당 나오는 ETF 위주로" 에서 keywords 를 비워 냈다(2026-10-21, qwen3:8b 2회 중 2회)
+    class Forgetful:
+        def generate_json(self, prompt, schema, *, system=None):
+            return {"keywords": [], "sectors": [], "asset_groups": ["EQUITY"], "mentioned_names": []}
+
+    parsed = I.extract("배당 나오는 ETF 위주로 담아줘", Forgetful())
+
+    assert "배당" in parsed.keywords
+    assert parsed.asset_groups == ("EQUITY",)
+    assert [title for title, _ in I.resolve(parsed).traits] == ["커버드콜", "배당"]
+
+
+def test_rebalance_words_narrow_the_rebalance_blocks(engine):
+    monthly = I.resolve(I.Intent(keywords=("매달",))).rebalance_block_ids
+    assert monthly == ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
+    assert I.resolve(I.Intent(keywords=("주간",))).rebalance_block_ids == ("RB_WEEKLY",)
+    # 말이 없으면 좁히지 않는다 — 전략서 작성이 블록 전부에서 고르고 기본값 안내를 따른다
+    assert I.resolve(I.Intent(keywords=("배당",))).rebalance_block_ids == ()

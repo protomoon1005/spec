@@ -36,29 +36,29 @@ function Result() {
     setDone(r?.status === "completed" ? r : null);
   }, []);
 
-  if (done === undefined) return <p>불러오는 중…</p>;
+  if (done === undefined) return <p className="flow-state">불러오는 중…</p>;
   if (done === null) {
     return (
-      <p>
-        완료된 전략서가 없습니다. <Link href="/compile">전략 요청으로</Link>
-      </p>
+      <div className="flow-empty">
+        <strong>완료된 전략서가 없습니다.</strong>
+        <Link href="/compile">전략 요청으로</Link>
+      </div>
     );
   }
 
   return (
     <>
-      <p>전략서가 초안(draft)으로 저장되었습니다.</p>
-      <ul>
-        <li>전략서 번호: {done.spec_id}</li>
-        <li>종목 수: {done.universe_size}</li>
-      </ul>
-
-      <h2>전략서 내용</h2>
+      <p className="flow-msg ok" style={{ marginTop: 0, marginBottom: 16 }}>
+        전략서를 만들었어요. 초안으로 저장됐고, 하드캡 확인과 백테스트를 거쳐 승인합니다.
+      </p>
+      {/* 번호 · 종목 수는 SpecContents 가 보여 준다. */}
       <SpecContents specId={done.spec_id} />
 
-      <p>
-        <button onClick={() => router.push("/hardcap")}>다음 — 하드캡</button>
-      </p>
+      <div className="flow-next">
+        <button className="primary" onClick={() => router.push("/hardcap")}>
+          다음 — 하드캡 확인
+        </button>
+      </div>
     </>
   );
 }

@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from datetime import date
 
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 from app.contracts.view_weights import WEIGHT_FLOOR
 from app.core.db import get_engine
@@ -39,6 +39,7 @@ def insert_view_weights(
     update_rule_version: str,
     portfolio_id: int | None = None,
     run_id: int | None = None,
+    conn: Connection | None = None,
 ) -> None:
     """관점 가중치 한 시점분을 append-only로 기록한다.
 
@@ -49,6 +50,10 @@ def insert_view_weights(
 
     세 관점 행을 한 트랜잭션으로 넣는다. 일부만 들어간 시점은 읽는 쪽에서
     합이 1이 아닌 가중치로 보이므로, 전부 들어가거나 전부 안 들어가야 한다.
+
+    conn 을 주면 그 연결(바깥 트랜잭션) 위에서 넣고 커밋은 바깥이 한다. 포트폴리오
+    활성화(app/m2/approval.py)가 승인 · 포트폴리오 생성과 FN-409 초기 가중치를 한
+    트랜잭션으로 묶을 때 쓴다 — 가중치만 실패해도 승인까지 통째로 되돌린다.
 
     run_id 인자는 백테스트 축이다(팀 확정 Q3, 2026-09-12). 마이그레이션이 아직
     들어오지 않아 지금은 받기만 하고 NotImplementedError를 낸다 — 나중에
@@ -76,18 +81,19 @@ def insert_view_weights(
         for view_type in sorted(weights)
     ]
 
-    with get_engine().begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO view_weights
-                    (portfolio_id, as_of, view_type, weight, weight_floor, update_rule_version)
-                VALUES
-                    (:portfolio_id, :as_of, :view_type, :weight, :weight_floor, :update_rule_version)
-                """
-            ),
-            rows,
-        )
+    statement = text(
+        """
+        INSERT INTO view_weights
+            (portfolio_id, as_of, view_type, weight, weight_floor, update_rule_version)
+        VALUES
+            (:portfolio_id, :as_of, :view_type, :weight, :weight_floor, :update_rule_version)
+        """
+    )
+    if conn is not None:
+        conn.execute(statement, rows)
+        return
+    with get_engine().begin() as own:
+        own.execute(statement, rows)
 
 
 def _validate_weights(weights: dict[str, float]) -> None:

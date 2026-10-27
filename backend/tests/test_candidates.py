@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from app.m1 import candidates as C
+from app.m1 import intent as I
 from app.repositories import etf_master, presets
 
 UNKNOWN = "999999"
@@ -175,3 +176,45 @@ def test_preset_version_is_recorded(engine):
     result = C.select(risk_level=3, target=3)
 
     assert result.preset_version == presets.active_preset_version()
+
+
+# --- 요청한 ETF 특성 (2026-10-21) ---------------------------------------------
+
+
+def test_trait_matches_come_first_and_are_marked(engine):
+    # "배당 나오는 ETF" — 배당 블록의 이름 규칙에 맞는 종목이 맨 앞에 온다
+    resolved = I.resolve(I.Intent(keywords=("배당",)))
+    result = C.select(risk_level=3, traits=list(resolved.traits))
+
+    marked = [c for c in result.candidates if c.trait]
+    assert marked and all("배당" in c.name for c in marked)
+    assert list(result.candidates[: len(marked)]) == marked
+    assert {c.trait for c in marked} == {"배당"}
+
+
+def test_traits_never_empty_the_candidates(engine):
+    # 특성과 업종이 겹치지 않아도("안전하게" → 국채, 반도체) 걸러 내지 않고 예전처럼 채운다
+    resolved = I.resolve(I.Intent(keywords=("안전하게",), sectors=("SECTOR_SEMICONDUCTOR",)))
+    plain = C.select(risk_level=3, sectors=["SECTOR_SEMICONDUCTOR"])
+    with_trait = C.select(risk_level=3, sectors=["SECTOR_SEMICONDUCTOR"], traits=list(resolved.traits))
+
+    assert resolved.traits  # 국채 블록이 걸리긴 한다
+    assert with_trait.tickers == plain.tickers
+
+
+def test_only_spoken_keywords_pick_traits(engine):
+    # asset:bond 태그만으로는 국채 · 초단기 금리 블록을 걸지 않는다 — 사용자가 한 말(kw:)만 본다
+    assert I.resolve(I.Intent(asset_groups=("BOND",))).traits == ()
+
+
+def test_prompt_marks_trait_candidates(engine):
+    from app.m1 import prompt
+
+    resolved = I.resolve(I.Intent(keywords=("배당",)))
+    text = prompt.build_compile_prompt(
+        user_text="배당 나오는 ETF 위주로 담아줘",
+        candidate_set=C.select(risk_level=3, traits=list(resolved.traits)),
+    )
+
+    assert "(요청한 특성: 배당)" in text
+    assert "빼지 말고 담아라" in text

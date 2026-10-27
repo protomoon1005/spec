@@ -16,14 +16,26 @@ import pytest
 from app.contracts.integrated_signal import IntegratedSignal
 from app.contracts.view_score import ViewScore
 from app.contracts.view_weights import VIEW_TYPES, WEIGHT_FLOOR
+from app.views import bridge
 from app.views.bridge import (
     CLOSE_ONLY_UNAVAILABLE,
+    MOCK_SCORERS,
     MOCK_SOURCE,
     NEUTRAL_SOURCE,
-    SCORERS,
+    REAL_SOURCE,
     BacktestJudge,
 )
 from app.views.market.features import FEATURE_WARMUP_ROWS
+
+SCORERS = MOCK_SCORERS
+
+
+@pytest.fixture(autouse=True)
+def mock_registry(monkeypatch):
+    # 실물 스코어러는 DB·모델을 읽는다. 이 파일은 픽스처 없이 도는 bridge 회귀라
+    # 기본 등록부를 목업으로 고정한다 (실물 등록 자체는 아래 테스트가 확인한다).
+    monkeypatch.setattr(bridge, "SCORERS", MOCK_SCORERS)
+
 
 START = date(2024, 1, 1)
 TICKERS = ["069500", "133690"]
@@ -227,6 +239,23 @@ def test_empty_loss_history_is_exactly_uniform():
     assert math.fsum(weights.values()) == pytest.approx(1.0)
 
 
+def test_last_views_reports_the_weights_and_probs_of_the_latest_judgement():
+    # 러너가 리밸런싱마다 decisions[i]["views"] 로 싣는 값이다 — U09 브리핑이 읽는다.
+    prices, as_of = _long_prices()
+    judge = BacktestJudge(TICKERS)
+    assert judge.last_views() == {"weights": {}, "probs": {}}
+
+    signal = judge.judge(prices, as_of=as_of)
+    views = judge.last_views()
+
+    assert views["weights"] == signal.view_weights_used
+    assert sorted(views["probs"]) == sorted(VIEW_TYPES)
+    for view_type in VIEW_TYPES:
+        assert views["probs"][view_type] == {
+            s.ticker: s.calibrated_prob for s in judge.last_scores if s.view_type == view_type
+        }
+
+
 def test_recorded_outcomes_move_the_weights_but_never_below_the_floor():
     prices, _ = _long_prices()
     judge = BacktestJudge(TICKERS, scorers=_feature_scorers())
@@ -266,6 +295,15 @@ def test_the_same_as_of_is_not_graded_twice():
 
 
 # ── 스코어러 교체 지점 ───────────────────────────────────────────────
+
+
+def test_registry_uses_real_market_and_regime_scorers(monkeypatch):
+    monkeypatch.undo()
+    assert {vt: bridge.scorer_source(bridge.SCORERS[vt]) for vt in VIEW_TYPES} == {
+        "market": REAL_SOURCE,
+        "sentiment": NEUTRAL_SOURCE,
+        "regime": REAL_SOURCE,
+    }
 
 
 def test_default_scorer_sources_are_declared():

@@ -426,7 +426,7 @@ erDiagram
 </tr>
 <tr>
 <td>**Spec 불변**</td>
-<td>STRATEGY_SPECS와 SPEC_UNIVERSE는 승인 후 UPDATE 금지</td>
+<td>STRATEGY_SPECS와 SPEC_UNIVERSE는 승인 후 UPDATE 금지. 상태만 approved → running → closed 로 한 칸씩 간다(db/migrate/003, 2026-10-21)</td>
 <td>수정이 필요하면 새 spec_version을 발행한다. 사후 감사의 기준점을 보존하기 위함</td>
 </tr>
 <tr>
@@ -467,6 +467,9 @@ CREATE UNIQUE INDEX uq_preset_lookup   ON asset_bound_presets (preset_version, r
 
 -- 관점 가중치는 as_of 기준 최신 행을 읽는다
 CREATE UNIQUE INDEX uq_view_weight     ON view_weights (portfolio_id, as_of, view_type);
+
+-- 전략서 하나에 승인함 기록은 하나 (db/migrate/002, 2026-10-21). 거절(approved = false)은 여러 번 가능
+CREATE UNIQUE INDEX uq_approvals_spec_approved ON approvals (spec_id) WHERE approved;
 
 -- 결정 기록 조회 및 감사 추적
 CREATE INDEX idx_decision_spec_asof    ON decision_records (spec_id, as_of DESC);

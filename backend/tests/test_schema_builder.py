@@ -102,15 +102,49 @@ def test_indicator_names_are_limited_to_the_feature_set(engine, built):
     assert "momentum_20d" not in allowed
 
 
-def test_trigger_values_come_from_the_rebalance_blocks(engine, built):
-    from_blocks = {
-        (block.params_schema["trigger"]["type"], block.params_schema["trigger"]["freq"])
-        for block in bbl.list_blocks("rebalance")
-    }
-    properties = built["$defs"]["TriggerSpec"]["properties"]
+def test_rebalance_offers_exactly_the_blocks(engine, built):
+    """리밸런싱은 블록 하나를 통째로 고른다 — 방식 · 주기 · 날 · 간격이 블록과 똑같아야 통과한다."""
+    import jsonschema
 
-    assert set(properties["type"]["enum"]) == {t for t, _ in from_blocks}
-    assert set(properties["freq"]["enum"]) == {f for _, f in from_blocks}
+    rebalance = built["properties"]["rebalance"]
+    blocks = [block.params_schema for block in bbl.list_blocks("rebalance")]
+
+    assert len(rebalance["oneOf"]) == len(blocks)
+    for params in blocks:
+        jsonschema.validate(params, rebalance)
+
+
+@pytest.mark.parametrize(
+    "made_up",
+    [
+        # 2026-10-21 데모 흐름에서 qwen3:8b 가 실제로 낸 값들.
+        # 예전 스키마(type · freq 따로 enum)는 다 통과시켰다
+        {"trigger": {"type": "threshold", "freq": "monthly", "day": 1}, "min_interval_days": 30},
+        {"trigger": {"type": "calendar", "freq": "weekly", "day": None}, "min_interval_days": 7},
+        {"trigger": {"type": "threshold", "freq": "quarterly", "day": 30}, "min_interval_days": 90},
+        # 블록과 간격만 다른 것도 막는다
+        {"trigger": {"type": "calendar", "freq": "monthly", "day": 1}, "min_interval_days": 30},
+    ],
+)
+def test_rebalance_outside_the_blocks_is_rejected(engine, built, made_up):
+    import jsonschema
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(made_up, built["properties"]["rebalance"])
+
+
+def test_prompt_lists_the_rebalance_blocks_and_the_default(engine):
+    from app.m1 import prompt
+
+    text = prompt.build_compile_prompt(
+        user_text="배당 나오는 ETF 위주로 담아줘",
+        candidate_set=C.select(risk_level=3, target=3),
+        rebalance_blocks=bbl.list_blocks("rebalance"),
+    )
+
+    for block in bbl.list_blocks("rebalance"):
+        assert block.title in text
+    assert "말이 없으면 '매달 첫 거래일' 을 써라" in text
 
 
 def test_macro_indexes_are_limited(engine, built):
@@ -201,3 +235,16 @@ def test_same_request_gives_the_same_schema(engine):
     second = S.build_compile_schema(C.select(**kwargs))
 
     assert first == second
+
+
+def test_rebalance_can_be_narrowed_to_the_spoken_blocks(engine):
+    import jsonschema
+
+    only = ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
+    schema = S.build_compile_schema(C.select(risk_level=3, target=3), rebalance_block_ids=only)
+    rebalance = schema["properties"]["rebalance"]
+
+    assert len(rebalance["oneOf"]) == 2
+    jsonschema.validate(bbl.get_block("RB_MONTHLY_FIRST").params_schema, rebalance)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bbl.get_block("RB_THRESHOLD_5").params_schema, rebalance)

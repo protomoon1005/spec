@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import admin, auth, backtest, health, jobs, portfolio, profile, spec
+from app.routers import admin, auth, backtest, bounds, health, jobs, portfolio, profile, spec
 
 API_DESCRIPTION = """
 사용자가 말로 요청하면 그걸 **전략서(Spec)** 로 만들고, 그 전략서대로 ETF를 사고파는
@@ -60,7 +60,10 @@ TAGS_METADATA = [
         "description": "오래 걸리는 작업이 어디까지 갔는지 실시간으로 본다. **실제로 된다.**",
     },
     {"name": "backtest", "description": "만든 전략을 과거 데이터에 돌려보고 성적을 본다."},
-    {"name": "portfolio", "description": "지금 굴리고 있는 전략의 상태."},
+    {
+        "name": "portfolio",
+        "description": "전략서 승인과 지금 굴리고 있는 전략(가상 운용)의 상태. **실제로 된다.**",
+    },
     {"name": "admin", "description": "모든 전략에 공통으로 걸리는 상한선 관리. **관리자만** 들어간다."},
 ]
 
@@ -82,8 +85,10 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(profile.router)
+app.include_router(bounds.router)
 app.include_router(spec.router)
 app.include_router(backtest.router)
 app.include_router(portfolio.router)
+app.include_router(portfolio.spec_router)
 app.include_router(admin.router)
 app.include_router(jobs.router)

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
-from app.repositories import presets, profiles, specs
+from app.repositories import specs
 
 pytestmark = pytest.mark.requires_backtest
 pd = pytest.importorskip("pandas")
@@ -50,61 +50,13 @@ def _build(spec_id: str):
 
 
 @pytest.fixture
-def make_spec(engine, make_user):
+def make_spec(make_draft_spec):
     """(universe, rebalance) -> spec_id. 성향 4(스크립트 기본값)로 draft 전략서를 만든다."""
-    _email, user_id = make_user("retail")
-    version = presets.active_preset_version()
-    profile = profiles.insert_profile(
-        user_id=user_id,
-        risk_level=4,
-        preset_version=version,
-        defaults=profiles.get_profile_defaults(version, 4),
-        provenance={},
-    )
-    bounds = presets.get_asset_bounds(4)
-    hardcap = presets.get_active_hardcap()["hardcap_version"]
-
     def _make(universe, rebalance) -> str:
-        tickers = [t for t, _lo, _hi in universe]
-        with engine.connect() as conn:
-            tags = dict(
-                conn.execute(
-                    text("SELECT ticker, risk_tag FROM etf_master WHERE ticker = ANY(:t)"), {"t": tickers}
-                ).all()
-            )
-        rows = [
-            {
-                "ticker": t,
-                "preset_id": bounds[tags[t]].preset_id,
-                "weight_min": lo,
-                "weight_max": hi,
-                "weight_min_raw": lo,
-                "weight_max_raw": hi,
-                "was_adjusted": False,
-            }
-            for t, lo, hi in universe
-        ]
-        return specs.insert_spec(
-            spec_id=specs.new_spec_id(),
-            user_id=user_id,
-            profile_id=profile.profile_id,
-            hardcap_version=hardcap,
-            spec_version="0.1",
-            name="백테스트 입력 테스트",
-            input_prompt=None,
-            rebalance=rebalance,
-            signal_rules={},
-            constraint={},
-            universe=rows,
-        ).spec_id
+        return make_draft_spec(universe, rebalance=rebalance, name="백테스트 입력 테스트",
+                               signal_rules={}, constraint={})
 
-    yield _make
-
-    with engine.begin() as conn:
-        mine = "(SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
-        conn.execute(text(f"DELETE FROM spec_universe WHERE spec_id IN {mine}"), {"u": user_id})
-        conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
-        conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
+    return _make
 
 
 @pytest.fixture
@@ -228,3 +180,82 @@ def test_min_interval_keeps_the_first_and_drops_what_is_too_close():
 
     assert kept == ["2024-12-27", "2025-01-03", "2025-01-10"]
     assert skipped == ["2024-12-30"]  # 건너뛴 뒤 간격은 남긴 날짜부터 다시 잰다
+
+
+# ── 검증 결과 쓰기 ────────────────────────────────────────────────────
+# 어떤 확정값을 쓸지는 app/backtest/m2_chain.resolve_policy 가 정한다(tests/test_m2_chain.py).
+# 여기서는 조립이 그 값(간격)을 받아 쓰는지와, 실행 기록용 확정 범위를 읽는지만 본다.
+
+WEEKLY = {"trigger": {"type": "calendar", "freq": "weekly", "day": 1}, "min_interval_days": 5}
+CONFIRMED = [
+    {"ticker": "069500", "weight_min": 0.05, "weight_max": 0.30, "was_adjusted": True},
+    {"ticker": "273130", "weight_min": 0.10, "weight_max": 0.25, "was_adjusted": False},
+]
+
+
+def _logs(*, cash_target: float = 0.12) -> list[dict]:
+    """record_validation 에 넣을 4단 통과 기록. 검증기를 돌리지 않고 결과 모양만 만든다."""
+    return [
+        {"stage": 1, "passed": True, "violations": []},
+        {"stage": 2, "passed": True, "violations": []},
+        {"stage": 3, "passed": True, "violations": [],
+         "adjusted_bounds": {"case": "B", "cash_target": cash_target}},
+        {"stage": 4, "passed": True, "violations": [], "clamped_fields": []},
+    ]
+
+
+def test_final_ranges_read_the_confirmed_columns_and_holdings_keep_raw(make_spec):
+    spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
+    assert _build(spec_id).final_ranges == {"069500": (0.05, 0.20), "273130": (0.10, 0.25)}  # 검증 전 = _raw
+
+    specs.record_validation(spec_id, bounds=CONFIRMED, logs=_logs())
+    inp = _build(spec_id)
+
+    assert inp.final_ranges == {"069500": (0.05, 0.30), "273130": (0.10, 0.25)}
+    # 원래 범위는 그대로 남는다(실행 기록의 weight_*_raw · 데모 스크립트와 같은 holdings 모양)
+    raw = {h["ticker"]: (h["min_raw"], h["max_raw"]) for h in inp.holdings}
+    assert raw["069500"] == (0.05, 0.20)
+
+
+@pytest.mark.requires_backfill
+def test_confirmed_interval_replaces_the_requested_one(make_spec):
+    spec_id = make_spec([("069500", 0.05, 0.20)], WEEKLY)
+
+    requested = _build(spec_id)
+    clamped = bi.build_inputs(spec_id, period_start=PERIOD_START, period_end=PERIOD_END, min_interval_days=7)
+
+    assert requested.skipped_rebalance_dates == ["2024-12-30", "2025-12-30"]
+    # 간격 7일이 적용됐다 — 남은 리밸런싱일끼리는 7일 이상 떨어져 있다
+    days = [date.fromisoformat(d) for d in clamped.rebalance_dates]
+    assert all((b - a).days >= 7 for a, b in zip(days, days[1:]))
+    assert len(clamped.rebalance_dates) < len(requested.rebalance_dates)
+
+
+@pytest.mark.requires_backfill
+def test_m2_chain_holds_targets_inside_confirmed_ranges_and_cash(make_spec):
+    """확정 범위 · 현금을 M2 체인에 넘기면 러너가 그 안에서 비중을 낸다. 신호 없는 대조군으로 본다."""
+    from app.backtest.m2_chain import AtrSource, ConfirmedPolicy, M2Weigher
+    from app.backtest.policy import CAP_EXEMPT_GROUPS, caps_for
+    from app.backtest.runner import run
+
+    spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
+    inp = _build(spec_id)
+    confirmed = ConfirmedPolicy(
+        source="recorded", hardcap_version="v0.1",
+        bounds={"069500": (0.02, 0.08), "273130": (0.03, 0.09)},
+        cash_target=0.40, max_loss_per_trade=0.05, min_interval_days=5,
+    )
+    weigh = M2Weigher(
+        inp.holdings, confirmed, caps=caps_for(inp.risk_level), exempt=CAP_EXEMPT_GROUPS, horizon_days=5,
+        atr=AtrSource.load([h["ticker"] for h in inp.holdings], as_of=PERIOD_END),
+    )
+
+    out = run(
+        inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates,
+        1_000_000, use_signals=False, weigh=weigh,
+    )
+
+    for decision in out["decisions"]:
+        assert 0.02 - 1e-9 <= decision["target"]["069500"] <= 0.08 + 1e-9
+        assert 0.03 - 1e-9 <= decision["target"]["273130"] <= 0.09 + 1e-9
+        assert decision["cash"] >= 0.40 - 1e-9

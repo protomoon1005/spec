@@ -12,11 +12,17 @@
 #   - 비중 하한의 합이 1 을 넘으면 안 된다 (칸끼리의 관계라 스키마로 못 막는다)
 #   - 현금을 남겨야 한다
 #   - 종목을 몇 개쯤 담는 게 좋은지
+#   - 리밸런싱 블록이 각각 무슨 뜻인지, 요청에 말이 없으면 무엇을 쓰는지 (스키마는 블록 모양만 안다)
 # 이것들은 어차피 후처리가 다시 확인한다. 프롬프트는 첫 시도를 좋게 만들 뿐이다.
 from __future__ import annotations
 
+import json
+
 from app.m1.candidates import CandidateSet
 from app.repositories.bbl import Block
+
+# 요청에 리밸런싱 말이 없을 때 쓰는 블록. 백테스트 러너가 돌릴 수 있고 블록 설명이 "가장 무난" 이다.
+DEFAULT_REBALANCE_BLOCK = "RB_MONTHLY_FIRST"
 
 RISK_LABELS = {
     1: "안정투자형(가장 보수적)",
@@ -39,6 +45,7 @@ def build_compile_prompt(
     candidate_set: CandidateSet,
     blocks: list[Block] | None = None,
     defaults: dict[str, float] | None = None,
+    rebalance_blocks: list[Block] | None = None,
 ) -> str:
     lines = [
         f"사용자 요청: {user_text}",
@@ -48,7 +55,11 @@ def build_compile_prompt(
         "고를 수 있는 종목과 비중 범위:",
     ]
     for candidate in candidate_set.candidates:
-        mark = " (사용자가 직접 지목함)" if candidate.requested else ""
+        mark = (
+            " (사용자가 직접 지목함)"
+            if candidate.requested
+            else f" (요청한 특성: {candidate.trait})" if candidate.trait else ""
+        )
         lines.append(
             f"  - {candidate.ticker} {candidate.name} "
             f"[{candidate.weight_min:.2f} ~ {candidate.weight_max:.2f}]{mark}"
@@ -74,6 +85,17 @@ def build_compile_prompt(
             f"  - 1회 최대 손실 {defaults['max_loss_per_trade_default']:.2f}",
         ]
 
+    if rebalance_blocks:
+        default = next((b for b in rebalance_blocks if b.block_id == DEFAULT_REBALANCE_BLOCK), None)
+        lines += ["", "리밸런싱 규칙 (rebalance 는 아래 중 하나를 그대로 쓴다):"]
+        lines += [
+            f"  - {b.title}: {json.dumps(b.params_schema, ensure_ascii=False, sort_keys=True)}"
+            for b in rebalance_blocks
+            if b.title and b.params_schema
+        ]
+        if default is not None:
+            lines.append(f"  요청에 언제 비중을 맞출지 말이 없으면 '{default.title}' 을 써라")
+
     lines += [
         "",
         "지켜야 할 것:",
@@ -82,4 +104,6 @@ def build_compile_prompt(
         "  - 후보가 여럿이면 한 종목에 몰지 말고 나눠 담아라",
         "  - name 은 전략을 한눈에 알아볼 수 있는 짧은 한국어 이름으로 지어라",
     ]
+    if any(candidate.trait for candidate in candidate_set.candidates):
+        lines.append("  - '요청한 특성' 표시가 있는 종목은 사용자가 원한 성격이다. 빼지 말고 담아라")
     return "\n".join(lines)

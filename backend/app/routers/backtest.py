@@ -62,6 +62,12 @@ class BacktestRunDetail(BacktestRunResponse):
     scorer_sources: dict[str, str] | None  # 관점별 real · mock · neutral
     schedule: dict | None
     weight_path: str | None
+    # 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지. status: passed · failed · none.
+    # 2026-10-05 이전 실행에는 없다(그때는 늘 AI 원래 범위로 돌았다)
+    validation: dict | None = None
+    # M2 체인이 실제로 쓴 확정값(범위 · 현금 목표 · 1회 손실 · 간격 · RiskSizer 상수). 리포트 화면이
+    # 비중 범위를 프론트에서 다시 계산하지 않고 이 값을 그린다. 체인 전 실행에는 없다
+    m2: dict | None = None
     reason: str | None  # failed 일 때만
     # 아래는 done 일 때만. 리포트 화면(/report?run_id=)이 비중 표·캡 로그·리밸런싱
     # 이력을 이 실행 그대로 그리는 데 쓴다. 저장은 전부터 하고 있었고 내보내지만
@@ -108,7 +114,7 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
     상태는 queued → running → done | failed. 곡선은 done 일 때만, 실패 이유는
     failed 일 때만 나온다. 남의 실행 기록이면 404.
 
-    판단 계층은 아직 목업이다 — scorer_sources 가 관점별로 mock · neutral 을 알려 준다.
+    관점별 출처(real · neutral · mock)는 scorer_sources 가 알려 준다 — 감성은 중립 고정이다.
     """
     run = backtests.get_run(run_id)
     if run is None or run["user_id"] != user.user_id:
@@ -124,6 +130,8 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
         scorer_sources=results.get("scorer_sources"),
         schedule=results.get("schedule"),
         weight_path=results.get("weight_path"),
+        validation=results.get("validation"),
+        m2=results.get("m2"),
         reason=results.get("error"),
         risk_level=results.get("risk_level"),
         # universe 는 2026-09-29 이전 실행에는 없다(그때는 저장하지 않았다). 없으면 None.

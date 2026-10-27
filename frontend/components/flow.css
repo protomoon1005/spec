@@ -1,0 +1,1375 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css');
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600;700&display=swap');
+
+/* 흐름 화면(가입 → … → 관점 브리핑) 공통 스타일. ScaffoldShell 만 import 한다.
+ *
+ * 색·글꼴은 /report 의 components/report/tokens.ts 를 그대로 옮긴 것이다 — 흐름 화면에서
+ * 리포트로 넘어가도 같은 제품으로 보여야 한다. tokens.ts 를 고치면 여기도 같이 고친다.
+ *
+ * 전부 .flow-root 아래로 좁힌다. Next 개발 모드는 라우트별 CSS 청크를 늘 나눠 주지
+ * 않아서, 문서 전체 선택자를 쓰면 /report 까지 새어 들어간다. */
+
+.flow-root {
+  --c-bg: #0b0f14;
+  --c-surface: #131920;
+  --c-surface2: #1a2330;
+  --c-border: #1e2d3d;
+  --c-grid: #22344a;
+  --c-text: #c9d6e3;
+  --c-bright: #e2ecf5;
+  --c-muted: #7f9ab5;
+  --c-dim: #4d6a84;
+  --c-profit: #2fd18c;
+  --c-loss: #f2647a;
+  --c-accent: #5b9df0;
+  --c-warn: #e0a23c;
+  --f-sans: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --f-mono: 'Spline Sans Mono', 'Pretendard Variable', Pretendard, monospace;
+
+  min-height: 100vh;
+  background: var(--c-bg);
+  color: var(--c-text);
+  color-scheme: dark;
+  font-family: var(--f-sans);
+  font-size: 14px;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  scrollbar-color: #2b415a #0e141b;
+  scrollbar-width: thin;
+}
+
+.flow-root *,
+.flow-root *::before,
+.flow-root *::after {
+  box-sizing: border-box;
+}
+
+.flow-root ::selection {
+  background: #5b9df033;
+}
+
+/* --- 머리줄 ---------------------------------------------------------------- */
+
+.flow-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--c-bg) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* 본문과 왼쪽 끝을 맞춘다 (flow-main 과 같은 폭) */
+.flow-head-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 12px 24px 0;
+}
+
+.flow-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.flow-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-bright);
+  text-decoration: none;
+  font-family: var(--f-mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.flow-brand small {
+  font-family: var(--f-sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--c-muted);
+  letter-spacing: 0;
+}
+
+.flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-warn);
+  box-shadow: 0 0 8px var(--c-warn);
+  flex-shrink: 0;
+}
+
+.flow-links {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+}
+
+.flow-links a {
+  color: var(--c-muted);
+  text-decoration: none;
+}
+
+.flow-links a:hover,
+.flow-links a[aria-current='page'] {
+  color: var(--c-bright);
+}
+
+/* 단계 레일. 흐름이 실제로 순서가 있는 과정이라 번호를 단다.
+   좁은 화면에서는 줄을 바꾸지 않고 옆으로 민다. */
+.flow-rail {
+  display: flex;
+  margin: 12px -24px 0;
+  padding: 0 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  list-style: none;
+}
+
+.flow-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.flow-rail li {
+  flex-shrink: 0;
+}
+
+.flow-rail a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 10px 0;
+  margin-right: 14px;
+  color: var(--c-dim);
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+
+.flow-rail a:hover {
+  color: var(--c-text);
+}
+
+.flow-rail .num {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+}
+
+.flow-rail a[aria-current='step'] {
+  color: var(--c-bright);
+  border-bottom-color: var(--c-warn);
+}
+
+.flow-rail a[aria-current='step'] .num {
+  border-color: var(--c-warn);
+  color: var(--c-warn);
+}
+
+.flow-rail a.passed {
+  color: var(--c-muted);
+}
+
+/* --- 본문 ------------------------------------------------------------------ */
+
+.flow-main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 36px 24px 72px;
+}
+
+.flow-main.wide,
+.flow-head-inner.wide {
+  max-width: 1180px;
+}
+
+.flow-root h1,
+.flow-root h2,
+.flow-root h3,
+.flow-root p {
+  margin: 0;
+}
+
+.flow-root h1 {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--c-bright);
+}
+
+/* "이 화면에서 하는 일" 한 줄 — 제목 바로 밑 문단 */
+.flow-root main h1 + p {
+  margin-top: 8px;
+  margin-bottom: 28px;
+  color: var(--c-muted);
+  font-size: 14px;
+  max-width: 64ch;
+}
+
+.flow-root h2 {
+  margin: 36px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-border);
+  /* 리포트 패널 제목은 등폭이지만, 한글 제목에서는 등폭 공백이 넓어 단어가 흩어진다 */
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+.flow-root h3 {
+  margin: 24px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+.flow-root main p + p,
+.flow-root main p + ul,
+.flow-root main ul + p,
+.flow-root main table + p,
+.flow-root main ol + p,
+.flow-root main section + p {
+  margin-top: 14px;
+}
+
+.flow-root main > p,
+.flow-root main section > p {
+  max-width: 72ch;
+}
+
+/* 본문 링크만 밑줄을 단다. 머리줄 링크는 위에서 따로 그린다. */
+.flow-main a {
+  color: var(--c-accent);
+  text-decoration: none;
+  border-bottom: 1px solid #5b9df055;
+}
+
+.flow-main a:hover {
+  border-bottom-color: var(--c-accent);
+}
+
+.flow-root code {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--c-bright);
+  background: var(--c-surface2);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+/* 목록은 "항목: 값" 이 대부분이라 줄 단위 원장처럼 그린다. */
+.flow-root main ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--c-border);
+}
+
+.flow-root main ul > li {
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* 설문처럼 번호가 의미 있는 목록 */
+.flow-root main ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: q;
+  display: grid;
+  gap: 12px;
+}
+
+.flow-root main ol > li {
+  counter-increment: q;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.flow-root main ol > li > p:first-child::before {
+  content: counter(q);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--c-warn);
+  margin-right: 10px;
+}
+
+.flow-root main ol > li > p:first-child {
+  color: var(--c-bright);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+/* --- 표 -------------------------------------------------------------------- */
+
+.flow-table {
+  overflow-x: auto;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface);
+}
+
+.flow-root table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.flow-root th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-muted);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+  white-space: nowrap;
+}
+
+.flow-root td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.flow-root tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.flow-root td.num,
+.flow-root th.num {
+  text-align: right;
+  font-family: var(--f-mono);
+}
+
+.flow-root .mono {
+  font-family: var(--f-mono);
+  font-size: 12px;
+}
+
+/* --- 입력 ------------------------------------------------------------------ */
+
+.flow-root label {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+.flow-root input:not([type='radio']),
+.flow-root textarea {
+  font: inherit;
+  font-size: 14px;
+  color: var(--c-bright);
+  background: var(--c-surface2);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  max-width: 100%;
+}
+
+.flow-root textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.flow-root textarea[readonly] {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--c-text);
+}
+
+.flow-root input::placeholder,
+.flow-root textarea::placeholder {
+  color: var(--c-dim);
+}
+
+.flow-root input:focus-visible,
+.flow-root textarea:focus-visible,
+.flow-root button:focus-visible,
+.flow-root a:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+.flow-root input[type='radio'] {
+  accent-color: var(--c-warn);
+  margin: 0 8px 0 0;
+}
+
+/* 설문 선택지: 줄 전체가 눌리는 칸 */
+.flow-root ol label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 10px;
+  margin: 2px -10px;
+  border-radius: 8px;
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.flow-root ol label:hover {
+  background: var(--c-surface2);
+}
+
+.flow-root ol label:has(input:checked) {
+  background: #e0a23c14;
+  color: var(--c-bright);
+}
+
+.flow-field {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.flow-field > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 260px;
+}
+
+/* --- 버튼 ------------------------------------------------------------------ */
+
+.flow-root button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-bright);
+  background: var(--c-surface2);
+  border: 1px solid var(--c-grid);
+  border-radius: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.flow-root button:hover:not(:disabled) {
+  border-color: var(--c-muted);
+}
+
+.flow-root button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.flow-root button.primary {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: #08111d;
+  font-weight: 600;
+}
+
+.flow-root button.primary:hover:not(:disabled) {
+  background: #74adf3;
+  border-color: #74adf3;
+}
+
+.flow-root button.danger {
+  background: transparent;
+  border-color: #f2647a66;
+  color: var(--c-loss);
+}
+
+.flow-root button.danger:hover:not(:disabled) {
+  border-color: var(--c-loss);
+}
+
+.flow-root button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--c-muted);
+  padding: 4px 8px;
+}
+
+.flow-root button.ghost:hover:not(:disabled) {
+  color: var(--c-bright);
+  border-color: var(--c-border);
+}
+
+/* 화면 맨 아래 "다음 —" 버튼 줄 */
+.flow-next {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.flow-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.flow-actions + .flow-actions,
+.flow-root main p + .flow-actions,
+.flow-root main .flow-actions + p {
+  margin-top: 14px;
+}
+
+.flow-hint {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+/* --- 상태: 로딩 · 알림 · 오류 · 빈 상태 ----------------------------------- */
+
+.flow-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-muted);
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.flow-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  animation: flow-pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes flow-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-state::before {
+    animation: none;
+  }
+}
+
+.flow-msg {
+  margin-top: 14px;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-accent);
+  border-radius: 10px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 13px;
+  max-width: 72ch;
+}
+
+.flow-msg.err {
+  border-left-color: var(--c-loss);
+}
+
+.flow-msg.warn {
+  border-left-color: var(--c-warn);
+}
+
+.flow-msg.ok {
+  border-left-color: var(--c-profit);
+}
+
+.flow-empty {
+  padding: 28px 20px;
+  border: 1px dashed var(--c-grid);
+  border-radius: 12px;
+  color: var(--c-muted);
+  text-align: center;
+}
+
+.flow-empty strong {
+  display: block;
+  color: var(--c-bright);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* --- 카드 · 키값 ----------------------------------------------------------- */
+
+.flow-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.flow-card + .flow-card {
+  margin-top: 12px;
+}
+
+.flow-kv {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) 1fr;
+  margin: 0;
+  border-top: 1px solid var(--c-border);
+}
+
+/* 칸 사이 간격은 column-gap 대신 dt 의 오른쪽 여백으로 준다 — gap 을 쓰면 행 구분선이 끊긴다 */
+.flow-kv dt,
+.flow-kv dd {
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.flow-kv dt {
+  padding-right: 24px;
+}
+
+.flow-kv dt {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+/* 값 칸은 한글 문장이 섞여 본문 글꼴로 쓴다(등폭은 한글 공백이 넓어 흩어진다).
+   규칙 JSON 처럼 기계 값만 있는 칸은 .mono 를 붙인다. */
+.flow-kv dd {
+  color: var(--c-bright);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.flow-kv dd.mono {
+  font-family: var(--f-mono);
+  font-size: 12px;
+}
+
+.flow-kv dd.prose {
+  font-size: 14px;
+}
+
+/* 배지 글씨는 대부분 한글이라 등폭이 아니라 본문 글꼴로 쓴다 */
+.flow-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.flow-badge.ok {
+  color: var(--c-profit);
+  background: #2fd18c14;
+}
+
+.flow-badge.warn {
+  color: var(--c-warn);
+  background: #e0a23c14;
+}
+
+.flow-badge.muted {
+  color: var(--c-muted);
+  background: #7f9ab514;
+}
+
+.flow-badge.err {
+  color: var(--c-loss);
+  background: #f2647a14;
+}
+
+/* 홈 메뉴: 행 전체가 링크 */
+.flow-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.flow-menu a {
+  display: block;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface);
+  padding: 16px 18px;
+  color: var(--c-text);
+}
+
+.flow-menu a:hover {
+  border-color: var(--c-grid);
+  background: var(--c-surface2);
+}
+
+.flow-menu a b {
+  display: block;
+  color: var(--c-bright);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.flow-menu a span {
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+/* 진행 기록: 시각 + 문장, 등폭 */
+.flow-root main ul.flow-log {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface);
+  padding: 6px 14px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.flow-root main ul.flow-log > li {
+  padding: 4px 0;
+  border-bottom: 0;
+}
+
+.flow-root main ul.flow-log > li:last-child {
+  color: var(--c-bright);
+}
+
+/* 로그인 줄 (RequireLogin) */
+.flow-session {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: -20px 0 20px;
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-session b {
+  color: var(--c-text);
+  font-family: var(--f-mono);
+  font-weight: 500;
+}
+
+/* --- 좁은 화면 ------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .flow-head-inner {
+    padding: 10px 16px 0;
+  }
+
+  .flow-rail {
+    margin: 10px -16px 0;
+    padding: 0 16px;
+  }
+
+  .flow-links {
+    gap: 14px;
+  }
+
+  .flow-main {
+    padding: 24px 16px 56px;
+  }
+
+  .flow-root h1 {
+    font-size: 22px;
+  }
+
+  .flow-kv {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-kv dt {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .flow-next {
+    justify-content: stretch;
+  }
+
+  .flow-next button {
+    flex: 1;
+  }
+
+  .flow-session {
+    margin-top: -12px;
+  }
+}
+
+/* --- 화면 기능 부품 (M4) -------------------------------------------------------
+ * 설문 단계 · 성향 한도 · 요청 예시 · 진행 막대 · 비중 범위 막대 · 결과 세 칸.
+ * 위 절의 변수(--c-* · --f-*)만 쓴다. */
+
+/* 설문: 진행 막대 + "질문 n / 7" */
+.flow-progress {
+  height: 4px;
+  background: var(--c-surface2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.flow-progress > div {
+  height: 100%;
+  background: var(--c-warn);
+  border-radius: 999px;
+  transition: width 260ms ease-out;
+}
+
+.flow-root .flow-step-count {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 12px;
+}
+
+/* 문항이 바뀔 때 아래에서 살짝 올라온다. 시작 불투명도를 0 으로 두지 않는다 — 화면이
+   그려지지 않는 동안(창이 뒤 · 캡처) 애니메이션이 멈추면 문항이 안 보인다. */
+.flow-step {
+  animation: flow-step-in 240ms ease-out;
+}
+
+@keyframes flow-step-in {
+  from {
+    opacity: 0.35;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.flow-root .flow-question-text {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--c-bright);
+  margin-bottom: 16px;
+}
+
+.flow-choices {
+  display: grid;
+  gap: 8px;
+}
+
+/* 선택지 한 줄. 버튼 기본 모양보다 넓고 왼쪽 정렬. */
+.flow-root button.flow-choice {
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  padding: 13px 16px;
+}
+
+/* 터치 화면은 누른 뒤에도 :hover 가 남는다. 다음 문항의 같은 자리 선택지가 골라진 것처럼
+   보이지 않게 마우스를 올릴 수 있는 기기에서만 칠한다. 바로 아래 줄은 공통 hover 를 걷는다. */
+.flow-root button.flow-choice:hover:not(:disabled) {
+  border-color: var(--c-border);
+}
+
+@media (hover: hover) {
+  .flow-root button.flow-choice:hover:not(:disabled) {
+    background: var(--c-surface2);
+    border-color: var(--c-grid);
+  }
+}
+
+.flow-root button.flow-choice[aria-pressed='true'],
+.flow-root button.flow-choice[aria-pressed='true']:hover:not(:disabled) {
+  color: var(--c-bright);
+  background: #e0a23c14;
+  border-color: var(--c-warn);
+}
+
+/* 누르면 바로 답으로 가는 선택지(되묻기). 오른쪽 화살표. */
+.flow-root button.flow-choice-go {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-root button.flow-choice-go > span[aria-hidden] {
+  color: var(--c-dim);
+}
+
+/* 설문 답변 확인: 줄 하나 = 그 문항으로 돌아가는 버튼 */
+.flow-review {
+  display: grid;
+  border-top: 1px solid var(--c-border);
+}
+
+.flow-root .flow-review > button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  border-radius: 0;
+  padding: 10px 4px;
+}
+
+.flow-root .flow-review > button:hover:not(:disabled) {
+  background: var(--c-surface);
+}
+
+.flow-review-q {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-review-a {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+/* 성향별 한도 네 칸 */
+.flow-limits {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.flow-limits > div {
+  display: grid;
+  gap: 2px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.flow-limits span {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-limits b {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+/* 예시 문장 칩 */
+.flow-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.flow-root button.flow-chip {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  text-align: left;
+}
+
+.flow-root button.flow-chip:hover:not(:disabled) {
+  color: var(--c-bright);
+  border-color: var(--c-grid);
+}
+
+/* 진행 상황: 제목 + 경과 시계, 끝을 모르는 흐르는 막대 */
+.flow-run-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-size: 18px;
+  color: var(--c-bright);
+}
+
+.flow-root .flow-run-clock {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--c-bright);
+}
+
+.flow-indeterminate {
+  position: relative;
+  height: 4px;
+  background: var(--c-surface2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.flow-indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: var(--c-accent);
+  border-radius: 999px;
+  animation: flow-indeterminate 1.6s ease-in-out infinite;
+}
+
+@keyframes flow-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-step,
+  .flow-indeterminate::after {
+    animation: none;
+  }
+  .flow-progress > div {
+    transition: none;
+  }
+}
+
+/* 만드는 순서 — 위 "설문처럼 번호가 의미 있는 목록" 의 카드 모양을 걷고 줄 목록으로 */
+.flow-root main ol.flow-steps {
+  gap: 0;
+  counter-reset: s;
+}
+
+.flow-root main ol.flow-steps > li {
+  counter-increment: s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  border-radius: 0;
+  padding: 8px 2px;
+}
+
+.flow-root main ol.flow-steps > li::before {
+  content: counter(s);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+  width: 14px;
+}
+
+/* 개발용 기록을 접어 두는 칸 */
+.flow-details {
+  margin-top: 24px;
+}
+
+.flow-details summary {
+  font-size: 12px;
+  color: var(--c-dim);
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+/* 비중 범위 막대 (전략서 종목 표) */
+.flow-range {
+  position: relative;
+  display: block;
+  height: 6px;
+  background: var(--c-surface2);
+  border-radius: 999px;
+}
+
+.flow-range > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--c-accent);
+  border-radius: 999px;
+}
+
+/* 보정 · 클램프 전후: 원래 값은 취소선 */
+.flow-root s {
+  color: var(--c-dim);
+}
+
+/* 백테스트: 전략 · 대조군 · 시장 세 칸 */
+.flow-series {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.flow-series > div {
+  display: grid;
+  gap: 2px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.flow-series > div.main {
+  border-color: #e0a23c66;
+}
+
+.flow-series b {
+  font-size: 14px;
+  color: var(--c-bright);
+}
+
+.flow-series small {
+  font-size: 11px;
+  color: var(--c-muted);
+  margin-bottom: 6px;
+}
+
+.flow-series .total {
+  font-family: var(--f-mono);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.flow-series .meta {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.flow-root .up {
+  color: var(--c-profit);
+}
+
+.flow-root .down {
+  color: var(--c-loss);
+}
+
+.flow-root .flow-edge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--c-bright);
+}
+
+.flow-edge strong {
+  font-family: var(--f-mono);
+  font-size: 18px;
+}
+
+@media (max-width: 640px) {
+  .flow-limits {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .flow-series {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 허용범위 미리보기 (app/bounds/page.tsx) — 성향 고르기 · 범위 막대 */
+.flow-levels {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.flow-root .flow-levels > button {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  text-align: left;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.flow-levels > button .mono {
+  font-size: 10px;
+  color: var(--c-muted);
+}
+
+.flow-levels > button b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text);
+}
+
+.flow-root .flow-levels > button[aria-checked='true'] {
+  background: #e0a23c14;
+  border-color: var(--c-warn);
+}
+
+.flow-levels > button[aria-checked='true'] b {
+  color: var(--c-bright);
+  font-weight: 600;
+}
+
+.flow-limits b small {
+  font-size: 12px;
+  color: var(--c-muted);
+  font-weight: 400;
+}
+
+.flow-root button.flow-chip[aria-pressed='true'] {
+  color: var(--c-bright);
+  border-color: var(--c-warn);
+  background: #e0a23c14;
+}
+
+/* 0 ~ 상한 막대 + 하드캡 세로선 */
+.flow-bound {
+  position: relative;
+  display: block;
+  height: 18px;
+  min-width: 120px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.flow-bound > span {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  background: var(--c-accent);
+  border-radius: 999px;
+  transition: width 260ms ease-out;
+}
+
+.flow-bound > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-warn);
+}
+
+.flow-bound > em {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  font-style: normal;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--c-loss);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-bound > span {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .flow-levels {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 전략 초안 이중막대 (components/spec-contents.tsx, U05) */
+.flow-dual {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-width: 160px;
+  padding: 3px 0;
+}
+
+.flow-dual .row {
+  position: relative;
+  display: block;
+  height: 8px;
+  background: var(--c-bg);
+  border-radius: 999px;
+}
+
+.flow-dual .row > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+
+.flow-dual .allowed,
+.flow-legend .allowed {
+  background: #7f9ab544;
+}
+
+.flow-dual .ai,
+.flow-legend .ai {
+  background: var(--c-accent);
+}
+
+.flow-dual .final,
+.flow-legend .final {
+  background: transparent;
+  border: 1.5px solid var(--c-warn);
+}
+
+.flow-dual .row > em {
+  position: absolute;
+  right: 2px;
+  top: -4px;
+  font-style: normal;
+  font-size: 9px;
+  color: var(--c-muted);
+}
+
+.flow-dual > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--c-warn);
+}
+
+.flow-root .flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 8px;
+}
+
+.flow-legend > span {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
+.flow-legend > span:first-child {
+  margin-left: 0;
+}
+
+.flow-legend .cap {
+  width: 1px;
+  height: 12px;
+  border-radius: 0;
+  background: var(--c-warn);
+}

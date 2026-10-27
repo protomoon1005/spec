@@ -20,9 +20,9 @@ import json
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
-from app.core.db import get_engine
+from app.core.db import get_engine, reading
 
 SPEC_ID_PREFIX = "STR"
 DRAFT = "draft"
@@ -113,8 +113,9 @@ def insert_spec(
     )
 
 
-def get_spec(spec_id: str) -> dict | None:
-    with get_engine().connect() as conn:
+def get_spec(spec_id: str, *, conn: Connection | None = None) -> dict | None:
+    # conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
+    with reading(conn) as conn:
         row = conn.execute(
             text(
                 """
@@ -129,8 +130,9 @@ def get_spec(spec_id: str) -> dict | None:
     return dict(row._mapping) if row is not None else None
 
 
-def get_spec_universe(spec_id: str) -> list[dict]:
-    with get_engine().connect() as conn:
+def get_spec_universe(spec_id: str, *, conn: Connection | None = None) -> list[dict]:
+    # conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
+    with reading(conn) as conn:
         rows = conn.execute(
             text(
                 """
@@ -166,6 +168,99 @@ def get_spec_risk_level(spec_id: str) -> int | None:
             {"spec_id": spec_id},
         ).one_or_none()
     return int(row.risk_level) if row is not None else None
+
+
+def get_spec_profile(spec_id: str) -> tuple[int, str] | None:
+    """전략서가 만들어질 때의 (성향 등급, 기준표 버전). 없는 전략서면 None.
+
+    get_spec_risk_level 과 같은 행을 보되 기준표 버전까지 준다 — Validator 는
+    성향 확정 때 박아 둔 기준표로 허용범위를 따져야 한다.
+    """
+    with get_engine().connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT p.risk_level, p.preset_version
+                  FROM strategy_specs s
+                  JOIN risk_profiles p ON p.profile_id = s.profile_id
+                 WHERE s.spec_id = :spec_id
+                """
+            ),
+            {"spec_id": spec_id},
+        ).one_or_none()
+    return (int(row.risk_level), row.preset_version) if row is not None else None
+
+
+def record_validation(spec_id: str, *, bounds: list[dict] | None, logs: list[dict]) -> None:
+    """Validator 결과를 한 트랜잭션으로 남긴다. draft 가 아니면 ValueError.
+
+    bounds: ticker · weight_min · weight_max · was_adjusted. None 이면 범위를 건드리지
+    않는다(1~3단에서 막혀 확정값이 없다). **_raw 칸은 이 함수가 아예 다루지 않는다.**
+    logs: stage · passed · violations · adjusted_bounds · clamped_fields. 단계마다 한 행.
+    """
+    with get_engine().begin() as conn:
+        status = conn.execute(
+            text("SELECT status FROM strategy_specs WHERE spec_id = :s FOR UPDATE"), {"s": spec_id}
+        ).scalar()
+        if status != DRAFT:
+            raise ValueError(f"draft 전략서만 검증 결과를 남길 수 있다: {spec_id} ({status})")
+        if bounds:
+            conn.execute(
+                text(
+                    """
+                    UPDATE spec_universe
+                       SET weight_min = :weight_min, weight_max = :weight_max, was_adjusted = :was_adjusted
+                     WHERE spec_id = :spec_id AND ticker = :ticker
+                    """
+                ),
+                [{"spec_id": spec_id, **row} for row in bounds],
+            )
+        if logs:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO validation_logs
+                        (spec_id, stage, passed, violations, adjusted_bounds, clamped_fields)
+                    VALUES (:spec_id, :stage, :passed, CAST(:violations AS jsonb),
+                            CAST(:adjusted_bounds AS jsonb), CAST(:clamped_fields AS jsonb))
+                    """
+                ),
+                [
+                    {
+                        "spec_id": spec_id,
+                        "stage": row["stage"],
+                        "passed": row["passed"],
+                        "violations": _dump(row["violations"]),
+                        "adjusted_bounds": _dump_or_none(row.get("adjusted_bounds")),
+                        "clamped_fields": _dump_or_none(row.get("clamped_fields")),
+                    }
+                    for row in logs
+                ],
+            )
+
+
+def latest_validation(spec_id: str, *, conn: Connection | None = None) -> list[dict]:
+    """가장 최근 검증 한 번의 단계별 기록. 단계 순서대로. 검증한 적이 없으면 빈 목록.
+
+    record_validation 은 한 번의 검증을 한 트랜잭션으로 넣으므로 그 행들의 checked_at
+    (트랜잭션 시작 시각)이 같다. 가장 늦은 checked_at 의 행들이 마지막 검증이다.
+
+    conn 을 주면 그 연결(승인 트랜잭션)에서 읽는다(core.db.reading).
+    """
+    with reading(conn) as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT stage, passed, violations, adjusted_bounds, clamped_fields, checked_at
+                  FROM validation_logs
+                 WHERE spec_id = :spec_id
+                   AND checked_at = (SELECT max(checked_at) FROM validation_logs WHERE spec_id = :spec_id)
+                 ORDER BY stage, validation_id
+                """
+            ),
+            {"spec_id": spec_id},
+        ).all()
+    return [dict(row._mapping) for row in rows]
 
 
 def list_specs(user_id: int) -> list[dict]:
@@ -217,5 +312,9 @@ def delete_draft_spec(spec_id: str, user_id: int) -> str:
     return "deleted"
 
 
-def _dump(value: dict) -> str:
+def _dump(value) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _dump_or_none(value) -> str | None:
+    return None if value is None else _dump(value)

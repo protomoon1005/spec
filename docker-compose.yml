@@ -6,6 +6,10 @@ x-backend-common: &backend-common
     dockerfile: backend/Dockerfile
   env_file:
     - .env
+  # Linux Docker Engine 은 host.docker.internal 을 자동 제공하지 않는다 — 호스트 Ollama 에 붙으려면 필요.
+  # Docker Desktop 에서는 원래 있는 값이라 영향 없다.
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   environment:
     DATABASE_URL: ${DATABASE_URL}
     REDIS_URL: ${REDIS_URL}
@@ -57,8 +61,11 @@ services:
       timeout: 5s
       retries: 10
 
+  # quay.io/minio 도 익명 pull 을 막아서(2026-10-04, 401) chainguard 빌드로 옮긴다.
+  # 이 이미지엔 curl 이 없다 — healthcheck 는 bash /dev/tcp 로 같은 엔드포인트를 본다(Host 헤더 필수).
+  # mc 도 같은 이미지에 들어 있어 minio-init 이 같은 이미지를 쓴다.
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    image: cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034
     command: server /data --console-address ":9001"
     ports:
       - "${MINIO_PORT}:9000"
@@ -69,13 +76,13 @@ services:
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && [[ $$(head -1 <&3) == *' 200 '* ]]"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    image: cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034
     depends_on:
       minio:
         condition: service_healthy

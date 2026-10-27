@@ -14,14 +14,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import Report from "@/components/report";
-import { api, ApiError, loadSession } from "@/lib/api";
+import { api, ApiError, isExpired, loadSession } from "@/lib/api";
 import { buildReport, type Report as ReportData } from "@/lib/data";
 import { metaFromSpec, ReportUnavailable, resultFromRun, type RunDetail, type SpecDetail } from "@/lib/report-from-run";
 import { C, MONO, R, SANS } from "./tokens";
 
 type State =
   | { kind: "loading" }
-  | { kind: "login"; message: string }
+  // expired 면 로그인 화면이 아이디를 채우고 재인증 버튼을 바로 보여 준다(?expired=1).
+  | { kind: "login"; message: string; expired?: boolean }
   | { kind: "error"; message: string }
   | { kind: "ok"; report: ReportData };
 
@@ -34,8 +35,14 @@ export default function LiveReport({ runId }: { runId: string }) {
       setState({ kind: "error", message: `실행 번호가 올바르지 않습니다: ${runId}` });
       return;
     }
-    if (!loadSession()) {
+    const session = loadSession();
+    if (!session) {
       setState({ kind: "login", message: "실행 결과는 그 실행을 돌린 사람만 볼 수 있습니다. 로그인해 주세요." });
+      return;
+    }
+    // 만료된 토큰으로 부르면 401 만 돌아와 이유가 안 보인다. 먼저 본다.
+    if (isExpired(session.access)) {
+      setState({ kind: "login", message: "로그인이 만료됐습니다(30분). 다시 로그인해 주세요.", expired: true });
       return;
     }
 
@@ -64,7 +71,7 @@ export default function LiveReport({ runId }: { runId: string }) {
 function describe(err: unknown): State {
   if (err instanceof ReportUnavailable) return { kind: "error", message: err.message };
   if (err instanceof ApiError) {
-    if (err.status === 401) return { kind: "login", message: "로그인이 만료되었습니다. 다시 로그인해 주세요." };
+    if (err.status === 401) return { kind: "login", message: "로그인이 만료되었습니다. 다시 로그인해 주세요.", expired: true };
     if (err.status === 404) {
       return { kind: "error", message: "실행 기록을 찾을 수 없습니다. 없는 번호이거나 다른 사람이 돌린 실행입니다." };
     }
@@ -104,7 +111,9 @@ function Notice({ state, runId }: { state: Exclude<State, { kind: "ok" }>; runId
         )}
         {state.kind !== "loading" && (
           <div className="flex gap-4 flex-wrap" style={{ marginTop: 20, fontFamily: MONO, fontSize: 12 }}>
-            {state.kind === "login" && <NavLink href="/login">로그인</NavLink>}
+            {state.kind === "login" && (
+              <NavLink href={state.expired ? "/login?expired=1" : "/login"}>로그인</NavLink>
+            )}
             <NavLink href="/backtest">백테스트 화면으로</NavLink>
             <NavLink href="/report">데모 결과 보기</NavLink>
           </div>

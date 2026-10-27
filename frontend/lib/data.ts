@@ -87,6 +87,13 @@ export type BacktestResult = {
   data_source: string;
   price_field: string;
   universe: UniverseItem[];
+  /**
+   * 백엔드 M2 체인이 실제로 쓴 종목별 [하한, 상한](GET /backtest/runs/{id} 의 m2.bounds).
+   * 있으면 비중 표가 이 값을 그린다. 정적 데모(TS 러너)와 체인 전 실행에는 없어서 정책으로 계산한다.
+   */
+  confirmed_bounds?: Record<string, [number, number]>;
+  /** 체인이 맞춘 현금 목표(m2.cash_target). 범위 보정 case B 가 성향 하한보다 올릴 수 있다. 없으면 하한을 목표로 본다 */
+  confirmed_cash_target?: number;
   caps: Record<string, number>;
   series: Point[];
   decisions: Decision[];
@@ -127,6 +134,8 @@ export type SpecMeta = {
   inputPrompt?: string | null;
   /** 실행 번호. 없으면 정적 데모 결과다 — 화면이 둘을 구분해 적는다 */
   runId?: number;
+  /** 전략서 상태(GET /specs/{id} 의 status). 정적 데모는 실제 전략서가 아니라 없다 */
+  specStatus?: string;
 };
 
 // 정적 데모 결과(data/backtest-result.json)의 전략서. 이 데모는 자연어로 만든 것이
@@ -480,7 +489,9 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     signal: lastDecision.signals[u.ticker] ?? 0,
   }));
 
-  const bounds: Record<string, Bound> = resolveBounds(
+  // 범위는 실행이 쓴 확정값이 정본이다. 프론트 계산(resolveBounds)은 프리셋 · 하드캡만 보고
+  // Validator 의 범위 보정을 모르므로, 확정값이 있으면 그것을 그린다.
+  const computedBounds: Record<string, Bound> = resolveBounds(
     universe.map((a) => ({
       ticker: a.ticker,
       grade: a.grade as Grade,
@@ -490,6 +501,41 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     PROFILE,
     HARDCAP.maxWeightPerAsset,
   );
+  const confirmed = result.confirmed_bounds;
+  const bounds: Record<string, Bound> = confirmed
+    ? Object.fromEntries(
+        universe.map((a) => {
+          const [min, max] = confirmed[a.ticker];
+          return [a.ticker, { min, max, clampedBy: max < a.maxRaw - 1e-9 ? "검증" : null }];
+        }),
+      )
+    : computedBounds;
+  /** 비중 범위를 어디서 얻었는지. 검증 확정값이면 "validated", 정책으로 계산했으면 "computed" */
+  const boundsSource: "validated" | "computed" = confirmed ? "validated" : "computed";
+
+  // 범위 실행가능성(docs/m2-algorithms.md 1장): Σ weight_min ≤ 1 − cash_min ≤ Σ weight_max.
+  // 확정값이 있으면 Validator 가 실제로 보정했는지를 정책 계산과의 차이 · 현금 목표로 알아본다.
+  // 확정값이 없으면(정적 데모) 정책 범위가 조건을 지키는지만 적는다.
+  const cashMin = PROFILE.cashMin;
+  const cashTarget = result.confirmed_cash_target ?? null;
+  const sumMin = universe.reduce((s, a) => s + bounds[a.ticker].min, 0);
+  const sumMax = universe.reduce((s, a) => s + bounds[a.ticker].max, 0);
+  const rangesAdjusted = confirmed
+    ? universe.filter(
+        (a) =>
+          Math.abs(bounds[a.ticker].min - computedBounds[a.ticker].min) > 1e-9 ||
+          Math.abs(bounds[a.ticker].max - computedBounds[a.ticker].max) > 1e-9,
+      ).length
+    : 0;
+  const cashRaised = cashTarget !== null && cashTarget > cashMin + 1e-9;
+  const feasibility = {
+    sumMin,
+    sumMax,
+    investable: 1 - cashMin,
+    holds: sumMin <= 1 - cashMin + 1e-9 && 1 - cashMin <= sumMax + 1e-9,
+    /** 확정값으로 돈 실행에서만 안다. null 이면 보정 여부를 모른다(정적 데모) */
+    adjusted: confirmed ? { ranges: rangesAdjusted, cashFrom: cashMin, cashTo: cashTarget ?? cashMin, cashRaised } : null,
+  };
 
   const cappedBy = new Map<string, string[]>();
   for (const app of lastDecision.capApplications) {
@@ -601,6 +647,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
   };
   const inputPrompt = meta.inputPrompt ?? null;
   const runId = meta.runId ?? null;
+  const specStatus = meta.specStatus ?? null;
   const rebalanceLabel = `${FREQ_LABEL[trig.freq] ?? trig.freq} 리밸런싱`;
 
   // 낙폭 차트 Y축 눈금. 위는 항상 0(고점)이고 아래만 데이터에서 정한다.
@@ -700,6 +747,9 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     folds,
     universe,
     bounds,
+    boundsSource,
+    cashTarget,
+    feasibility,
     weightRows,
     targetCash,
     capLogs,
@@ -715,6 +765,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
     spec,
     inputPrompt,
     runId,
+    specStatus,
     rebalanceLabel,
     drawdownTicks,
     constraintResolved,

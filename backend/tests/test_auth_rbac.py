@@ -110,8 +110,6 @@ def test_admin_router_accepts_admin_role(client, make_user):
 
 
 def _signup_name() -> str:
-    import uuid
-
     # 이메일 형식이 아니어도 된다는 것까지 같이 확인한다.
     return f"아무 이름 {uuid.uuid4().hex[:8]}"
 
@@ -168,14 +166,17 @@ def test_signup_ignores_requested_role(client, engine):
         _cleanup(engine, name)
 
 
-def test_me_returns_token_owner(client):
-    username = f"me-check-{uuid.uuid4().hex[:8]}"
-    tokens = client.post("/auth/signup", json={"username": username}).json()
+def test_me_returns_token_owner(client, engine):
+    username = _signup_name()
+    try:
+        tokens = client.post("/auth/signup", json={"username": username}).json()
 
-    resp = client.get("/auth/me", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+        resp = client.get("/auth/me", headers={"Authorization": f"Bearer {tokens['access_token']}"})
 
-    assert resp.status_code == 200
-    assert resp.json()["username"] == username
+        assert resp.status_code == 200
+        assert resp.json()["username"] == username
+    finally:
+        _cleanup(engine, username)
 
 
 def test_me_without_token_is_401(client):

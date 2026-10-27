@@ -83,6 +83,16 @@ def list_group_ids(group_level: int) -> list[str]:
     return [row.group_id for row in rows]
 
 
+def list_group_labels(group_level: int) -> dict[str, str]:
+    """묶음 이름 → 한국어 이름표(asset_groups.label). 이름 순."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT group_id, label FROM asset_groups WHERE group_level = :lv ORDER BY group_id"),
+            {"lv": group_level},
+        ).all()
+    return {row.group_id: row.label for row in rows}
+
+
 def get_asset_bounds(risk_level: int, *, preset_version: str | None = None) -> dict[str, AssetBound]:
     """한 성향의 등급별 허용범위 전부. {등급: 범위}.
 
@@ -106,6 +116,36 @@ def get_asset_bounds(risk_level: int, *, preset_version: str | None = None) -> d
         raise LookupError(f"기준표 {version} 에 성향 {risk_level} 의 허용범위가 없다")
     return {
         row.risk_tag: AssetBound(
+            preset_id=row.preset_id,
+            risk_tag=row.risk_tag,
+            allowed_min=float(row.allowed_min),
+            allowed_max=float(row.allowed_max),
+        )
+        for row in rows
+    }
+
+
+def get_bounds_by_ids(preset_ids: list[int]) -> dict[int, AssetBound]:
+    """preset_id 로 허용범위를 찾는다. {preset_id: 범위}. 없는 id 는 결과에 안 들어간다.
+
+    전략서 종목(spec_universe)은 만들어질 때 적용된 기준표 행의 preset_id 를 들고 있다.
+    그 행을 그대로 읽으면 기준표가 나중에 바뀌어도 "그때 허용된 범위" 를 보여 줄 수 있다.
+    """
+    if not preset_ids:
+        return {}
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT preset_id, risk_tag, allowed_min, allowed_max
+                  FROM asset_bound_presets
+                 WHERE preset_id = ANY(:ids)
+                """
+            ),
+            {"ids": list(preset_ids)},
+        ).all()
+    return {
+        row.preset_id: AssetBound(
             preset_id=row.preset_id,
             risk_tag=row.risk_tag,
             allowed_min=float(row.allowed_min),

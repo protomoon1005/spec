@@ -58,6 +58,19 @@ def get_by_tickers(tickers: list[str]) -> dict[str, EtfRecord]:
     return {row.ticker: _as_record(row) for row in rows}
 
 
+def list_all(*, include_leveraged: bool) -> list[EtfRecord]:
+    """원장 전체. **활성 여부로 거르지 않는다.**
+
+    관점 모델의 학습 유니버스용이다. 지금 활성인 종목만 고르면 과거 cutoff 모델이
+    그 뒤 상장폐지된 종목을 빼고 배운다(생존 편향). 활성 플래그가 나중에 바뀌어도 같은
+    cutoff 가 같은 표본을 보게 하려는 것이기도 하다. 그 시점에 있었는지는 가격이 정한다.
+    """
+    clause = "" if include_leveraged else " WHERE is_leveraged = false"
+    with get_engine().connect() as conn:
+        rows = conn.execute(text(f"SELECT {_COLUMNS} FROM etf_master{clause} ORDER BY ticker")).all()
+    return [_as_record(row) for row in rows]
+
+
 def find_by_name(fragment: str, *, limit: int = 10) -> list[EtfRecord]:
     """종목명 일부로 찾는다. 사용자가 코드 대신 이름을 말할 때 쓴다.
 
