@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """app/ 전체를 AST로 훑어 app/repositories/ 밖에서 feature_store · macro_indicators ·
-view_weights · price_daily · regime_snapshots 를 문자열로 참조하거나, 그에 대응하는 ORM
-모델 클래스(FeatureStore · MacroIndicators · ViewWeights · PriceDaily · RegimeSnapshots)를
+view_weights · price_daily · regime_snapshots · news_articles · news_sentiment 를 문자열로
+참조하거나, 그에 대응하는 ORM 모델 클래스(FeatureStore · MacroIndicators · ViewWeights ·
+PriceDaily · RegimeSnapshots · NewsArticles · NewsSentiment)를
 import/참조하는 코드를 찾아
 실패시킨다 (docs/infra-spec.md 5단계).
 
@@ -24,6 +25,9 @@ GUARDED_TABLES = (
     "view_weights",
     "price_daily",
     "regime_snapshots",
+    # 2026-10-27 감성 관점(빅카인즈 뉴스)이 실물이 되며 추가. 기사 발행 시각이 시점 태그다.
+    "news_articles",
+    "news_sentiment",
 )
 _TABLE_PATTERN = re.compile(r"\b(" + "|".join(GUARDED_TABLES) + r")\b")
 
@@ -36,6 +40,8 @@ GUARDED_CLASSES: dict[str, str] = {
     "ViewWeights": "view_weights",
     "PriceDaily": "price_daily",
     "RegimeSnapshots": "regime_snapshots",
+    "NewsArticles": "news_articles",
+    "NewsSentiment": "news_sentiment",
 }
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 
-import { briefingFromRun, probTint, type RunForBriefing } from "../lib/views-briefing.ts";
+import { briefingFromRun, probTint, sentimentEvidenceOf, type RunForBriefing } from "../lib/views-briefing.ts";
 
 const eq = 1 / 3;
 const base: RunForBriefing = {
@@ -78,11 +78,86 @@ assert.equal(briefingFromRun({ ...base, status: "running", decisions: null }).ki
 const failed = briefingFromRun({ ...base, status: "failed", reason: "가격 없음" });
 assert.ok(failed.kind === "failed" && failed.message.includes("가격 없음"));
 
+// 뉴스 감성 근거: 기록이 없으면 빈 배열, 있으면 아는 칸만 읽는다
+assert.deepEqual(b.sentimentEvidence, []);
+assert.deepEqual(sentimentEvidenceOf(undefined), []);
+assert.deepEqual(sentimentEvidenceOf({ sentiment: "x" }), []);
+assert.deepEqual(sentimentEvidenceOf({ sentiment: { foo: 1 } }), []);
+assert.deepEqual(
+  sentimentEvidenceOf({
+    sentiment: {
+      lens_id: "L1",
+      sector: "EQUITY",
+      n_articles: 34,
+      article_ids: ["A1", "A2", 3, null],
+      model_version: "kr-finbert-sc",
+      z: -0.42,
+      extra: 1,
+    },
+  }),
+  [{ sector: "EQUITY", lens_id: "L1", n_articles: 34, article_ids: ["A1", "A2", "3"], model_version: "kr-finbert-sc", z: -0.42, state: null, as_of: null }],
+);
+// 종목별 근거면 자산군마다 하나 (코드 순 첫 종목)
+const perTicker = sentimentEvidenceOf({
+  sentiment: {
+    "148070": { sector: "BOND", n_articles: 5 },
+    "069500": { sector: "EQUITY", n_articles: 30 },
+    "229200": { sector: "EQUITY", n_articles: 99 },
+  },
+});
+assert.deepEqual(
+  perTicker.map((e) => [e.sector, e.n_articles]),
+  [
+    ["BOND", 5],
+    ["EQUITY", 30],
+  ],
+);
+// 숫자 칸이 숫자가 아니면 버린다
+assert.deepEqual(sentimentEvidenceOf({ sentiment: { z: "높음" } }), []);
+const withEvidence = briefingFromRun({
+  ...base,
+  decisions: [
+    ...(base.decisions ?? []),
+    {
+      date: "2023-04-28",
+      views: {
+        weights: { market: 0.5, sentiment: 0.1, regime: 0.4 },
+        probs: {},
+        evidence: { sentiment: { sector: "EQUITY", z: 0.8, state: "positive" } },
+      },
+    },
+  ],
+});
+assert.ok(withEvidence.kind === "ok" && withEvidence.sentimentEvidence[0]?.state === "positive");
+
 // 0.5 중심 색: 중립은 무색, 멀어질수록 짙고 0.25 이상이면 상한
 assert.equal(probTint(0.5, "#00ff00", "#ff0000"), undefined);
 assert.equal(probTint(null, "#00ff00", "#ff0000"), undefined);
 assert.equal(probTint(0.75, "#00ff00", "#ff0000"), "#00ff0040");
 assert.equal(probTint(0.1, "#00ff00", "#ff0000"), "#ff000040");
 assert.equal(probTint(0.6, "#00ff00", "#ff0000"), "#00ff001a");
+
+// 백엔드 bridge.last_views() 모양: views.sentiment = {묶음: {sector, z, state, n_articles, article_ids, data_asof, tickers}}.
+const fromBridge = briefingFromRun({
+  ...base,
+  decisions: [
+    {
+      date: "2023-01-31",
+      views: {
+        weights: { market: eq, sentiment: eq, regime: eq },
+        probs: {},
+        sentiment: {
+          EQUITY: { sector: "EQUITY", z: 1.2, state: "high", n_articles: 412, article_ids: [3, 1], data_asof: "2023-01-31", tickers: ["069500"] },
+        },
+      },
+    },
+  ],
+} as RunForBriefing);
+assert.equal(fromBridge.kind, "ok");
+if (fromBridge.kind === "ok") {
+  assert.equal(fromBridge.sentimentEvidence.length, 1);
+  assert.equal(fromBridge.sentimentEvidence[0].as_of, "2023-01-31");
+  assert.deepEqual(fromBridge.sentimentEvidence[0].article_ids, ["3", "1"]);
+}
 
 console.log("ok");

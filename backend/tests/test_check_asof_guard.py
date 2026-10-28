@@ -159,7 +159,7 @@ def test_allows_orm_class_reference_inside_repositories(tmp_path):
     assert errors == []
 
 
-@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots"])
+@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots", "news_articles", "news_sentiment"])
 def test_flags_new_table_string_outside_repositories(tmp_path, table):
     app_root = tmp_path / "app"
     (app_root / "views").mkdir(parents=True)
@@ -178,7 +178,12 @@ def test_flags_new_table_string_outside_repositories(tmp_path, table):
 
 @pytest.mark.parametrize(
     ("cls", "table"),
-    [("PriceDaily", "price_daily"), ("RegimeSnapshots", "regime_snapshots")],
+    [
+        ("PriceDaily", "price_daily"),
+        ("RegimeSnapshots", "regime_snapshots"),
+        ("NewsArticles", "news_articles"),
+        ("NewsSentiment", "news_sentiment"),
+    ],
 )
 def test_flags_new_orm_class_outside_repositories(tmp_path, cls, table):
     app_root = tmp_path / "app"
@@ -196,7 +201,7 @@ def test_flags_new_orm_class_outside_repositories(tmp_path, cls, table):
     assert all(table in error for error in errors)
 
 
-@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots"])
+@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots", "news_articles", "news_sentiment"])
 def test_allows_new_table_inside_repositories(tmp_path, table):
     app_root = tmp_path / "app"
     (app_root / "repositories").mkdir(parents=True)
