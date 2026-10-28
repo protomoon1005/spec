@@ -19,6 +19,7 @@
 - 샘플 10건이 전부 통과한다
 - 같은 입력을 두 번 넣으면 같은 후보 종목과 같은 허용범위가 나온다
   - LLM 출력 자체는 흔들릴 수 있지만, **후보 선정과 범위 계산은 흔들리면 안 된다**
+  - LLM 출력도 덜 흔들리도록 샘플링 온도 0 · 시드 42(`LLM_TEMPERATURE` · `LLM_SEED`)로 고정한다 (2026-10-27)
 
 ---
 
@@ -57,7 +58,7 @@
 - 성향 1 이 담을 수 있는 **주식형이 0종목** — 원장에 저위험 주식형이 없다
 - **성향 3·4·5 의 선택지가 똑같다(54종목)** — G1 14개가 전부 레버리지라 하드캡이 먼저 막는다.
   성향을 올려도 안 늘어나서 데모에서 성향 차이를 보이기 어렵다
-- **뉴스 수집 파이프라인이 제거됐다** (`jun`, 커밋 `ee08952`). 감성 관점 입력이 통째로 없다
+- **뉴스 수집 파이프라인이 제거됐다** (`jun`, 커밋 `ee08952`). (2026-10-27 빅카인즈 기사 오프라인 채점·적재로 감성 관점 입력 복구 — `scripts/score_news.py` · `scripts/ingest_news.py`)
 
 ---
 
@@ -110,8 +111,8 @@
 
 ### 아직 안 정한 것
 
-- **감성 렌즈** (`jun`, M3) — BBL 의 렌즈 블록을 비워 뒀다. 수집 파이프라인까지 제거돼
-  감성 관점 입력이 통째로 없다. 다시 만들 계획인지 확인 필요
+- **감성 렌즈** (`jun`, M3) — M3 쪽 렌즈 상수는 `app/views/sentiment/lens.py`(`bigkinds-market-v1`)로 정의됐으나(2026-10-27),
+  `bbl_blocks` 의 `lens` 시드 블록은 여전히 비워 뒀다
 - **국내/해외 필터 블록** — 국가 칸이 생겨서 이제 만들 수 있다. BBL 에 아직 없다
 - **정책 수치 사본 통일** (`paekh`) — 지금은 어긋나면 테스트가 잡게 해 뒀다
 
@@ -220,7 +221,8 @@
 **⑤ 렌즈 `lens` — 보류**
 
 - 감성 분석이 기사를 어느 관점으로 읽을지를 가리키는 블록이다
-- 감성 점수 모델 자체가 아직 없고 렌즈 목록 정의도 없다. **M3 와 조율 전까지 비워 둔다**
+- M3 감성 실물(`app/scoring/sentiment.py`)은 `app/views/sentiment/lens.py` 의 `bigkinds-market-v1` 고정 상수를 직접 쓰며,
+  `bbl_blocks` 의 `lens` 블록 시드는 계속 비워 둔다 (2026-10-27)
 
 ### 태그 체계
 
@@ -255,7 +257,7 @@
 - `app/repositories/bbl.py`
 - **시점 규약 대상이 아니다.** 가드 대상 세 표가 아니고, 블록은 시점 자산이 아니다
 - 서명은 태그 목록과 블록 종류를 받아 블록 목록을 돌려주는 모양
-- 벡터 검색 쿼리는 뉴스 유사기사 조회(`repositories/news.py`)를 베껴 쓰면 된다
+- (참고: 벡터 유사기사 조회는 지금 `repositories/news.py` 에 없다. 2026-10-27 새로 만든 `repositories/news.py` 는 세션 집계·기사 메타 조회만 담는다)
 - **정렬에 블록 식별자를 항상 tie-break 로 넣는다.** 같은 질의에 순서가 흔들리면
   같은 입력에 다른 전략서가 나온다
 - 비활성 블록은 제외한다
@@ -345,6 +347,35 @@
   - 정보가 모자라 되묻게 되는 입력 1건
 - **완료 기준**
   - 테스트가 CI 에서 돎. LLM 호출이 필요한 것은 `requires_ollama` 표시를 달아 기본 실행에서 뺌
+  - 전 구간 일괄 실행 스크립트 `scripts/run_demo_samples.py` 가 케이스 1~10 · S1~S3 및 컴파일·백테스트 재현성을 돌려 `frontend/public/data/demo-samples.json` 에 기록함 (2026-10-27)
+
+## 데모 보강 — 손실 문구 · 채권 보충 · 제외 사유 · 재현성 (2026-10-27 사용자 결정)
+
+- **숫자로 말한 손실 한도는 정규식으로 읽어 LLM 출력보다 우선한다** (`app/m1/constraints.py`)
+  - 한 절(쉼표·마침표·"~고/~는데/~지만/~면서") 안에 손실 낱말(잃·손실·손해·낙폭·빠지·떨어·하락·MDD)과
+    `N%`(퍼센트·프로)가 함께 있으면 N 을 `constraint.max_drawdown` 에 넣는다. 숫자가 여럿이면 손실 낱말에 가까운 것
+  - 성향 한도(`risk_profile_defaults.max_drawdown_default`)보다 느슨하면 성향 한도로 자른다. 하드캡(0.25)은 여전히 Validator 4단
+  - 숫자가 없는 말("크게 잃지 않게")은 예전처럼 LLM + 성향 기본값
+  - 근거는 작업 결과 `loss_limit` 에 남는다 — `{field, matched(읽은 절), requested, applied, profile_limit, clamped_to_profile}`
+- **섹터를 지목하고 손실을 꺼리면 채권을 보충한다** (`candidates.select(guard_bonds=True)`)
+  - 꺼린다 = 숫자 한도가 있다 · 의도에 BBL `FL_LOW_RISK_ONLY` 의 kw(안전하게·보수적)가 있다 · "잃지 않게 / 안 잃게 /
+    손실은 줄이고 / 원금은 지키고" 류 문구. 마지막은 BBL 에 손실 회피 낱말이 없어서 둔 정규식이다
+    ("크게 잃지는 않게" 를 의도 추출이 kw:비중유지 로만 옮겼다)
+  - 섹터 몫을 `target - BOND_RESERVE(2)` 까지만 채우고, 그 성향이 담을 수 있는 채권을 종목코드 순으로 target(10)까지.
+    섹터 후보가 0 이면 보충하지 않는다(채권으로 조용히 갈아끼우지 않고 기존 "담을 게 없다" 되묻기)
+  - 프롬프트에 "(손실 제약을 지키려고 보충한 채권)" 표시와 "빼지 말고 담아라" 를 준다. 스키마로 강제하지는 않는다
+- **못 담은 것은 작업 결과 `excluded` 에 남는다** (`app/m1/excluded.py`, 스키마 변경 없음)
+  - 모양 고정 `[{"ticker": str|null, "name": str, "reason_code": str, "reason": str}]`
+  - 종목 단위: 지목 종목의 거절(NOT_FOUND · DELISTED · LEVERAGE_FORBIDDEN · PRESET_ZERO —
+    PRESET_ZERO 는 "성향 N(라벨) 의 Gk 허용 상한이 0 이다")
+  - 묶음 단위(ticker=null, GROUP_PRESET_ZERO): 의도의 asset_groups · sectors, 그리고 사용자 말에 걸린 BBL 필터 블록
+    (자산군 · 위험등급으로 거르는 것)이 이 성향에서 **한 종목도** 못 담길 때. 예: 성향 1 + "수익률 높게" → kw:수익 →
+    `FL_HIGH_RISK_ONLY`(G1·G2) → "위험이 높은 등급(G1·G2)"
+- **되묻기 선택지의 상장폐지 종목에 " (상장폐지)" 를 붙인다.** 그 선택지를 답으로 보내면 첫 낱말(종목코드)을 LLM 을
+  거치지 않고 지목 종목으로 넣는다(`intent.with_answered_tickers`) — 그래서 조용히 빠지지 않고 excluded 에 DELISTED 가 남는다.
+  전략서에는 지금처럼 넣지 않는다
+- **LLM 재현성**: Ollama `options.temperature=0 · seed=42`, vLLM `temperature · seed` (`LLM_TEMPERATURE` · `LLM_SEED`,
+  `app/core/config.py`). 같은 환경(모델 · 백엔드)에서의 보장이다
 
 ---
 
