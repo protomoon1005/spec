@@ -2,7 +2,7 @@
 
 // 홈 — 로그인하면 여기로 온다.
 //
-// 전략 만들기 · 전략 관리 · 전략 삭제 · 성향 설문으로 가는 입구. 로그아웃은 화면 위 줄에 있다.
+// 전략 만들기 · 전략 관리 · 전략 삭제 · 데모(샘플 결과 · 재현성 비교) · 성향 설문으로 가는 입구. 로그아웃은 화면 위 줄에 있다.
 // 성향이 아직 없으면(GET /profile/me 404) 전략을 만들 수 없으므로 설문으로 먼저 보낸다.
 
 import Link from "next/link";
@@ -66,6 +66,14 @@ function Menu() {
         <Link href="/specs/delete">
           <b>전략 삭제</b>
           <span>승인 전(draft) 전략서를 지운다</span>
+        </Link>
+        <Link href="/samples">
+          <b>데모 · 샘플 결과</b>
+          <span>샘플 문장 전부를 전략서부터 백테스트까지 돌린 결과 표와 성공 기준 판정</span>
+        </Link>
+        <Link href="/repro">
+          <b>데모 · 재현성 비교</b>
+          <span>같은 전략서를 두 번 돌린 실행의 목표비중 · 주문 · 자산곡선이 같은지 본다</span>
         </Link>
         <Link href="/survey">
           <b>성향 설문 {hasProfile === false ? "하기" : "다시 하기"}</b>

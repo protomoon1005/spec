@@ -21,6 +21,8 @@ const LINKS = [
   { href: "/home", label: "홈" },
   { href: "/specs", label: "전략 관리" },
   { href: "/report", label: "리포트" },
+  { href: "/samples", label: "샘플 결과" },
+  { href: "/repro", label: "재현성" },
 ];
 
 const hit = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
