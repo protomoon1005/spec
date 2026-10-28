@@ -1,0 +1,1604 @@
+{
+  "generated_at": "2026-10-28T12:37:12+00:00",
+  "git_commit": "2271688",
+  "llm_model": "qwen3:8b",
+  "period": {
+    "start": "2023-01-01",
+    "end": "2025-12-31"
+  },
+  "cases": [
+    {
+      "no": "1",
+      "profile_level": 1,
+      "profile_label": "안정투자형",
+      "text": "돈 좀 안전하게 불려줘",
+      "axis": "막연한 요청이 되묻기로 수렴",
+      "expected": "채권형 비중 상단, 기술섹터 낮은 상한",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 46.9,
+        "seconds_processing": 46.9,
+        "spec_id": "STR-30d973aa8b26",
+        "n_universe": 8,
+        "universe": [
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "153130",
+            "name": "KODEX 단기채권",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "157450",
+            "name": "TIGER 단기통안채",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "214980",
+            "name": "KODEX 단기채권PLUS",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "272580",
+            "name": "TIGER 단기채권액티브",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "273130",
+            "name": "KODEX 종합채권(AA-이상)액티브",
+            "weight_min": 0.02,
+            "weight_max": 0.08
+          },
+          {
+            "ticker": "305080",
+            "name": "TIGER 미국채10년선물",
+            "weight_min": 0.02,
+            "weight_max": 0.08
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": []
+      },
+      "backtest": {
+        "run_id": 442,
+        "status": "done",
+        "cagr": 0.0196309097176566,
+        "mdd": -0.00592975677094076,
+        "sharpe": -0.641867362771171,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "BOND 상한합 1.06"
+    },
+    {
+      "no": "2",
+      "profile_level": 3,
+      "profile_label": "위험중립형",
+      "text": "요즘 반도체가 흥한다던데 거기 비중을 좀 싣되 크게 잃지는 않게 해줘",
+      "axis": "섹터 지목+손실 제약",
+      "expected": "반도체 ETF 편입 + max_drawdown 반영",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 69.62,
+        "seconds_processing": 69.61,
+        "spec_id": "STR-4692b7b69787",
+        "n_universe": 10,
+        "universe": [
+          {
+            "ticker": "091160",
+            "name": "KODEX 반도체",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "091230",
+            "name": "TIGER 반도체",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "139260",
+            "name": "TIGER 200 IT",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "381180",
+            "name": "TIGER 미국필라델피아반도체나스닥",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "390390",
+            "name": "KODEX 미국반도체",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "395160",
+            "name": "KODEX AI반도체TOP2플러스",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "395270",
+            "name": "HANARO Fn K-반도체",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          },
+          {
+            "ticker": "396500",
+            "name": "TIGER 반도체TOP10",
+            "weight_min": 0.02,
+            "weight_max": 0.05
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": null,
+            "freq": "daily",
+            "type": "threshold"
+          },
+          "min_interval_days": 5
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "bounds",
+            "stage": 3,
+            "case": "B",
+            "cash_min": 0.1,
+            "cash_target": 0.1,
+            "scale": null,
+            "sum_min_before": 0.25999999999999995,
+            "sum_max_before": 0.8000000000000003,
+            "sum_min_after": 0.25999999999999995,
+            "sum_max_after": 0.9,
+            "reduce_universe": false,
+            "items": [
+              {
+                "ticker": "091160",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "091230",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "114260",
+                "ceiling": 0.3,
+                "min_before": 0.05,
+                "min_after": 0.05,
+                "max_before": 0.2,
+                "max_after": 0.21666666666666665
+              },
+              {
+                "ticker": "139260",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "148070",
+                "ceiling": 0.3,
+                "min_before": 0.05,
+                "min_after": 0.05,
+                "max_before": 0.2,
+                "max_after": 0.21666666666666665
+              },
+              {
+                "ticker": "381180",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "390390",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "395160",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "395270",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              },
+              {
+                "ticker": "396500",
+                "ceiling": 0.1,
+                "min_before": 0.02,
+                "min_after": 0.02,
+                "max_before": 0.05,
+                "max_after": 0.05833333333333332
+              }
+            ]
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 443,
+        "status": "done",
+        "cagr": 0.153742407701034,
+        "mdd": -0.0876871639006095,
+        "sharpe": 1.47889243449261,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "반도체 8개, constraint_user.max_drawdown=0.2"
+    },
+    {
+      "no": "3",
+      "profile_level": 2,
+      "profile_label": "안정추구형",
+      "text": "요즘 시장이 불안한데 지키는 쪽으로 해줘",
+      "axis": "방어 표현이 signal_rules 에",
+      "expected": "변동성 지수 기반 온도 규칙 강화",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 54.61,
+        "seconds_processing": 54.61,
+        "spec_id": "STR-8898935e712f",
+        "n_universe": 7,
+        "universe": [
+          {
+            "ticker": "069500",
+            "name": "KODEX 200",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.4
+          },
+          {
+            "ticker": "133690",
+            "name": "TIGER 미국나스닥100",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "148020",
+            "name": "RISE 200",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.4
+          },
+          {
+            "ticker": "152100",
+            "name": "PLUS 200",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "153130",
+            "name": "KODEX 단기채권",
+            "weight_min": 0.05,
+            "weight_max": 1.0
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.114260.weight_max",
+            "requested": 0.4,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.148070.weight_max",
+            "requested": 0.4,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.153130.weight_max",
+            "requested": 1.0,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 444,
+        "status": "done",
+        "cagr": 0.0590928152733574,
+        "mdd": -0.0165251833934043,
+        "sharpe": 1.26508296957006,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "signal_rules={\"sentiment\": null, \"market_analysis\": null, \"market_temperature\": {\"trend_index\": \"KOSPI200\", \"trend_ma_window\": 20, \"volatility_index\": \"VIX_CLOSE\"}}"
+    },
+    {
+      "no": "4",
+      "profile_level": 5,
+      "profile_label": "공격투자형",
+      "text": "수익률 높게 가고 손실은 어느 정도 감수할게",
+      "axis": "공격형 상단 사용",
+      "expected": "주식형 상한 근처",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 61.96,
+        "seconds_processing": 61.95,
+        "spec_id": "STR-003cafc277e4",
+        "n_universe": 7,
+        "universe": [
+          {
+            "ticker": "069500",
+            "name": "KODEX 200",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "069660",
+            "name": "KIWOOM 200",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "091160",
+            "name": "KODEX 반도체",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "091230",
+            "name": "TIGER 반도체",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "102110",
+            "name": "TIGER 200",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "105190",
+            "name": "ACE 200",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "133690",
+            "name": "TIGER 미국나스닥100",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "constraint.max_drawdown",
+            "requested": 0.35,
+            "applied": 0.25,
+            "limit": "max_drawdown"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "constraint.max_loss_per_trade",
+            "requested": 0.1,
+            "applied": 0.05,
+            "limit": "max_loss_per_trade"
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 445,
+        "status": "done",
+        "cagr": 0.207737905241383,
+        "mdd": -0.119173544873365,
+        "sharpe": 1.60154647454528,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "EQUITY 상한합 1.30"
+    },
+    {
+      "no": "5",
+      "profile_level": 4,
+      "profile_label": "성장투자형",
+      "text": "국내만 말고 미국도 좀 섞어줘",
+      "axis": "지역 분산",
+      "expected": "해외주식형 편입",
+      "compile": {
+        "status": "completed",
+        "rounds": [
+          {
+            "question": "어떤 쪽으로 굴리고 싶으신지 한 가지만 알려주세요.",
+            "choices": [
+              "안전하게",
+              "배당을 받고 싶다",
+              "특정 업종에 집중",
+              "종목을 직접 고르겠다"
+            ],
+            "answer": "안전하게"
+          }
+        ],
+        "seconds_total": 69.75,
+        "seconds_processing": 69.75,
+        "spec_id": "STR-22d37e5669a6",
+        "n_universe": 7,
+        "universe": [
+          {
+            "ticker": "069500",
+            "name": "KODEX 200",
+            "weight_min": 0.05,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "069660",
+            "name": "KIWOOM 200",
+            "weight_min": 0.05,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "102110",
+            "name": "TIGER 200",
+            "weight_min": 0.05,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "284430",
+            "name": "KODEX 200미국채혼합50",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "305080",
+            "name": "TIGER 미국채10년선물",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "constraint.max_drawdown",
+            "requested": 0.28,
+            "applied": 0.25,
+            "limit": "max_drawdown"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "constraint.max_loss_per_trade",
+            "requested": 0.07,
+            "applied": 0.05,
+            "limit": "max_loss_per_trade"
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 446,
+        "status": "done",
+        "cagr": 0.0990388874049248,
+        "mdd": -0.0551750750372862,
+        "sharpe": 1.33925745982445,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "내용 미충족: 미국 주식형 없음 — 미국 주식형 0개 (BOND 상한합 0.70, EQUITY 상한합 0.30)"
+    },
+    {
+      "no": "6",
+      "profile_level": 3,
+      "profile_label": "위험중립형",
+      "text": "금리 내린다던데 채권 담아야 하나",
+      "axis": "거시 참조",
+      "expected": "채권형 후보",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 55.82,
+        "seconds_processing": 55.82,
+        "spec_id": "STR-20c38274fcd7",
+        "n_universe": 6,
+        "universe": [
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "153130",
+            "name": "KODEX 단기채권",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "157450",
+            "name": "TIGER 단기통안채",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "273130",
+            "name": "KODEX 종합채권(AA-이상)액티브",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "284430",
+            "name": "KODEX 200미국채혼합50",
+            "weight_min": 0.0,
+            "weight_max": 0.15
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": []
+      },
+      "backtest": {
+        "run_id": 447,
+        "status": "done",
+        "cagr": 0.022460193888665,
+        "mdd": -0.00867918588192396,
+        "sharpe": -0.231987169517854,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "BOND 상한합 1.40"
+    },
+    {
+      "no": "7",
+      "profile_level": 2,
+      "profile_label": "안정추구형",
+      "text": "분기에 한 번만 손대고 싶어",
+      "axis": "리밸런싱 트리거",
+      "expected": "freq 분기",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 41.22,
+        "seconds_processing": 41.22,
+        "spec_id": "STR-5dc81ff4781f",
+        "n_universe": 3,
+        "universe": [
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.4
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.4
+          },
+          {
+            "ticker": "153130",
+            "name": "KODEX 단기채권",
+            "weight_min": 0.0,
+            "weight_max": 1.0
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "quarterly",
+            "type": "calendar"
+          },
+          "min_interval_days": 60
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.114260.weight_max",
+            "requested": 0.4,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.148070.weight_max",
+            "requested": 0.4,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.153130.weight_max",
+            "requested": 1.0,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 448,
+        "status": "done",
+        "cagr": 0.0164423713030308,
+        "mdd": -0.00889359570593218,
+        "sharpe": -0.757100445176525,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "rebalance={\"trigger\": {\"day\": 1, \"freq\": \"quarterly\", \"type\": \"calendar\"}, \"min_interval_days\": 60}"
+    },
+    {
+      "no": "8",
+      "profile_level": 4,
+      "profile_label": "성장투자형",
+      "text": "한 종목에 30% 넘게는 싫어",
+      "axis": "사용자 제약",
+      "expected": "max_weight 0.30",
+      "compile": {
+        "status": "completed",
+        "rounds": [
+          {
+            "question": "어떤 쪽으로 굴리고 싶으신지 한 가지만 알려주세요.",
+            "choices": [
+              "안전하게",
+              "배당을 받고 싶다",
+              "특정 업종에 집중",
+              "종목을 직접 고르겠다"
+            ],
+            "answer": "안전하게"
+          }
+        ],
+        "seconds_total": 59.75,
+        "seconds_processing": 59.75,
+        "spec_id": "STR-581fd21eaced",
+        "n_universe": 7,
+        "universe": [
+          {
+            "ticker": "069500",
+            "name": "KODEX 200",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "069660",
+            "name": "KIWOOM 200",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "102110",
+            "name": "TIGER 200",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "284430",
+            "name": "KODEX 200미국채혼합50",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "305080",
+            "name": "TIGER 미국채10년선물",
+            "weight_min": 0.05,
+            "weight_max": 0.15
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "constraint.max_drawdown",
+            "requested": 0.28,
+            "applied": 0.25,
+            "limit": "max_drawdown"
+          },
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "constraint.max_loss_per_trade",
+            "requested": 0.07,
+            "applied": 0.05,
+            "limit": "max_loss_per_trade"
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 449,
+        "status": "done",
+        "cagr": 0.110169198912232,
+        "mdd": -0.0634443335624479,
+        "sharpe": 1.36125670301265,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "종목 상한 최대 0.20, constraint_user.max_weight_per_asset=0.2"
+    },
+    {
+      "no": "9",
+      "profile_level": 3,
+      "profile_label": "위험중립형",
+      "text": "오늘 저녁 뭐 먹지 아무튼 투자 좀 해줘",
+      "axis": "오프토픽 제거 후 되묻기 수렴",
+      "expected": "되묻기 후 전략 생성",
+      "compile": {
+        "status": "completed",
+        "rounds": [
+          {
+            "question": "어떤 쪽으로 굴리고 싶으신지 한 가지만 알려주세요.",
+            "choices": [
+              "안전하게",
+              "배당을 받고 싶다",
+              "특정 업종에 집중",
+              "종목을 직접 고르겠다"
+            ],
+            "answer": "안전하게"
+          }
+        ],
+        "seconds_total": 50.21,
+        "seconds_processing": 50.19,
+        "spec_id": "STR-2d8d755ca703",
+        "n_universe": 4,
+        "universe": [
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "148070",
+            "name": "KIWOOM 국고채10년",
+            "weight_min": 0.05,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "284430",
+            "name": "KODEX 200미국채혼합50",
+            "weight_min": 0.0,
+            "weight_max": 0.15
+          },
+          {
+            "ticker": "305080",
+            "name": "TIGER 미국채10년선물",
+            "weight_min": 0.0,
+            "weight_max": 0.15
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "bounds",
+            "stage": 3,
+            "case": "B",
+            "cash_min": 0.1,
+            "cash_target": 0.1,
+            "scale": null,
+            "sum_min_before": 0.1,
+            "sum_max_before": 0.7000000000000001,
+            "sum_min_after": 0.1,
+            "sum_max_after": 0.8999999999999999,
+            "reduce_universe": false,
+            "items": [
+              {
+                "ticker": "114260",
+                "ceiling": 0.3,
+                "min_before": 0.05,
+                "min_after": 0.05,
+                "max_before": 0.2,
+                "max_after": 0.24
+              },
+              {
+                "ticker": "148070",
+                "ceiling": 0.3,
+                "min_before": 0.05,
+                "min_after": 0.05,
+                "max_before": 0.2,
+                "max_after": 0.24
+              },
+              {
+                "ticker": "284430",
+                "ceiling": 0.3,
+                "min_before": 0.0,
+                "min_after": 0.0,
+                "max_before": 0.15,
+                "max_after": 0.20999999999999996
+              },
+              {
+                "ticker": "305080",
+                "ceiling": 0.3,
+                "min_before": 0.0,
+                "min_after": 0.0,
+                "max_before": 0.15,
+                "max_after": 0.20999999999999996
+              }
+            ]
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 450,
+        "status": "done",
+        "cagr": 0.0322605647049916,
+        "mdd": -0.0248498347426491,
+        "sharpe": 0.36032941646383,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "되묻기 1회 후 completed"
+    },
+    {
+      "no": "10",
+      "profile_level": 3,
+      "profile_label": "위험중립형",
+      "text": "최대 5%만 잃고 싶은데 기술주로 대박 내줘",
+      "axis": "모순 요청이 3단 논리 검증에서 차단",
+      "expected": "검증 실패 + 사유",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 56.19,
+        "seconds_processing": 56.19,
+        "spec_id": "STR-9b3ae02893e9",
+        "n_universe": 6,
+        "universe": [
+          {
+            "ticker": "091160",
+            "name": "KODEX 반도체",
+            "weight_min": 0.02,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "091230",
+            "name": "TIGER 반도체",
+            "weight_min": 0.02,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "105190",
+            "name": "ACE 200",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "133690",
+            "name": "TIGER 미국나스닥100",
+            "weight_min": 0.05,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "161510",
+            "name": "PLUS 고배당주",
+            "weight_min": 0.05,
+            "weight_max": 0.35
+          },
+          {
+            "ticker": "402970",
+            "name": "ACE 미국배당다우존스",
+            "weight_min": 0.05,
+            "weight_max": 0.35
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": {
+          "field": "constraint.max_drawdown",
+          "matched": "최대 5%만 잃고",
+          "requested": 0.05,
+          "applied": 0.05,
+          "profile_limit": 0.2,
+          "clamped_to_profile": false
+        }
+      },
+      "validation": {
+        "passed": false,
+        "stage_failed": 3,
+        "reasons": [
+          "낙폭 목표 5% 를 지킬 수 없다 — 가장 덜 빠진 402970 도 구간 최대낙폭이 13% 라 투자 비중 90% 만으로 11.9% 가 된다"
+        ],
+        "adjustments": []
+      },
+      "backtest": {
+        "run_id": null,
+        "status": null,
+        "cagr": null,
+        "mdd": null,
+        "sharpe": null,
+        "view_sources": null,
+        "failure_reason": "검증에서 막혀 실행 안 함 (화면도 검증 실패 시 다시 요청으로 보낸다)"
+      },
+      "result": "blocked_expected",
+      "note": "검증 3단(논리)에서 막힘"
+    },
+    {
+      "no": "S1",
+      "profile_level": 1,
+      "profile_label": "안정투자형",
+      "text": "수익률 높게 가고 손실은 어느 정도 감수할게",
+      "axis": "성향 위반이 생성 단계에서 불가",
+      "expected": "고위험 등급(G1·G2) 제외가 excluded 에 사유와 함께 남는다",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 54.64,
+        "seconds_processing": 54.64,
+        "spec_id": "STR-001d082a7e67",
+        "n_universe": 6,
+        "universe": [
+          {
+            "ticker": "153130",
+            "name": "KODEX 단기채권",
+            "weight_min": 0.15,
+            "weight_max": 0.3
+          },
+          {
+            "ticker": "157450",
+            "name": "TIGER 단기통안채",
+            "weight_min": 0.15,
+            "weight_max": 0.3
+          },
+          {
+            "ticker": "161510",
+            "name": "PLUS 고배당주",
+            "weight_min": 0.05,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "272580",
+            "name": "TIGER 단기채권액티브",
+            "weight_min": 0.15,
+            "weight_max": 0.3
+          },
+          {
+            "ticker": "273130",
+            "name": "KODEX 종합채권(AA-이상)액티브",
+            "weight_min": 0.1,
+            "weight_max": 0.2
+          },
+          {
+            "ticker": "305080",
+            "name": "TIGER 미국채10년선물",
+            "weight_min": 0.05,
+            "weight_max": 0.1
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [
+          {
+            "ticker": null,
+            "name": "위험이 높은 등급(G1·G2)",
+            "reason_code": "GROUP_PRESET_ZERO",
+            "reason": "성향 1(안정투자형) 의 G2 허용 상한이 0 이다 — 위험이 높은 등급(G1·G2) 23종목을 하나도 담을 수 없다"
+          }
+        ],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": []
+      },
+      "backtest": {
+        "run_id": 451,
+        "status": "done",
+        "cagr": 0.0358661133361742,
+        "mdd": -0.00577945166729199,
+        "sharpe": 1.01667226710769,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "blocked_expected",
+      "note": "생성 단계에서 막힘 — excluded 코드=['GROUP_PRESET_ZERO'], 사유=성향 1(안정투자형) 의 G2 허용 상한이 0 이다 — 위험이 높은 등급(G1·G2) 23종목을 하나도 담을 수 없다, G1·G2 편입=없음"
+    },
+    {
+      "no": "S2",
+      "profile_level": 3,
+      "profile_label": "위험중립형",
+      "text": "KODEX 200 하고 TIGER 미국S&P500 두 개만 담아줘. 한 종목에 20% 넘게는 싫어",
+      "axis": "범위 자동 보정 (case B: 상한 합이 투자 가능 비중보다 작음)",
+      "expected": "검증 3단에서 상한을 늘려 보정(adjusted_bounds.case = B), 통과",
+      "compile": {
+        "status": "completed",
+        "rounds": [],
+        "seconds_total": 40.85,
+        "seconds_processing": 40.85,
+        "spec_id": "STR-6fe2f8d6771f",
+        "n_universe": 2,
+        "universe": [
+          {
+            "ticker": "069500",
+            "name": "KODEX 200",
+            "weight_min": 0.2,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "360750",
+            "name": "TIGER 미국S&P500",
+            "weight_min": 0.2,
+            "weight_max": 0.25
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "bounds",
+            "stage": 3,
+            "case": "B",
+            "cash_min": 0.1,
+            "cash_target": 0.5,
+            "scale": null,
+            "sum_min_before": 0.4,
+            "sum_max_before": 0.5,
+            "sum_min_after": 0.4,
+            "sum_max_after": 0.5,
+            "reduce_universe": false,
+            "items": [
+              {
+                "ticker": "069500",
+                "ceiling": 0.25,
+                "min_before": 0.2,
+                "min_after": 0.2,
+                "max_before": 0.25,
+                "max_after": 0.25
+              },
+              {
+                "ticker": "360750",
+                "ceiling": 0.25,
+                "min_before": 0.2,
+                "min_after": 0.2,
+                "max_before": 0.25,
+                "max_after": 0.25
+              }
+            ]
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 452,
+        "status": "done",
+        "cagr": 0.137657295204892,
+        "mdd": -0.0488768009441528,
+        "sharpe": 1.73274375920302,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "pass",
+      "note": "[입력 1/3번째 시도] 범위 보정 case=B"
+    },
+    {
+      "no": "S3",
+      "profile_level": 3,
+      "profile_label": "위험중립형",
+      "text": "TIGER 방송통신 담아줘",
+      "axis": "상장폐지 종목 지목",
+      "expected": "생성 단계에서 '상장폐지' 사유로 제외",
+      "compile": {
+        "status": "completed",
+        "rounds": [
+          {
+            "question": "'TIGER' 으로 찾으면 여러 개가 나옵니다. 어느 것을 말씀하신 건가요?",
+            "choices": [
+              "091230 TIGER 반도체",
+              "098560 TIGER 방송통신 (상장폐지)",
+              "102110 TIGER 200",
+              "133690 TIGER 미국나스닥100",
+              "139260 TIGER 200 IT",
+              "157450 TIGER 단기통안채"
+            ],
+            "answer": "098560 TIGER 방송통신 (상장폐지)"
+          }
+        ],
+        "seconds_total": 67.99,
+        "seconds_processing": 67.98,
+        "spec_id": "STR-4a04663aceee",
+        "n_universe": 9,
+        "universe": [
+          {
+            "ticker": "069500",
+            "name": "KODEX 200",
+            "weight_min": 0.0,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "069660",
+            "name": "KIWOOM 200",
+            "weight_min": 0.0,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "091160",
+            "name": "KODEX 반도체",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "091230",
+            "name": "TIGER 반도체",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "102110",
+            "name": "TIGER 200",
+            "weight_min": 0.0,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "105190",
+            "name": "ACE 200",
+            "weight_min": 0.0,
+            "weight_max": 0.25
+          },
+          {
+            "ticker": "114260",
+            "name": "KODEX 국고채3년",
+            "weight_min": 0.0,
+            "weight_max": 0.5
+          },
+          {
+            "ticker": "132030",
+            "name": "KODEX 골드선물(H)",
+            "weight_min": 0.0,
+            "weight_max": 0.1
+          },
+          {
+            "ticker": "133690",
+            "name": "TIGER 미국나스닥100",
+            "weight_min": 0.0,
+            "weight_max": 0.25
+          }
+        ],
+        "rebalance": {
+          "trigger": {
+            "day": 1,
+            "freq": "monthly",
+            "type": "calendar"
+          },
+          "min_interval_days": 20
+        },
+        "failure_reason": null,
+        "excluded": [
+          {
+            "ticker": "098560",
+            "name": "TIGER 방송통신",
+            "reason_code": "DELISTED",
+            "reason": "상장폐지된 종목이다"
+          }
+        ],
+        "loss_limit": null
+      },
+      "validation": {
+        "passed": true,
+        "stage_failed": null,
+        "reasons": [],
+        "adjustments": [
+          {
+            "kind": "hardcap",
+            "stage": 4,
+            "field": "universe.114260.weight_max",
+            "requested": 0.5,
+            "applied": 0.3,
+            "limit": "max_weight_per_asset"
+          }
+        ]
+      },
+      "backtest": {
+        "run_id": 453,
+        "status": "done",
+        "cagr": 0.167564707334697,
+        "mdd": -0.0753759737643926,
+        "sharpe": 1.7155550836587,
+        "view_sources": {
+          "market": "real",
+          "regime": "real",
+          "sentiment": "real"
+        },
+        "failure_reason": null
+      },
+      "result": "blocked_expected",
+      "note": "생성 단계에서 막힘 — 컴파일 completed, excluded DELISTED=[098560 상장폐지된 종목이다], 098560 편입=False"
+    }
+  ],
+  "latency": {
+    "compile_seconds_median": 55.82,
+    "processing_seconds_median": 55.82,
+    "n": 13,
+    "baseline_seconds": 30,
+    "baseline_date": "2026-08-22"
+  },
+  "reproducibility": {
+    "backtest": {
+      "spec_id": "STR-30d973aa8b26",
+      "run_ids": [
+        442,
+        454
+      ],
+      "same_weights": true,
+      "same_orders": true,
+      "same_curve": true,
+      "n_decisions": 36,
+      "sample_orders": [
+        {
+          "date": "2023-01-06",
+          "a": {
+            "114260": 0.06782541055097199,
+            "148070": 0.06782541055097199,
+            "153130": 0.08326254742553323,
+            "157450": 0.0825146740363645,
+            "214980": 0.08311607139287958,
+            "272580": 0.08067408471284346,
+            "273130": 0.03478180133043525,
+            "305080": 0.04552746722258186
+          },
+          "b": {
+            "114260": 0.06782541055097199,
+            "148070": 0.06782541055097199,
+            "153130": 0.08326254742553323,
+            "157450": 0.0825146740363645,
+            "214980": 0.08311607139287958,
+            "272580": 0.08067408471284346,
+            "273130": 0.03478180133043525,
+            "305080": 0.04552746722258186
+          }
+        },
+        {
+          "date": "2023-02-03",
+          "a": {
+            "153130": -0.0011493293958767525,
+            "157450": -0.0017161927561281654,
+            "214980": -0.0023175901126432363,
+            "114260": 0.0010453417982876911,
+            "148070": 0.003190558493316953,
+            "272580": 0.00012439656739288152,
+            "273130": 0.000822815405650601,
+            "305080": 0.0009454083770186333
+          },
+          "b": {
+            "153130": -0.0011493293958767525,
+            "157450": -0.0017161927561281654,
+            "214980": -0.0023175901126432363,
+            "114260": 0.0010453417982876911,
+            "148070": 0.003190558493316953,
+            "272580": 0.00012439656739288152,
+            "273130": 0.000822815405650601,
+            "305080": 0.0009454083770186333
+          }
+        },
+        {
+          "date": "2023-03-03",
+          "a": {
+            "148070": -0.0004058110858554398,
+            "153130": -0.0018963602074840297,
+            "157450": -0.0005417674128683769,
+            "272580": -0.0005816234580638957,
+            "114260": 0.001739405609173822,
+            "214980": 0.0006102769748262266,
+            "273130": 0.001075879580271763,
+            "305080": 0.0016385061523301672
+          },
+          "b": {
+            "148070": -0.0004058110858554398,
+            "153130": -0.0018963602074840297,
+            "157450": -0.0005417674128683769,
+            "272580": -0.0005816234580638957,
+            "114260": 0.001739405609173822,
+            "214980": 0.0006102769748262266,
+            "273130": 0.001075879580271763,
+            "305080": 0.0016385061523301672
+          }
+        }
+      ]
+    },
+    "compile": {
+      "text": "요즘 반도체가 흥한다던데 거기 비중을 좀 싣되 크게 잃지는 않게 해줘",
+      "spec_ids": [
+        "STR-4a97e25f75bc",
+        "STR-7092d7fa80fb"
+      ],
+      "same_spec": true,
+      "diff": []
+    }
+  }
+}
