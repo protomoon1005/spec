@@ -24,7 +24,7 @@ type State =
   // expired 면 로그인 화면이 아이디를 채우고 재인증 버튼을 바로 보여 준다(?expired=1).
   | { kind: "login"; message: string; expired?: boolean }
   | { kind: "error"; message: string }
-  | { kind: "ok"; report: ReportData };
+  | { kind: "ok"; report: ReportData; run: RunDetail };
 
 export default function LiveReport({ runId }: { runId: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -54,7 +54,7 @@ export default function LiveReport({ runId }: { runId: string }) {
         const result = resultFromRun(run); // 끝나지 않았거나 실패했으면 여기서 멈춘다
         const spec = await api<SpecDetail>(`/specs/${run.spec_id}`);
         const report = buildReport(result, metaFromSpec(spec, run));
-        if (alive) setState({ kind: "ok", report });
+        if (alive) setState({ kind: "ok", report, run });
       } catch (err) {
         if (alive) setState(describe(err));
       }
@@ -64,7 +64,7 @@ export default function LiveReport({ runId }: { runId: string }) {
     };
   }, [runId]);
 
-  if (state.kind === "ok") return <Report report={state.report} />;
+  if (state.kind === "ok") return <Report report={state.report} run={state.run} />;
   return <Notice state={state} runId={runId} />;
 }
 
@@ -86,7 +86,7 @@ function Notice({ state, runId }: { state: Exclude<State, { kind: "ok" }>; runId
   const tone = state.kind === "error" ? C.loss : state.kind === "login" ? C.warn : C.accent;
   return (
     <div style={{ background: C.bg, fontFamily: SANS, color: C.text, minHeight: "100vh" }} className="flex flex-col">
-      <main className="max-w-[720px] mx-auto w-full px-6 py-16">
+      <main className="max-w-[720px] mx-auto w-full box-border px-6 py-16">
         <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted, letterSpacing: "0.03em" }}>
           백테스트 리포트 · 실행 #{runId}
         </div>

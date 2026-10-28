@@ -40,6 +40,8 @@ import { Cel, DataTable, ExplainButton, KeyValue, Kpi, Panel, Tag } from "./repo
 import { axisTick, DdTip, EquityTip, MonthTip, ViewTip } from "./report/tooltips";
 import { MetricGuideCards } from "./report/metric-guide";
 import { TRACK, WeightBand } from "./report/weight-band";
+import { NarrativePanel } from "./report/narrative";
+import type { NarrativeSource } from "@/lib/report-narrative";
 
 // --- 탭 ----------------------------------------------------------------------
 const TABS = [
@@ -81,7 +83,11 @@ function autoCorrection(f: ReportData["feasibility"]): [string, string, string] 
 // --- 화면 --------------------------------------------------------------------
 // report 를 넘기지 않으면 정적 데모 결과(data/backtest-result.json)를 그린다.
 // /report?run_id= 는 lib/report-from-run.ts 로 만든 실행 결과를 넘긴다.
-export default function Report({ report = defaultReport }: { report?: ReportData } = {}) {
+// run 은 요약 문단이 실행 기록에서만 아는 값(관점 가중치 · 검증 출처)을 읽는 데 쓴다. 정적 데모는 없다.
+export default function Report({
+  report = defaultReport,
+  run = null,
+}: { report?: ReportData; run?: NarrativeSource["run"] } = {}) {
   const {
     bestMonth,
     control,
@@ -236,9 +242,11 @@ export default function Report({ report = defaultReport }: { report?: ReportData
         </div>
       </header>
 
-      <main className="max-w-[1400px] mx-auto w-full px-6 py-6 flex flex-col gap-6">
+      {/* box-border: report.css 의 border-box 리셋은 .report-root 아래만 걸려 여기엔 안 닿는다.
+          content-box 면 w-full(100%) 에 좌우 여백 48px 이 더해져 좁은 화면에서 가로로 넘친다. */}
+      <main className="max-w-[1400px] mx-auto w-full box-border px-6 py-6 flex flex-col gap-6">
         {/* 핵심 지표 */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(168px, 100%), 1fr))", gap: 10 }}>
           <Kpi label="누적수익률" value={up(strategy.total, (n) => pct(n, 1), 0)} color={sign(strategy.total)} sub={`3년 · ${PERIOD_START.slice(0, 7)}~`} />
           <Kpi label="연환산 (CAGR)" value={up(strategy.cagr, (n) => pct(n, 1), 1)} color={sign(strategy.cagr)} sub="기하평균" />
           <Kpi
@@ -259,6 +267,9 @@ export default function Report({ report = defaultReport }: { report?: ReportData
             sub={`낙폭 방어 · 시장 MDD ${pct(market.mdd, 1)}`}
           />
         </div>
+
+        {/* 요약 문단 — 템플릿 문장, 화이트리스트 값만 (lib/report-narrative.ts) */}
+        <NarrativePanel report={report} run={run} />
 
         {/* 탭 */}
         <div role="tablist" aria-label="리포트 구획" style={{ borderBottom: `1px solid ${C.border}` }} className="flex flex-wrap">
@@ -685,7 +696,7 @@ export default function Report({ report = defaultReport }: { report?: ReportData
                   <Tooltip content={<ViewTip />} />
                   <Legend verticalAlign="top" align="right" height={26} wrapperStyle={{ fontFamily: MONO, fontSize: 11 }} />
                   <Area {...draw(0)} type="monotone" dataKey="market" name="시장 분석" stackId="1" stroke={C.accent} fill={C.accent} fillOpacity={0.55} />
-                  <Area {...draw(120)} type="monotone" dataKey="sentiment" name="감성 분석" stackId="1" stroke={C.warn} fill={C.warn} fillOpacity={0.4} />
+                  <Area {...draw(120)} type="monotone" dataKey="sentiment" name="뉴스 감성" stackId="1" stroke={C.warn} fill={C.warn} fillOpacity={0.4} />
                   <Area {...draw(240)} type="monotone" dataKey="temperature" name="시장 온도" stackId="1" stroke={C.profit} fill={C.profit} fillOpacity={0.32} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -695,7 +706,7 @@ export default function Report({ report = defaultReport }: { report?: ReportData
               <p style={{ fontFamily: SANS, fontSize: 14, lineHeight: 1.85, color: C.text, margin: 0 }}>
                 시장 분석은 20일 모멘텀과 14일 RSI가 함께 상승을 가리켜 상승 확률 {(VIEW_META[0].prob * 100).toFixed(0)}%를 냈고,
                 최근 {EVAL_WINDOW}거래일 Brier 손실이 세 관점 중 가장 낮아 가중치가 {pctPlain(viewWeightOf.market)}까지 올라왔습니다.
-                감성 분석은 {(VIEW_META[1].prob * 100).toFixed(0)}%로 중립에 가깝고 손실이 가장 커 가중치가{" "}
+                뉴스 감성은 {(VIEW_META[1].prob * 100).toFixed(0)}%로 중립에 가깝고 손실이 가장 커 가중치가{" "}
                 {pctPlain(viewWeightOf.sentiment)}로 눌려 있습니다. 시장 온도는 KOSPI가 200일 이동평균 위에 있고 VKOSPI가 낮아
                 위험선호 국면으로 판별했습니다.
                 <br />
@@ -780,11 +791,11 @@ export default function Report({ report = defaultReport }: { report?: ReportData
               <Panel title="판단 기준" sub="승인 시점에 확정되며 이후 변경되지 않는다">
                 <KeyValue
                   rows={[
-                    // 세 관점 규칙은 계약에서 전부 Optional 이다. 실제 전략서는 감성이 null 일
-                    // 수 있어서(감성 중립 고정 이후) 규칙이 없으면 "미사용" 으로 적는다.
+                    // 세 관점 규칙은 계약에서 전부 Optional 이다. 실제 전략서는 뉴스 감성 규칙이 null 일
+                    // 수 있어서 규칙이 없으면 "미사용" 으로 적는다.
                     ["시장 분석 지표", spec.signal_rules.market_analysis?.indicators.join(", ") || "미사용"],
-                    ["감성 대상 섹터", spec.signal_rules.sentiment?.target_sectors.join(", ") || "미사용"],
-                    ["감성 lookback", spec.signal_rules.sentiment ? `${spec.signal_rules.sentiment.lookback_hours}시간` : "미사용"],
+                    ["뉴스 감성 대상 섹터", spec.signal_rules.sentiment?.target_sectors.join(", ") || "미사용"],
+                    ["뉴스 감성 lookback", spec.signal_rules.sentiment ? `${spec.signal_rules.sentiment.lookback_hours}시간` : "미사용"],
                     ["추세 지수", spec.signal_rules.market_temperature ? `${spec.signal_rules.market_temperature.trend_index} ${spec.signal_rules.market_temperature.trend_ma_window}일선` : "미사용"],
                     ["변동성 지수", spec.signal_rules.market_temperature?.volatility_index ?? "미사용"],
                   ]}
