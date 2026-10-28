@@ -46,6 +46,7 @@ def build_compile_prompt(
     blocks: list[Block] | None = None,
     defaults: dict[str, float] | None = None,
     rebalance_blocks: list[Block] | None = None,
+    loss_limit: float | None = None,
 ) -> str:
     lines = [
         f"사용자 요청: {user_text}",
@@ -58,7 +59,11 @@ def build_compile_prompt(
         mark = (
             " (사용자가 직접 지목함)"
             if candidate.requested
-            else f" (요청한 특성: {candidate.trait})" if candidate.trait else ""
+            else f" (요청한 특성: {candidate.trait})"
+            if candidate.trait
+            else " (손실 제약을 지키려고 보충한 채권)"
+            if candidate.guard
+            else ""
         )
         lines.append(
             f"  - {candidate.ticker} {candidate.name} "
@@ -81,7 +86,9 @@ def build_compile_prompt(
             "",
             "이 성향의 기본 제약 (사용자가 달리 말하지 않았으면 그대로 써라):",
             f"  - 최소 현금 비중 {defaults['cash_min_default']:.2f}",
-            f"  - 최대 낙폭 {defaults['max_drawdown_default']:.2f}",
+            f"  - 최대 낙폭 {defaults['max_drawdown_default']:.2f}"
+            if loss_limit is None
+            else f"  - 최대 낙폭 {loss_limit:.2f} (사용자가 말한 손실 한도. 이 값을 그대로 써라)",
             f"  - 1회 최대 손실 {defaults['max_loss_per_trade_default']:.2f}",
         ]
 
@@ -106,4 +113,6 @@ def build_compile_prompt(
     ]
     if any(candidate.trait for candidate in candidate_set.candidates):
         lines.append("  - '요청한 특성' 표시가 있는 종목은 사용자가 원한 성격이다. 빼지 말고 담아라")
+    if any(candidate.guard for candidate in candidate_set.candidates):
+        lines.append("  - '보충한 채권' 표시가 있는 종목은 손실을 줄이려고 넣었다. 빼지 말고 담아라")
     return "\n".join(lines)
