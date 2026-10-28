@@ -147,10 +147,10 @@ def test_weekly_rule_skips_dates_closer_than_min_interval(make_spec):
 @pytest.mark.parametrize(
     "rebalance",
     [
-        {"trigger": {"type": "calendar", "freq": "monthly", "day": 15}, "min_interval_days": 20},
-        {"trigger": {"type": "calendar", "freq": "quarterly", "day": 1}, "min_interval_days": 60},
-        {"trigger": {"type": "threshold", "freq": "daily"}, "min_interval_days": 5},
-        {"trigger": {"type": "signal", "freq": "daily"}, "min_interval_days": 5},
+        # BBL 에 없는 조합
+        {"trigger": {"type": "calendar", "freq": "monthly", "day": 10}, "min_interval_days": 20},
+        {"trigger": {"type": "calendar", "freq": "quarterly", "day": 15}, "min_interval_days": 60},
+        {"trigger": {"type": "threshold", "freq": "weekly"}, "min_interval_days": 5},
         {"trigger": {"type": "calendar", "freq": "monthly", "day": 1}},  # 최소 간격 없음
     ],
 )
@@ -173,6 +173,95 @@ def test_unknown_spec_and_reversed_period_stop():
         _build("STR-없는전략서")
     with pytest.raises(bi.InputError, match="거꾸로"):
         bi.build_inputs("STR-없는전략서", period_start=date(2025, 1, 1), period_end=date(2024, 1, 1))
+
+
+# ── BBL 리밸런싱 블록별 일정 (DB 없음) ───────────────────────────────
+# 블록의 params_schema 는 db/seeds/05_bbl.sql 그대로다.
+
+def _rule(type_: str, freq: str, day: int | None, interval: int) -> dict:
+    trigger = {"type": type_, "freq": freq} if day is None else {"type": type_, "freq": freq, "day": day}
+    return {"trigger": trigger, "min_interval_days": interval}
+
+
+BBL_RULES = {
+    "RB_MONTHLY_FIRST": _rule("calendar", "monthly", 1, 20),
+    "RB_MONTHLY_MID": _rule("calendar", "monthly", 15, 20),
+    "RB_QUARTERLY": _rule("calendar", "quarterly", 1, 60),
+    "RB_WEEKLY": _rule("calendar", "weekly", 1, 5),
+    "RB_THRESHOLD_5": _rule("threshold", "daily", None, 5),
+    "RB_SIGNAL": _rule("signal", "daily", None, 5),
+}
+# 2023-01~2023-07 의 주 마지막 거래일 일부(설 연휴·공휴일 주 포함 모양)
+WEEKS = [
+    "2023-01-06", "2023-01-13", "2023-01-20", "2023-01-27", "2023-02-03", "2023-02-10",
+    "2023-02-17", "2023-02-24", "2023-03-03", "2023-03-10", "2023-03-17", "2023-03-24",
+    "2023-03-31", "2023-04-07", "2023-04-14", "2023-04-21", "2023-04-28", "2023-05-04",
+    "2023-05-12", "2023-05-19", "2023-05-26", "2023-06-02", "2023-06-09", "2023-06-16",
+    "2023-06-23", "2023-06-30", "2023-07-07",
+]
+
+
+def test_bbl_seed_rebalance_blocks_match_the_rules_here():
+    # 여기 표가 시드와 어긋나면 아래 일정 테스트가 다른 규칙을 보고 있는 것이다
+    seed = (ROOT / "db" / "seeds" / "05_bbl.sql").read_text(encoding="utf-8")
+    import json
+    import re
+
+    found = {
+        m.group(1): json.loads(m.group(2))
+        for m in re.finditer(r"\('(RB_[A-Z_0-9]+)', 'rebalance',.*?'(\{.*?\})'\)", seed, re.S)
+    }
+    assert set(found) == set(BBL_RULES)
+    for block_id, rule in BBL_RULES.items():
+        assert found[block_id] == rule, block_id
+
+
+def test_monthly_mid_takes_the_first_week_on_or_after_the_15th():
+    got = bi.plan_schedule(BBL_RULES["RB_MONTHLY_MID"], WEEKS)
+
+    assert got.dates == ["2023-01-20", "2023-02-17", "2023-03-17", "2023-04-21", "2023-05-19", "2023-06-16"]
+    assert got.skipped == [] and got.drift is None and "15일" in got.note
+
+
+def test_monthly_mid_skips_a_month_that_ends_before_the_15th():
+    # 구간이 달 중간에 끝나면 그 달은 리밸런싱이 없다(15일 전 날짜로 당기지 않는다)
+    short = ["2023-01-20", "2023-02-03", "2023-02-10"]
+    assert bi.plan_schedule(BBL_RULES["RB_MONTHLY_MID"], short).dates == ["2023-01-20"]
+
+
+def test_quarterly_takes_the_first_week_of_each_quarter():
+    got = bi.plan_schedule(BBL_RULES["RB_QUARTERLY"], WEEKS)
+
+    assert got.dates == ["2023-01-06", "2023-04-07", "2023-07-07"]
+    assert got.skipped == [] and got.drift is None and got.signal_interval is None
+
+
+def test_quarterly_min_interval_drops_a_quarter_start_too_close():
+    # 확정 간격이 분기보다 길면 다음 분기 첫 평가일을 건너뛴다
+    got = bi.plan_schedule(BBL_RULES["RB_QUARTERLY"], WEEKS, min_interval_days=100)
+
+    assert got.dates == ["2023-01-06", "2023-07-07"] and got.skipped == ["2023-04-07"]
+
+
+def test_monthly_first_and_weekly_are_unchanged():
+    assert bi.plan_schedule(BBL_RULES["RB_MONTHLY_FIRST"], WEEKS).dates == monthly_first(WEEKS)
+    assert bi.plan_schedule(BBL_RULES["RB_WEEKLY"], WEEKS).dates == WEEKS
+
+
+def test_threshold_hands_every_week_to_the_runner_with_the_block_threshold():
+    got = bi.plan_schedule(BBL_RULES["RB_THRESHOLD_5"], WEEKS)
+
+    # 간격은 미리 거르지 않는다 — 직전 "실제" 리밸런싱일을 러너만 안다
+    assert got.dates == WEEKS and got.skipped == []
+    assert got.drift == (0.05, 5) and got.signal_interval is None
+    assert bi.plan_schedule(BBL_RULES["RB_THRESHOLD_5"], WEEKS, min_interval_days=9).drift == (0.05, 9)
+
+
+def test_signal_hands_every_week_to_the_runner_with_the_interval():
+    got = bi.plan_schedule(BBL_RULES["RB_SIGNAL"], WEEKS, min_interval_days=7)
+
+    assert got.dates == WEEKS and got.skipped == []
+    assert got.signal_interval == 7 and got.drift is None
 
 
 def test_min_interval_keeps_the_first_and_drops_what_is_too_close():
@@ -259,3 +348,36 @@ def test_m2_chain_holds_targets_inside_confirmed_ranges_and_cash(make_spec):
         assert 0.02 - 1e-9 <= decision["target"]["069500"] <= 0.08 + 1e-9
         assert 0.03 - 1e-9 <= decision["target"]["273130"] <= 0.09 + 1e-9
         assert decision["cash"] >= 0.40 - 1e-9
+
+
+# ── 신호형(RB_SIGNAL) 전략서를 service 경로로 끝까지 ─────────────────────
+
+
+@pytest.mark.requires_backfill
+def test_signal_rule_spec_runs_through_the_m2_chain_and_repeats(make_draft_spec, monkeypatch):
+    from app.backtest import service
+    from app.views import bridge
+
+    monkeypatch.setattr(bridge, "SCORERS", bridge.MOCK_SCORERS)  # LightGBM 없이 결정적으로
+    spec_id = make_draft_spec(
+        [("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], rebalance=BBL_RULES["RB_SIGNAL"],
+        name="신호형 픽스처", signal_rules={"market_analysis": {"indicators": ["ret_20"]}},
+        constraint={"max_weight_per_asset": 0.30, "min_weight_per_asset": 0.0, "cash_min": 0.05,
+                    "max_loss_per_trade": 0.05, "max_drawdown": 0.25},
+    )
+    specs.record_validation(spec_id, bounds=CONFIRMED, logs=_logs())  # 4단 통과 기록 → M2 체인 경로
+
+    def once():
+        return service.run_spec_backtest(spec_id, period_start=PERIOD_START, period_end=PERIOD_END,
+                                         seed_money=10_000_000)
+
+    first, second = once(), once()
+    w = first["window_results"]
+
+    assert w["weight_path"] == service.M2_CHAIN_PATH
+    assert w["m2"]["risk_sizer"]["horizon_days"] == w["m2"]["min_interval_days"]  # 신호형 h = 최소 간격
+    dates = w["schedule"]["rebalance_dates"]
+    assert dates == [d["date"] for d in w["decisions"]] and len(dates) >= 2
+    # 대조군은 전략 계열이 리밸런싱한 날짜를 그대로 쓴다
+    assert [d["date"] for d in w["control_decisions"]] == dates
+    assert first == second

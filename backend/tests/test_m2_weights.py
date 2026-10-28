@@ -17,6 +17,7 @@ from app.m2.orders import Order, build_orders
 from app.m2.weights import (
     ATR_MULTIPLE,
     HORIZON_DAYS,
+    RISK_SIZER_VERSION,
     AssetLimit,
     WeightChainError,
     WeightDecision,
@@ -83,9 +84,10 @@ def test_검산예제_그룹캡_최종():
 
 
 def test_리스크상한_공식_v01():
-    # docs/m2-algorithms.md "RiskSizer v0.1": L / (k × ATR% × √h)
+    # docs/m2-algorithms.md "RiskSizer v0.1": L / (k × ATR% × √h). v0.2 는 h 만 늘렸다
     assert ATR_MULTIPLE == 2
-    assert HORIZON_DAYS == {"monthly": 21, "weekly": 5}
+    assert HORIZON_DAYS == {"monthly": 21, "weekly": 5, "quarterly": 63}
+    assert RISK_SIZER_VERSION == "v0.2"
     caps = risk_caps({"A": 0.02, "B": None, "C": 0.0}, loss_limit=0.05, horizon_days=21)
     assert caps["A"] == pytest.approx(0.05 / (2 * 0.02 * math.sqrt(21)))
     # ATR 이 없거나 0 이하면 상한을 두지 않는다
@@ -96,8 +98,17 @@ def test_리스크상한_공식_v01():
 def test_보유기간은_리밸런싱_규칙에서():
     assert horizon_for({"trigger": {"type": "calendar", "freq": "monthly", "day": 1}}) == 21
     assert horizon_for({"trigger": {"type": "calendar", "freq": "weekly", "day": 1}}) == 5
+    assert horizon_for({"trigger": {"type": "calendar", "freq": "monthly", "day": 15}}) == 21
+    assert horizon_for({"trigger": {"type": "calendar", "freq": "quarterly", "day": 1}}) == 63
+    # 비중 이탈 · 신호형은 전략서의 최소 간격(RB_THRESHOLD_5 · RB_SIGNAL 은 5)
+    assert horizon_for({"trigger": {"type": "threshold", "freq": "daily"}, "min_interval_days": 5}) == 5
+    assert horizon_for({"trigger": {"type": "signal", "freq": "daily"}, "min_interval_days": 9}) == 9
     with pytest.raises(WeightChainError):
         horizon_for({"trigger": {"type": "band"}})
+    with pytest.raises(WeightChainError):
+        horizon_for({"trigger": {"type": "threshold", "freq": "daily"}})  # 간격이 없으면 h 도 없다
+    with pytest.raises(WeightChainError):
+        horizon_for({"trigger": {"type": "calendar", "freq": "yearly", "day": 1}})
 
 
 def test_리스크상한이_weight_max보다_작으면_매핑상한이_된다():

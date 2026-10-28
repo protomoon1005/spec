@@ -16,9 +16,19 @@
 // 전략과 대조군의 차이가 곧 "신호가 더한 가치"다. 시장은 맥락일 뿐
 // 우열을 다투는 대상이 아니다 — 위험 수준이 다르기 때문이다.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { runBacktest, runBuyAndHold, type Costs, type Holding, type PriceTable } from "../lib/backtest.ts";
+import {
+  monthlyFirst,
+  runBacktest,
+  runBuyAndHold,
+  scheduleFor,
+  weeklyDates,
+  type Costs,
+  type Holding,
+  type PriceTable,
+  type RebalanceRule,
+} from "../lib/backtest.ts";
 import { capsFor, HARDCAP, profileFor, type Grade } from "../lib/policy.ts";
 
 const ROOT = join(import.meta.dirname, "..");     // frontend/
@@ -107,38 +117,6 @@ const marketBars = prices.get(MARKET_TICKER) ?? [];
 // 되돌아볼 수 있어야 첫 리밸런싱부터 신호가 나온다.
 const allDates = marketBars.map((b) => b.date).filter((d) => d >= PERIOD_START);
 
-/** 각 주의 마지막 거래일 */
-function weeklyDates(dates: string[]): string[] {
-  const out: string[] = [];
-  let lastKey = "";
-  for (const d of dates) {
-    // +4 는 1970-01-01(목)을 주 시작 요일에 맞추는 보정이다. 연도를 키에 넣어
-    // 해를 넘는 주가 두 구간으로 갈리게 한다 — 원래 동작을 그대로 유지한다.
-    const dt = new Date(`${d}T00:00:00Z`);
-    const key = `${dt.getUTCFullYear()}-${Math.floor((dt.getTime() / 86400000 + 4) / 7)}`;
-    if (key === lastKey) out[out.length - 1] = d;
-    else {
-      out.push(d);
-      lastKey = key;
-    }
-  }
-  return out;
-}
-
-/** 각 달의 첫 평가일 */
-function monthlyFirst(dates: string[]): string[] {
-  const out: string[] = [];
-  let lastMonth = "";
-  for (const d of dates) {
-    const m = d.slice(0, 7);
-    if (m !== lastMonth) {
-      out.push(d);
-      lastMonth = m;
-    }
-  }
-  return out;
-}
-
 const weekly = weeklyDates(allDates);
 const rebalance = monthlyFirst(weekly);
 
@@ -200,6 +178,95 @@ const out = {
 
 writeFileSync(join(OUT, "backtest-result.json"), JSON.stringify(out, null, 2), "utf-8");
 
+// --- 리밸런싱 블록별 대조군 --------------------------------------------------
+// BBL 리밸런싱 블록(db/seeds/05_bbl.sql 의 params_schema 그대로)마다 대조군(신호 없음)을 돌려
+// 일정과 목표 비중을 남긴다. backend/tests/test_backtest_parity.py 가 파이썬 러너와 블록별로 대조한다.
+// 화면은 이 파일을 읽지 않는다. RB_SIGNAL 은 TS 에 3관점 판단이 없어 일정을 스스로 못 정한다 —
+// 파이썬(scripts/run_backtest_vbt.py --signal-dates)이 정한 날짜 파일이 있으면 그 날짜로 대조군을 돌린다.
+const BBL_RULES: Record<string, RebalanceRule> = {
+  RB_MONTHLY_FIRST: { trigger: { type: "calendar", freq: "monthly", day: 1 }, min_interval_days: 20 },
+  RB_MONTHLY_MID: { trigger: { type: "calendar", freq: "monthly", day: 15 }, min_interval_days: 20 },
+  RB_QUARTERLY: { trigger: { type: "calendar", freq: "quarterly", day: 1 }, min_interval_days: 60 },
+  RB_WEEKLY: { trigger: { type: "calendar", freq: "weekly", day: 1 }, min_interval_days: 5 },
+  RB_THRESHOLD_5: { trigger: { type: "threshold", freq: "daily" }, min_interval_days: 5 },
+};
+
+const schedules = Object.entries(BBL_RULES).map(([blockId, rule]) => {
+  const plan = scheduleFor(rule, weekly);
+  const run = runBacktest({
+    holdings, prices, profile, caps, costs: COSTS,
+    hardcapMaxPerAsset: HARDCAP.maxWeightPerAsset,
+    valuationDates: weekly, rebalanceDates: plan.rebalanceDates, drift: plan.drift,
+    initialCash: INITIAL, mode: "equalWeight",
+  });
+  console.log(
+    `  ${blockId.padEnd(17)} 리밸런싱 ${String(run.rebalanceDates.length).padStart(3)}회` +
+      `  건너뜀 ${plan.skipped.length + run.skippedRebalanceDates.length}회  최종 ${run.series[run.series.length - 1].equity.toLocaleString()}`,
+  );
+  return {
+    block_id: blockId,
+    rule,
+    candidates: plan.rebalanceDates,
+    rebalance_dates: run.rebalanceDates,
+    skipped_rebalance_dates: [...plan.skipped, ...run.skippedRebalanceDates],
+    control_decisions: run.decisions.map((d) => ({
+      date: d.date,
+      target: d.target,
+      cash: d.cash,
+      capApplications: d.capApplications,
+    })),
+    final_equity: run.series[run.series.length - 1].equity,
+  };
+});
+
+const signalFile = join(OUT, "signal-rebalance-dates.json");
+if (existsSync(signalFile)) {
+  const given = JSON.parse(readFileSync(signalFile, "utf-8"));
+  if (given.risk_level !== RISK_LEVEL) {
+    console.log(`  RB_SIGNAL          날짜 파일의 성향(${given.risk_level})이 달라 건너뜀`);
+  } else {
+    const run = runBacktest({
+      holdings, prices, profile, caps, costs: COSTS,
+      hardcapMaxPerAsset: HARDCAP.maxWeightPerAsset,
+      valuationDates: weekly, rebalanceDates: given.rebalance_dates,
+      initialCash: INITIAL, mode: "equalWeight",
+    });
+    console.log(`  RB_SIGNAL          리밸런싱 ${String(run.rebalanceDates.length).padStart(3)}회  (파이썬이 정한 날짜)`);
+    schedules.push({
+      block_id: "RB_SIGNAL",
+      rule: given.rule,
+      candidates: given.rebalance_dates,
+      rebalance_dates: run.rebalanceDates,
+      skipped_rebalance_dates: given.skipped_rebalance_dates,
+      control_decisions: run.decisions.map((d) => ({
+        date: d.date,
+        target: d.target,
+        cash: d.cash,
+        capApplications: d.capApplications,
+      })),
+      final_equity: run.series[run.series.length - 1].equity,
+    });
+  }
+}
+
+writeFileSync(
+  join(OUT, "backtest-schedules.json"),
+  JSON.stringify(
+    {
+      as_of: weekly[weekly.length - 1],
+      period_start: weekly[0],
+      initial: INITIAL,
+      risk_level: RISK_LEVEL,
+      universe: out.universe,
+      valuation_dates: weekly,
+      schedules,
+    },
+    null,
+    2,
+  ),
+  "utf-8",
+);
+
 // --- 요약 -------------------------------------------------------------------
 const summary = (s: { date: string; equity: number }[]) => {
   const first = s[0].equity;
@@ -221,4 +288,4 @@ for (const [name, s] of [["전략", strategy.series], ["대조군", control.seri
 }
 const capCount = strategy.decisions.reduce((a, d) => a + d.capApplications.length, 0);
 console.log(`그룹캡 적용 ${capCount}회 / 리밸런싱 ${strategy.decisions.length}회`);
-console.log(`저장: data/backtest-result.json`);
+console.log(`저장: data/backtest-result.json · data/backtest-schedules.json`);
