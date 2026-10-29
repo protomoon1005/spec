@@ -73,7 +73,7 @@ docker compose logs -f                      # 로그
 - **라벨** (`views/market/labels.py`): 사건 = 20거래일 선행 수익률 > 0. 라벨·채점·보정이 이 정의 하나를 쓴다.
   `THETA`는 학습 표본 필터에만 쓴다 — 보정·채점은 전체 표본.
 - **피처셋** `v0.1-ta9` (`views/market/features.py`의 `FEATURE_SETS`가 정본): 워밍업 120행은 정의의 일부. 결측은 None.
-- **스코어러 실물** (`app/scoring/`): DB·LightGBM을 읽는 쪽은 views가 아니라 여기. market(LightGBM)·regime(국면 조건부 빈도)이 실물, 감성은 중립 고정.
+- **스코어러 실물** (`app/scoring/`): DB·LightGBM을 읽는 쪽은 views가 아니라 여기. market(LightGBM)·regime(국면 조건부 빈도)·sentiment(빅카인즈 뉴스 세션 상태 조건부 빈도)가 실물. 감성 기사는 `scripts/score_news.py`(오프라인 컨테이너, KR-FinBert-SC)로 채점 → `scripts/ingest_news.py` → `news_articles`·`news_sentiment`(본문 저장 안 함). 렌즈 정의는 `views/sentiment/lens.py`, 판단일엔 그날 15:30 KST 이하 기사만 본다. 기사가 없으면 감성 실물이 중립(no_data)을 낸다. 빅카인즈 원본·채점 CSV 는 커밋 금지(`data/news/`).
   재학습은 `scoring/schedule.cutoff_for`의 고정 20거래일 격자 — 같은 as_of는 같은 모델이라 cutoff 캐시가 재현성을 깨지 않는다. 라이브 결선(`daily_judge`·`update_view_weights`)은 `scoring/live.py`.
 - **백테스트 접합**: `backtest/runner.py` → `views/bridge.py` 단방향. 스코어러 교체는 `bridge.SCORERS` 한 곳(실물은 지연 import). DB 없는 테스트는 `bridge.MOCK_SCORERS`로 고정한다.
 - **정책 값 3중 사본**: `db/seeds/` ↔ `backtest/policy.py` ↔ `frontend/lib/policy.ts`. 수치가 같아야 한다.

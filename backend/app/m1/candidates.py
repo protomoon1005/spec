@@ -24,6 +24,13 @@
 # ── 순서는 항상 같다 ─────────────────────────────────────────────────
 # 지목한 종목이 먼저, 그다음 보충분이 종목코드 순으로 붙는다. 같은 요청에 다른
 # 후보가 나오면 같은 입력에 다른 전략서가 나온다는 뜻이다.
+#
+# ── 섹터를 싣되 지키라면 채권을 보충한다 (2026-10-27 사용자 결정) ──────
+# "반도체에 싣되 크게 잃지 않게" 에 반도체만 담으면 가장 덜 빠진 종목도 낙폭이 커서
+# Validator 3단(낙폭 모순)이 막는다. guard_bonds 를 켜면(판정은 m1/constraints.py)
+# 섹터 몫을 target - BOND_RESERVE 까지만 채우고, 그 성향이 담을 수 있는 채권(BOND)을
+# 같은 규칙(종목코드 순, 막힌 종목 건너뜀)으로 target 까지 채운다. 섹터 후보가 하나도
+# 없으면 보충하지 않는다 — 채권으로 조용히 갈아끼우지 않고 기존 되묻기로 간다.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,10 +41,28 @@ from app.repositories import etf_master, presets
 # 고르기 어려워진다. 너무 적으면 분산이 안 된다.
 DEFAULT_TARGET = 10
 
+# 손실 방어용 채권 자리 수. 섹터 ETF 가 target 을 혼자 채울 만큼 많아도(반도체는 위험중립형에서
+# 9개가 담긴다) 채권이 최소 이만큼은 후보에 오른다. 하나면 LLM 이 빼는 순간 방어가 사라지고,
+# 많으면 사용자가 지목한 섹터가 후보에서 밀린다 — 섹터 8 : 채권 2 가 되게 2 로 둔다.
+BOND_RESERVE = 2
+GUARD_GROUP = "BOND"
+
 REASON_NOT_FOUND = "종목을 찾을 수 없다"
 REASON_DELISTED = "상장폐지된 종목이다"
 REASON_LEVERAGE_FORBIDDEN = "레버리지·인버스는 시스템이 금지한다"
 REASON_PRESET_ZERO = "이 성향은 담을 수 없는 위험등급이다"
+
+# 작업 결과(excluded)에 싣는 사유 코드. 화면이 분기할 때 쓴다(m1/excluded.py).
+CODE_NOT_FOUND = "NOT_FOUND"
+CODE_DELISTED = "DELISTED"
+CODE_LEVERAGE_FORBIDDEN = "LEVERAGE_FORBIDDEN"
+CODE_PRESET_ZERO = "PRESET_ZERO"
+REASON_CODES = {
+    REASON_NOT_FOUND: CODE_NOT_FOUND,
+    REASON_DELISTED: CODE_DELISTED,
+    REASON_LEVERAGE_FORBIDDEN: CODE_LEVERAGE_FORBIDDEN,
+    REASON_PRESET_ZERO: CODE_PRESET_ZERO,
+}
 
 
 @dataclass(frozen=True)
@@ -53,6 +78,7 @@ class Candidate:
     preset_id: int
     requested: bool  # 사용자가 직접 지목했는가
     trait: str | None = None  # 요청한 ETF 특성(배당 등)에 맞아 앞에 둔 종목이면 그 특성 이름
+    guard: bool = False  # 손실 제약을 지키려고 보충한 채권인가 (guard_bonds)
 
 
 @dataclass(frozen=True)
@@ -60,6 +86,11 @@ class Rejection:
     ticker: str
     name: str | None
     reason: str
+    risk_tag: str | None = None  # PRESET_ZERO 사유를 "성향 N 의 Gk 상한 0" 으로 풀어 쓸 때 쓴다
+
+    @property
+    def code(self) -> str:
+        return REASON_CODES.get(self.reason, self.reason)
 
 
 @dataclass(frozen=True)
@@ -84,6 +115,7 @@ def select(
     target: int = DEFAULT_TARGET,
     preset_version: str | None = None,
     traits: list[tuple[str, str]] | None = None,
+    guard_bonds: bool = False,
 ) -> CandidateSet:
     # 지목한 종목을 먼저 판정하고, 모자라면 같은 조건으로 보충한다.
     version = preset_version or presets.active_preset_version()
@@ -104,12 +136,20 @@ def select(
             continue
         reason = _blocked_reason(record, bounds, leverage_allowed=leverage_allowed)
         if reason is not None:
-            rejected.append(Rejection(ticker=ticker, name=record.name, reason=reason))
+            rejected.append(
+                Rejection(ticker=ticker, name=record.name, reason=reason, risk_tag=record.risk_tag)
+            )
             continue
         candidates.append(_as_candidate(record, bounds, requested=True))
 
     # 보충 — 지목한 종목이 있으면 그 업종을 이어서 채운다(사용자 의도에 가깝다).
     fill_sectors = sectors or _sectors_of(candidates) or None
+
+    # 채권 자리를 남겨 둔다. 섹터를 지목했을 때(지목 종목의 업종 포함), 보충할 채권이 실제로 있을 때만 —
+    # 없으면 섹터로 끝까지 채운다.
+    sector_named = any(s != "SECTOR_OTHER" for s in fill_sectors or [])
+    bonds = _guard_bonds(bounds, leverage_allowed=leverage_allowed) if guard_bonds and sector_named else []
+    fill_to = target - min(BOND_RESERVE, len(bonds)) if bonds else target
 
     # 요청한 특성(배당 등)에 맞는 종목을 먼저 둔다. 걸러 내지 않고 앞에 둘 뿐이다 — 특성과
     # 업종이 겹치지 않는 요청("안전하게" + 반도체)에서 후보가 비지 않게. 특성마다 따로 찾는 건
@@ -118,21 +158,21 @@ def select(
         for record in etf_master.search(
             group_ids=group_ids, sectors=fill_sectors, name_pattern=pattern, include_leveraged=False
         ):
-            if len(candidates) >= target:
+            if len(candidates) >= fill_to:
                 break
             if record.ticker in seen or _blocked_reason(record, bounds, leverage_allowed=leverage_allowed):
                 continue
             seen.add(record.ticker)
             candidates.append(_as_candidate(record, bounds, requested=False, trait=title))
 
-    if len(candidates) < target:
+    if len(candidates) < fill_to:
         for record in etf_master.search(
             group_ids=group_ids,
             sectors=fill_sectors,
             name_pattern=name_pattern,
             include_leveraged=False,
         ):
-            if len(candidates) >= target:
+            if len(candidates) >= fill_to:
                 break
             if record.ticker in seen:
                 continue
@@ -140,6 +180,15 @@ def select(
                 continue  # 지목하지 않은 종목의 탈락 사유는 남기지 않는다
             seen.add(record.ticker)
             candidates.append(_as_candidate(record, bounds, requested=False))
+
+    if bonds and candidates:
+        for record in bonds:
+            if len(candidates) >= target:
+                break
+            if record.ticker in seen:
+                continue
+            seen.add(record.ticker)
+            candidates.append(_as_candidate(record, bounds, requested=False, guard=True))
 
     return CandidateSet(
         candidates=tuple(candidates),
@@ -159,6 +208,15 @@ def _requested_records(tickers: list[str]) -> dict[str, etf_master.EtfRecord | N
     return ordered
 
 
+def _guard_bonds(bounds, *, leverage_allowed: bool) -> list[etf_master.EtfRecord]:
+    # 그 성향이 담을 수 있는 채권만, 종목코드 순(보충 규칙과 같다).
+    return [
+        record
+        for record in etf_master.search(group_ids=[GUARD_GROUP], include_leveraged=False)
+        if _blocked_reason(record, bounds, leverage_allowed=leverage_allowed) is None
+    ]
+
+
 def _blocked_reason(record, bounds, *, leverage_allowed: bool) -> str | None:
     if not record.active:
         return REASON_DELISTED
@@ -170,7 +228,9 @@ def _blocked_reason(record, bounds, *, leverage_allowed: bool) -> str | None:
     return None
 
 
-def _as_candidate(record, bounds, *, requested: bool, trait: str | None = None) -> Candidate:
+def _as_candidate(
+    record, bounds, *, requested: bool, trait: str | None = None, guard: bool = False
+) -> Candidate:
     bound = bounds[record.risk_tag]
     return Candidate(
         ticker=record.ticker,
@@ -184,6 +244,7 @@ def _as_candidate(record, bounds, *, requested: bool, trait: str | None = None) 
         preset_id=bound.preset_id,
         requested=requested,
         trait=trait,
+        guard=guard,
     )
 
 

@@ -37,6 +37,8 @@ export type RunDetail = {
   control_decisions: Decision[] | null;
   /** M2 체인이 쓴 확정값. 체인 전 실행에는 없다 */
   m2?: { bounds?: Record<string, [number, number]>; cash_target?: number } | null;
+  /** 확정값으로 돌렸는지와 그 출처. 요약 문단(lib/report-narrative.ts)이 출처 문장에 쓴다 */
+  validation?: { status?: string; source?: string } | null;
   reason: string | null;
 };
 

@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     vllm_base_url: str = "http://localhost:8001"
     vllm_model: str = "LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct"
     llm_request_timeout_seconds: float = 120.0
+    # 재현성(같은 입력 → 같은 전략서). 샘플링을 끄고(temperature 0) 시드를 고정한다.
+    # Ollama 는 options.temperature · options.seed, vLLM(OpenAI 호환)은 temperature · seed 로 간다.
+    # 고정해도 백엔드·모델·하드웨어가 바뀌면 출력이 달라질 수 있다 — 보장 범위는 "같은 환경".
+    llm_temperature: float = 0.0
+    llm_seed: int = 42
 
     # 브라우저에서 프론트(NEXT_PUBLIC_API_BASE_URL, 기본 3000)가 이 API를 직접
     # 호출하므로 CORS를 열어야 한다 (docs/infra-spec.md 9단계, /health 페이지).

@@ -166,6 +166,22 @@ def resolve(intent: Intent) -> ResolvedIntent:
     )
 
 
+def tickers_in_answers(answers: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    # 되묻기 선택지("098560 TIGER 방송통신 (상장폐지)")를 그대로 고른 답은 첫 낱말이 종목코드다.
+    # 답 전체를 의도 추출에 다시 넣으면 LLM 이 이름을 'TIGER' 로만 옮겨 고른 종목을 잃었다
+    # (2026-10-27 데모 S3). 표에 있는 코드면 LLM 을 거치지 않고 지목 종목으로 넣는다.
+    heads = [answer.split()[0] for answer in answers if answer and answer.split()]
+    found = etf_master.get_by_tickers(heads) if heads else {}
+    return tuple(dict.fromkeys(head for head in heads if head in found))
+
+
+def with_answered_tickers(resolved: ResolvedIntent, answers) -> ResolvedIntent:
+    extra = [t for t in tickers_in_answers(answers) if t not in resolved.requested_tickers]
+    if not extra:
+        return resolved
+    return replace(resolved, requested_tickers=resolved.requested_tickers + tuple(extra))
+
+
 def _rebalance_blocks(keywords: tuple[str, ...]) -> tuple[str, ...]:
     # "매달 초에 맞춰줘" 에 블록 6개를 다 주면 비중 이탈 블록을 고르기도 했다(2026-10-21).
     # 사용자 말이 블록 태그(kw:매달 · kw:주간 …)에 걸리면 그 블록들로만 좁힌다.

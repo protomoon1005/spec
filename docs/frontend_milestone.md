@@ -36,7 +36,7 @@
 - 설문: 문항 받기 → 답 보내기 → 성향 확정 → 내 성향 보기, 네 주소 모두 동작
 - 전략 만들기: 요청하면 작업 번호를 준다. 결과는 진행 상황 스트림으로 온다
   - 스트림은 인증 헤더가 필요하다. 브라우저 기본 EventSource 는 헤더를 못 실으므로 fetch 로 스트림을 읽어야 한다
-  - 결과는 completed(spec_id, 종목 수) / need_answer(session_id, 질문, 선택지) / failed(이유)
+  - 결과는 completed(spec_id, 종목 수, excluded, loss_limit) / need_answer(session_id, 질문, 선택지) / failed(이유)
   - 한 번에 2분 이상 걸린다
 - 전략서 내용 보기는 501 이다. 완료 후 spec_id 외에 보여 줄 게 없다
 - 백테스트 실행, 결과 보기는 501 이다. 기존 /report 화면은 저장된 결과 파일을 읽는다
@@ -87,8 +87,10 @@
 11. 백테스트
 12. 최종 확인
 13. 관점 판단
+14. 데모 샘플 결과 (`/samples`, 로그인 없이 조회 가능)
+15. 데모 재현성 비교 (`/repro`, 기록 판정은 로그인 없이 · 서버 결정 대조는 로그인 후)
 
-- 각 화면은 별도 주소를 가진다 (예: /signup, /login, /survey, /profile, /compile, /compile/progress, /compile/answer, /compile/done, /hardcap, /backtest, /confirm, /views)
+- 각 화면은 별도 주소를 가진다 (예: /signup, /login, /survey, /profile, /compile, /compile/progress, /compile/answer, /compile/done, /hardcap, /backtest, /confirm, /views, /samples, /repro)
 - 로그인이 필요한 화면에 토큰 없이 들어오면 로그인 화면으로 보낸다
 
 ---
@@ -174,6 +176,7 @@
 - 완료 화면
   - 전략서 번호(spec_id)와 종목 수 표시
   - 전략서 내용(종목, 비중 범위, 리밸런싱, 신호 규칙) 자리는 "추후 구현 예정" 문구로 비워 둠
+  - 요청했지만 담지 못한 종목·자산군(`excluded`)이 있으면 종목코드(또는 자산군 배지)·이름·사유 코드·사유를 함께 표시 (`components/excluded-list.tsx`)
   - "다음 — 하드캡" 버튼
 - 완료 기준
   - "안전하게 채권 위주로 굴리고 매달 정리해줘" 로 끝까지 가서 spec_id 를 본다
@@ -214,7 +217,7 @@
 
 - 하는 일
   - 세 관점(시장분석, 뉴스 감성, 시장온도)과 통합 신호를 설명하는 문구
-  - 각 관점의 현재 상태 한 줄 — 시장분석과 시장온도는 가짜 점수, 감성은 항상 중립
+  - 각 관점의 출처 배지(`real` 실모델 · `mock` 목업 · `neutral` 중립)와 가중치 추이·종목별 상승 확률, 뉴스 감성 근거(`sentimentEvidence`: 자산군별 기사 수 · `z` · `state` · 모델 · 렌즈 · 기준일 · 극성 상위 기사 ID) 표시
   - "관점 판단 결과 조회는 구현 예정입니다" 문구
   - 처음 화면(전략 요청)으로 돌아가는 링크
 - 완료 기준
@@ -224,9 +227,10 @@
 
 - 시작 화면(/)
   - 지금의 스캐폴드 링크 목록을 로그인 여부에 따른 이동으로 바꾼다
-  - 개발용 링크(/health, /report)는 맨 아래 목록으로 남긴다
+  - 개발용 · 데모 링크(/health, /report, /samples, /repro)는 맨 아래 목록으로 남긴다 (홈 `/home` 과 상단 내비게이션 `flow-nav.tsx` 에도 `/samples`, `/repro` 연결)
 - 상태 화면(/health) — 그대로 둔다
-- 리포트 화면(/report) — 그대로 둔다. 백테스트 화면에서 링크로만 연결
+- 리포트 화면(/report) — 백테스트 화면·샘플 결과·재현성 화면에서 링크로 연결. 핵심 지표 아래에 화이트리스트 값(`NARRATIVE_FIELDS` 13개)만 넣는 템플릿 요약 문단(`components/report/narrative.tsx`, LLM 미사용)을 표시한다
+- 데모 화면(/samples, /repro) — `public/data/demo-samples.json` 을 읽어 샘플 13건 결과 표·성공 기준·컴파일 응답시간 판정(`/samples`)과 백테스트 2회 실행의 목표비중·주문(Δ)·자산곡선 및 컴파일 재현성 비교(`/repro`)를 보여 준다
 - 완료 기준
   - 처음 접속하면 로그인 화면으로, 로그인한 상태면 이어서 할 화면으로 간다
 

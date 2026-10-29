@@ -21,20 +21,27 @@ class VLLMClient:
         self._base_url = (base_url or settings.vllm_base_url).rstrip("/")
         self._model = model or settings.vllm_model
         self._timeout = settings.llm_request_timeout_seconds
+        self._temperature = settings.llm_temperature
+        self._seed = settings.llm_seed
 
-    def generate_json(self, prompt: str, json_schema: dict, *, system: str | None = None) -> dict:
+    def build_payload(self, prompt: str, json_schema: dict, *, system: str | None = None) -> dict:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
+        return {
+            "model": self._model,
+            "messages": messages,
+            "guided_json": json_schema,
+            # 재현성 — OllamaClient 의 options 와 같은 뜻(OpenAI 호환 칸 이름).
+            "temperature": self._temperature,
+            "seed": self._seed,
+        }
 
+    def generate_json(self, prompt: str, json_schema: dict, *, system: str | None = None) -> dict:
         response = httpx.post(
             f"{self._base_url}/v1/chat/completions",
-            json={
-                "model": self._model,
-                "messages": messages,
-                "guided_json": json_schema,
-            },
+            json=self.build_payload(prompt, json_schema, system=system),
             timeout=self._timeout,
         )
         response.raise_for_status()

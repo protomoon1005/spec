@@ -14,7 +14,7 @@
 // 보여 준다 — 서버가 새 규칙을 보내도 화면에서 사라지지 않게.
 //
 // 리밸런싱이 백테스트에서 돌 수 없는 규칙이면 미리 경고한다. 러너가 받는 규칙은
-// backend/app/backtest/inputs.py 의 _SCHEDULES 두 개뿐이다(BACKTESTABLE). 러너가 늘면
+// backend/app/backtest/inputs.py 의 _SCHEDULES 여섯 개(BBL 리밸런싱 블록)다(BACKTESTABLE). 러너가 늘면
 // 여기도 같이 고친다. 이름표(INDICATOR_LABEL)는 BBL 지표 블록의 title 이다.
 
 import { useEffect, useState } from "react";
@@ -142,12 +142,12 @@ function Holdings({ universe }: { universe: SpecDetail["universe"] }) {
         <span className="cap" /> 하드캡 {pctOf(HARDCAP.maxWeightPerAsset)}
       </p>
       <div className="flow-table">
-        <table style={{ minWidth: 560 }}>
+        <table className="flow-range-table">
           <thead>
             <tr>
               <th>종목</th>
               <th style={{ width: "38%" }}>허용 · AI 범위</th>
-              <th className="num">허용</th>
+              <th className="num allowed-num">허용</th>
               <th className="num">AI</th>
             </tr>
           </thead>
@@ -178,7 +178,7 @@ function Holdings({ universe }: { universe: SpecDetail["universe"] }) {
                       }
                     />
                   </td>
-                  <td className="num flow-hint">
+                  <td className="num flow-hint allowed-num">
                     {hasAllowed ? `${pct(u.allowed_min ?? null)} ~ ${pct(u.allowed_max ?? null)}` : "-"}
                   </td>
                   <td className="num" style={{ color: "var(--c-bright)" }}>
@@ -240,7 +240,14 @@ export function StatusBadge({ status }: { status: string }) {
 // --- 규칙을 말로 ------------------------------------------------------------
 
 // backend/app/backtest/inputs.py _SCHEDULES 의 키 (type, freq, day). min_interval_days 도 있어야 한다.
-const BACKTESTABLE = new Set(["calendar/monthly/1", "calendar/weekly/1"]);
+const BACKTESTABLE = new Set([
+  "calendar/monthly/1",
+  "calendar/monthly/15",
+  "calendar/quarterly/1",
+  "calendar/weekly/1",
+  "threshold/daily/null",
+  "signal/daily/null",
+]);
 
 function describeRebalance(rule: Rules): { text: string; backtestable: boolean | null } {
   if (!rule) return { text: "없음", backtestable: null };
@@ -256,7 +263,8 @@ function describeRebalance(rule: Rules): { text: string; backtestable: boolean |
   else if (trigger.type === "signal") what = "신호가 바뀔 때";
 
   const text = what ? `${what}${interval !== null ? ` (최소 ${interval}일 간격)` : ""}` : JSON.stringify(rule);
-  const key = `${trigger.type}/${trigger.freq}/${trigger.day}`;
+  // day 가 없으면 서버 키의 None 과 같게 null 로 적는다.
+  const key = `${trigger.type}/${trigger.freq}/${trigger.day ?? null}`;
   return { text, backtestable: BACKTESTABLE.has(key) && interval !== null };
 }
 

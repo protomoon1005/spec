@@ -243,7 +243,7 @@ def test_last_views_reports_the_weights_and_probs_of_the_latest_judgement():
     # 러너가 리밸런싱마다 decisions[i]["views"] 로 싣는 값이다 — U09 브리핑이 읽는다.
     prices, as_of = _long_prices()
     judge = BacktestJudge(TICKERS)
-    assert judge.last_views() == {"weights": {}, "probs": {}}
+    assert judge.last_views() == {"weights": {}, "probs": {}, "sentiment": {}}
 
     signal = judge.judge(prices, as_of=as_of)
     views = judge.last_views()
@@ -297,13 +297,16 @@ def test_the_same_as_of_is_not_graded_twice():
 # ── 스코어러 교체 지점 ───────────────────────────────────────────────
 
 
-def test_registry_uses_real_market_and_regime_scorers(monkeypatch):
+def test_registry_uses_real_scorers_for_all_three_views(monkeypatch):
+    # 2026-10-27 감성도 실물(빅카인즈 뉴스, app/scoring/sentiment.py)이 됐다.
     monkeypatch.undo()
     assert {vt: bridge.scorer_source(bridge.SCORERS[vt]) for vt in VIEW_TYPES} == {
         "market": REAL_SOURCE,
-        "sentiment": NEUTRAL_SOURCE,
+        "sentiment": REAL_SOURCE,
         "regime": REAL_SOURCE,
     }
+    # 목업 쪽 감성은 그대로 중립이다(DB 없는 테스트 · TS 러너 대조).
+    assert bridge.scorer_source(bridge.MOCK_SCORERS["sentiment"]) == NEUTRAL_SOURCE
 
 
 def test_default_scorer_sources_are_declared():
@@ -357,11 +360,11 @@ def test_an_empty_universe_is_rejected():
         BacktestJudge([])
 
 
-# ── 감성 관점: 중립 고정 ─────────────────────────────────────────────
+# ── 감성 관점: 목업(MOCK_SCORERS)은 중립 고정 ───────────────────────
 
 
 def test_sentiment_is_neutral_for_any_input():
-    # 과거 뉴스 확보 불가 판정으로 감성은 항상 "모른다"를 낸다. 가격이 달라도,
+    # 목업 감성은 항상 "모른다"를 낸다(실물은 app/scoring/sentiment.py). 가격이 달라도,
     # 종목이 달라도, 피처가 무엇이어도 결과가 같아야 한다.
     assert BacktestJudge(TICKERS).scorer_sources()["sentiment"] == NEUTRAL_SOURCE
 
@@ -410,3 +413,24 @@ def test_weights_sum_to_one_and_integrate_survives_a_neutral_sentiment():
     assert isinstance(signal, IntegratedSignal)
     assert sorted(signal.signals) == sorted(TICKERS)
     assert all(-1.0 <= value <= 1.0 for value in signal.signals.values())
+
+
+def test_last_views_carries_sentiment_evidence_by_group():
+    # 감성 실물이 상태형 근거를 냈으면 묶음별로 싣는다(U09 브리핑 · 판단근거 화면 재료).
+    prices, as_of = _long_prices()
+
+    def sentiment(tickers, *, as_of, features):
+        evidence = {"article_ids": [5, 6], "lens_id": "l", "sector": "EQUITY", "n_articles": 40,
+                    "model_version": "m", "z": -1.5, "state": "fear", "data_asof": "2024-01-02"}
+        return [ViewScore(view_type="sentiment", ticker=t, raw_score=0.2, calibrated_prob=0.6,
+                          evidence=evidence) for t in tickers]
+
+    scorers = dict(SCORERS)
+    scorers["sentiment"] = sentiment
+    judge = BacktestJudge(TICKERS, scorers=scorers)
+    judge.judge(prices, as_of=as_of)
+    views = judge.last_views()["sentiment"]
+    assert list(views) == ["EQUITY"]
+    assert views["EQUITY"]["state"] == "fear" and views["EQUITY"]["article_ids"] == [5, 6]
+    assert views["EQUITY"]["tickers"] == sorted(TICKERS)
+    assert (views["EQUITY"]["lens_id"], views["EQUITY"]["model_version"]) == ("l", "m")

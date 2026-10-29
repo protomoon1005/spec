@@ -191,7 +191,8 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
 // 탭을 닫으면 사라지는 게 맞다 — 되묻기 대화도 서버에서 30분이면 만료된다.
 
 export type CompileResult =
-  | { status: "completed"; spec_id: string; universe_size: number }
+  // excluded: 요청했지만 담지 못한 종목 · 자산군과 사유(lib/excluded.ts). 옛 결과에는 없다
+  | { status: "completed"; spec_id: string; universe_size: number; excluded?: unknown }
   | { status: "need_answer"; session_id: string; question: string; choices: string[] }
   | { status: "failed"; reason: string };
 
