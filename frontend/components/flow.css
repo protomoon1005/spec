@@ -325,6 +325,20 @@
   background: var(--c-surface);
 }
 
+/* 종목 범위 표. 좁은 화면에선 '허용' 숫자 칸을 빼고(허용 범위는 막대 윗줄이 보여 준다)
+   가로 스크롤 없이 한 화면에 들어오게 한다. */
+.flow-range-table {
+  min-width: 560px;
+}
+@media (max-width: 600px) {
+  .flow-range-table {
+    min-width: 0;
+  }
+  .flow-range-table .allowed-num {
+    display: none;
+  }
+}
+
 .flow-root table {
   width: 100%;
   border-collapse: collapse;
@@ -1372,4 +1386,231 @@
   height: 12px;
   border-radius: 0;
   background: var(--c-warn);
+}
+
+/* --- 데모 화면: 샘플 결과(/samples) · 재현성 비교(/repro) ------------------------ */
+
+/* 기준 시점 줄. 모든 수치가 어느 시점 기록인지 화면 위에 먼저 적는다 */
+.flow-basis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 12px;
+  color: var(--c-muted);
+  margin-bottom: 18px;
+}
+
+.flow-basis b {
+  font-family: var(--f-mono);
+  font-weight: 500;
+  color: var(--c-text);
+}
+
+.flow-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.flow-tiles > div {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.flow-tiles span {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.flow-tiles b {
+  font-family: var(--f-mono);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--c-bright);
+}
+
+.flow-tiles small {
+  font-size: 11px;
+  color: var(--c-dim);
+}
+
+/* 큰 판정 한 줄: 글자 + 배지 */
+.flow-verdict {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.flow-verdict strong {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.flow-verdict.ok strong {
+  color: var(--c-profit);
+}
+
+.flow-verdict.err strong {
+  color: var(--c-loss);
+}
+
+.flow-verdict.muted strong {
+  color: var(--c-muted);
+}
+
+.flow-card.ok {
+  border-color: #2fd18c55;
+}
+
+.flow-card.err {
+  border-color: #f2647a66;
+}
+
+/* 샘플 표: 펼침 행 · 다른 행 강조 */
+.flow-cases td {
+  vertical-align: top;
+}
+
+.flow-root .flow-cases button.flow-expand {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: transparent;
+  border-color: var(--c-border);
+  color: var(--c-text);
+  white-space: nowrap;
+}
+
+.flow-cases tr.open > td {
+  background: var(--c-surface2);
+  border-bottom-color: transparent;
+}
+
+.flow-cases tr.detail > td {
+  background: var(--c-surface2);
+  padding: 4px 18px 18px;
+}
+
+.flow-cases .text {
+  min-width: 220px;
+  max-width: 340px;
+  color: var(--c-bright);
+}
+
+.flow-cases .sub {
+  display: block;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.flow-root tr.diff > td {
+  background: #f2647a12;
+}
+
+.flow-root .diff-val {
+  color: var(--c-loss);
+  font-weight: 600;
+}
+
+.flow-cell-list {
+  display: grid;
+  gap: 1px;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 두 실행을 나란히 */
+.flow-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.flow-pair > div {
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.flow-root .flow-pair pre {
+  margin: 0;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--c-text);
+}
+
+@media (max-width: 640px) {
+  /* 샘플 표는 좁은 화면에서 행 하나를 카드 하나로 — 옆으로 밀지 않고 읽힌다 */
+  .flow-cases table,
+  .flow-cases tbody,
+  .flow-cases tr,
+  .flow-cases td {
+    display: block;
+    width: 100%;
+  }
+
+  /* 넓은 화면용 최소 폭(인라인 min-width)을 걷는다 — 카드 모양에서는 옆으로 밀 필요가 없다 */
+  .flow-cases table {
+    min-width: 0 !important;
+  }
+
+  .flow-cases thead {
+    display: none;
+  }
+
+  .flow-cases tbody tr {
+    border-bottom: 1px solid var(--c-border);
+    padding: 8px 0;
+  }
+
+  .flow-cases tbody tr.open {
+    border-bottom: 0;
+  }
+
+  .flow-cases td {
+    border-bottom: 0;
+    padding: 3px 14px;
+  }
+
+  .flow-cases td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    color: var(--c-muted);
+  }
+
+  .flow-cases .text {
+    max-width: none;
+    min-width: 0;
+  }
+
+  .flow-cases tr.detail > td {
+    padding: 4px 14px 14px;
+  }
+
+  .flow-root .flow-cases td.num {
+    text-align: left;
+  }
+
+  .flow-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-tiles b {
+    font-size: 22px;
+  }
 }

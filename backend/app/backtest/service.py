@@ -36,7 +36,7 @@ def run_conditions() -> dict:
 
 
 # 비중 경로 — window_results.weight_path 에 그대로 남는다.
-M2_CHAIN_PATH = "M2 체인 (RiskSizer v0.1 → WeightMapper → GroupCapEnforcer → OrderBuilder)"
+M2_CHAIN_PATH = "M2 체인 (RiskSizer v0.2 → WeightMapper → GroupCapEnforcer → OrderBuilder)"
 RUNNER_DEFAULT_PATH = "M4 러너 기본 경로 (검증에서 막혀 확정값 없음 — AI 원래 범위, RiskSizer 없음)"
 
 
@@ -75,8 +75,9 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
 
     args = (inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates)
     if confirmed is None:
-        strategy = run(*args, seed_money, use_signals=True)
-        control = run(*args, seed_money, use_signals=False)
+        strategy = run(*args, seed_money, use_signals=True, drift=inp.drift,
+                       signal_interval=inp.signal_interval)
+        control = run(*_control_args(args, inp, strategy), seed_money, use_signals=False, drift=inp.drift)
         weight_path, m2, used_ranges = RUNNER_DEFAULT_PATH, None, inp.final_ranges
     else:
         atr = AtrSource.load([h["ticker"] for h in inp.holdings], as_of=period_end)
@@ -94,8 +95,10 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
 
         strategy_w, control_w = weigher(), weigher()
         try:
-            strategy = run(*args, seed_money, use_signals=True, weigh=strategy_w)
-            control = run(*args, seed_money, use_signals=False, weigh=control_w)
+            strategy = run(*args, seed_money, use_signals=True, weigh=strategy_w, drift=inp.drift,
+                           signal_interval=inp.signal_interval)
+            control = run(*_control_args(args, inp, strategy), seed_money, use_signals=False,
+                          weigh=control_w, drift=inp.drift)
         except (ChainError, WeightChainError) as exc:
             raise BacktestFailed(f"비중 산출 사후 검증 실패: {exc}") from exc
         for series, w in ((strategy, strategy_w), (control, control_w)):
@@ -135,8 +138,11 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
             "schedule": {
                 "rule": inp.rebalance_rule,
                 "note": inp.schedule_note,
-                "rebalance_dates": inp.rebalance_dates,
-                "skipped_rebalance_dates": inp.skipped_rebalance_dates,
+                # 전략 계열이 실제로 리밸런싱한 날. 달력형은 inputs 의 일정 그대로이고, threshold 는
+                # 러너가 이탈로 정한 날이다(대조군 날짜는 control_decisions 에 있다 — 비중이 달라
+                # 갈릴 수 있다)
+                "rebalance_dates": strategy["rebalance_dates"],
+                "skipped_rebalance_dates": inp.skipped_rebalance_dates + strategy["skipped_rebalance_dates"],
             },
             "summary": summary,
             # 이 실행이 실제로 쓴 종목과 분류. etf_master 의 등급·분류는 나중에 바뀔 수
@@ -168,6 +174,14 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
             "control_decisions": control["decisions"],
         },
     }
+
+
+def _control_args(args: tuple, inp, strategy: dict) -> tuple:
+    # 신호형은 대조군(s ≡ 0)이 방향 변화를 못 만들어 첫날 한 번만 산다. 신호만 뺀 비교가 되도록
+    # 전략 계열이 리밸런싱한 날짜를 대조군 일정으로 쓴다. 나머지 규칙은 같은 인자 그대로다.
+    if inp.signal_interval is None:
+        return args
+    return (*args[:4], strategy["rebalance_dates"])
 
 
 def compute_metrics(values: list[float], years: float) -> dict:

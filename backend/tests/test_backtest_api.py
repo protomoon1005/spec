@@ -250,10 +250,14 @@ def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
     orders = [[d["m2"]["orders"] for d in r["window_results"]["decisions"]] for r in runs]
     assert orders[0] == orders[1]
     assert runs[0]["window_results"]["m2"]["max_loss_per_trade"] == 0.05  # 하드캡 클램프값
-    # 2026-10-05 시장분석·시장온도가 실물로 바뀌었다. 감성은 중립 고정(팀 결정).
+    # 2026-10-05 시장분석·시장온도가 실물로 바뀌었다. 2026-10-27 감성도 실물(빅카인즈 뉴스)이 됐다 —
+    # 기사가 적재되지 않았으면 그 실물이 중립 점수를 내지만 출처는 real 이다.
     assert runs[0]["window_results"]["scorer_sources"] == {
-        "market": "real", "sentiment": "neutral", "regime": "real"
+        "market": "real", "sentiment": "real", "regime": "real"
     }
+    # 감성 근거(묶음별 z · state · 기사 ID)가 리밸런싱 기록에 실린다 — 빅카인즈 기사 적재가 전제다.
+    views = [d["views"] for d in runs[0]["window_results"]["decisions"] if "views" in d]
+    assert views and any(v["sentiment"] for v in views)
 
 
 @pytest.mark.requires_backtest

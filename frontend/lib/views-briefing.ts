@@ -6,6 +6,10 @@
 //     신호를 쓰는 전략 계열의 리밸런싱마다 러너가 남긴다 (backend/app/views/bridge.py last_views).
 //     weights 는 그 판단에 실제로 쓴 관점 가중치 — 전날까지 확정된 성적으로 정해진 값이다.
 //   scorer_sources = { market, sentiment, regime: "real" | "mock" | "neutral" }
+//   decisions[i].views.evidence (있을 때만) — 관점별 근거. 뉴스 감성(빅카인즈 기사 · KR-FinBert-SC 채점,
+//     자산군별 일 지수)은 lens_id · sector(EQUITY/BOND/COMMODITY) · n_articles · article_ids(그날 |극성|
+//     상위 3건) · model_version, 그리고 z · state 가 올 예정이다. 모양이 확정되지 않아 sentimentEvidenceOf 가
+//     방어적으로 읽고, 없거나 모르는 모양이면 무시한다. 기사 제목은 화면이 GET /news/articles?ids= 로 따로 받는다.
 //
 // node 의 타입 제거 실행이 읽을 수 있게 런타임 import 를 두지 않는다.
 
@@ -13,7 +17,7 @@ export type ViewKey = "market" | "sentiment" | "regime";
 
 export const VIEWS: readonly { key: ViewKey; label: string; basis: string }[] = [
   { key: "market", label: "시장분석", basis: "가격 지표 9개 (피처셋 v0.1-ta9)" },
-  { key: "sentiment", label: "뉴스 감성", basis: "업종별 뉴스 기사의 긍정·부정" },
+  { key: "sentiment", label: "뉴스 감성", basis: "빅카인즈 뉴스 기사 감성 (KR-FinBert-SC 채점, 자산군별 일 지수)" },
   { key: "regime", label: "시장온도", basis: "변동성 지수, 신용 스프레드, 환율, 지수 추세" },
 ];
 
@@ -30,6 +34,19 @@ export const RULES = {
 export type ViewsRecord = {
   weights: Record<ViewKey, number>;
   probs: Partial<Record<ViewKey, Record<string, number>>>;
+  evidence?: unknown;
+};
+
+// 뉴스 감성 근거 중 화면이 보여 주는 칸. 전부 선택 — 온 것만 그린다.
+export type SentimentEvidence = {
+  sector: string | null;
+  lens_id: string | null;
+  n_articles: number | null;
+  article_ids: string[];
+  model_version: string | null;
+  z: number | null;
+  state: string | null;
+  as_of: string | null;
 };
 
 /** GET /backtest/runs/{run_id} 중 브리핑이 쓰는 것 */
@@ -60,6 +77,8 @@ export type Briefing = {
   changes: number;
   sources: Record<ViewKey, string | null>;
   rows: ProbRow[];
+  // 마지막 리밸런싱의 뉴스 감성 근거(자산군마다 하나). 기록이 없거나 읽을 수 없는 모양이면 빈 배열
+  sentimentEvidence: SentimentEvidence[];
 };
 
 export type NoBriefing = { kind: "pending" | "failed" | "no-views"; runId: number; message: string };
@@ -120,7 +139,67 @@ export function briefingFromRun(run: RunForBriefing): Briefing | NoBriefing {
     probs: Object.fromEntries(keys.map((k) => [k, probs[k]?.[ticker] ?? null])) as Record<ViewKey, number | null>,
   }));
 
-  return { kind: "ok", runId, history, latest, drift, firstMove: moved?.date ?? null, changes, sources, rows };
+  // 백엔드 bridge.last_views() 는 views.sentiment({묶음: 근거}) 에 싣는다. views.evidence.sentiment 는 옛 모양.
+  const lastViews = recorded[recorded.length - 1].views as { evidence?: unknown; sentiment?: unknown };
+  const sentimentEvidence = sentimentEvidenceOf(lastViews.sentiment ? { sentiment: lastViews.sentiment } : lastViews.evidence);
+
+  return {
+    kind: "ok",
+    runId,
+    history,
+    latest,
+    drift,
+    firstMove: moved?.date ?? null,
+    changes,
+    sources,
+    rows,
+    sentimentEvidence,
+  };
+}
+
+const EVIDENCE_KEYS = ["sector", "lens_id", "n_articles", "article_ids", "model_version", "z", "state", "as_of", "data_asof"] as const;
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function readEvidence(v: unknown): SentimentEvidence | null {
+  if (!isRecord(v) || !EVIDENCE_KEYS.some((k) => k in v)) return null;
+  const str = (x: unknown) => (typeof x === "string" && x ? x : typeof x === "number" && Number.isFinite(x) ? String(x) : null);
+  const finite = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const ids = Array.isArray(v.article_ids)
+    ? v.article_ids.map((x) => str(x)).filter((x): x is string => x !== null)
+    : [];
+  const out: SentimentEvidence = {
+    sector: str(v.sector),
+    lens_id: str(v.lens_id),
+    n_articles: finite(v.n_articles),
+    article_ids: ids,
+    model_version: str(v.model_version),
+    z: finite(v.z),
+    state: str(v.state),
+    as_of: str(v.as_of ?? v.data_asof),
+  };
+  const { article_ids, ...rest } = out;
+  return article_ids.length || Object.values(rest).some((x) => x !== null) ? out : null;
+}
+
+// evidence.sentiment 가 근거 하나({sector, n_articles, …})이거나 종목별 근거({종목: {…}})일 수 있다.
+// 종목별이면 같은 자산군(sector) 종목은 같은 지수를 쓰므로 자산군마다 하나만 남긴다(코드 순 첫 종목).
+export function sentimentEvidenceOf(evidence: unknown): SentimentEvidence[] {
+  if (!isRecord(evidence)) return [];
+  const e = evidence.sentiment;
+  const direct = readEvidence(e);
+  if (direct) return [direct];
+  if (!isRecord(e)) return [];
+  const bySector = new Map<string, SentimentEvidence>();
+  for (const k of Object.keys(e).sort()) {
+    const nested = readEvidence(e[k]);
+    if (!nested) continue;
+    const key = nested.sector ?? `종목 ${k}`;
+    if (!bySector.has(key)) bySector.set(key, nested);
+  }
+  return [...bySector.values()].sort((a, b) => (a.sector ?? "~").localeCompare(b.sector ?? "~"));
 }
 
 // 확률 칸 바탕색. 0.5 가 중립(무채색), 위로 갈수록 상승색, 아래로 갈수록 하락색이 짙어진다.

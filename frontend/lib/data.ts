@@ -39,11 +39,18 @@ export const FOLD_COUNT = 6;
 export const SEED = 20260908;
 export const VIEW_META = [
   { key: "market", label: "시장 분석", basis: "momentum_20d · rsi_14 · volume_ratio_20d", kind: "지도학습 (LightGBM + SHAP)", meanLoss: 0.185, prob: 0.68 },
-  { key: "sentiment", label: "감성 분석", basis: "대형주 · 중소형주 뉴스 48시간", kind: "사전학습 언어모델 + 감성 렌즈", meanLoss: 0.243, prob: 0.55 },
+  { key: "sentiment", label: "뉴스 감성", basis: "빅카인즈 뉴스 기사 · 자산군별 일 감성 지수", kind: "KR-FinBert-SC 채점 + 감성 렌즈", meanLoss: 0.243, prob: 0.55 },
   { key: "temperature", label: "시장 온도", basis: "KOSPI 200일 이동평균 · VKOSPI", kind: "규칙 및 통계 모형", meanLoss: 0.211, prob: 0.61 },
 ] as const;
-// 리밸런싱 주기 표시. 러너가 지원하는 것은 backend/app/backtest/inputs.py _SCHEDULES 에 있다.
-export const FREQ_LABEL: Record<string, string> = { monthly: "월간", weekly: "주간" };
+// 리밸런싱 주기 표시. 러너가 지원하는 것은 backend/app/backtest/inputs.py _SCHEDULES(BBL 블록 6개)에 있다.
+// lib/demo-samples.ts 에 같은 이름표 사본이 있다(node 실행용이라 import 를 못 둔다) — 같이 고친다.
+export const FREQ_LABEL: Record<string, string> = { monthly: "월간", weekly: "주간", quarterly: "분기", daily: "매일" };
+// 달력형이 아닌 규칙은 주기보다 종류가 뜻을 정한다(BBL RB_THRESHOLD_5 · RB_SIGNAL).
+export const TRIGGER_TYPE_LABEL: Record<string, string> = { threshold: "이탈형", signal: "신호형" };
+
+export function rebalanceKindLabel(trig: { type?: string; freq?: string }): string {
+  return TRIGGER_TYPE_LABEL[trig.type ?? ""] ?? FREQ_LABEL[trig.freq ?? ""] ?? trig.freq ?? "?";
+}
 
 export const ETA = 0.5;
 export const W_FLOOR = 0.1;
@@ -101,7 +108,7 @@ export type BacktestResult = {
 };
 
 // 세 관점 규칙은 계약(app/contracts/spec.py SignalRules)에서 전부 Optional 이다.
-// 감성이 중립 고정된 뒤로 실제 전략서는 sentiment 가 null 일 수 있다.
+// 뉴스 감성 규칙을 비워 둔 전략서는 sentiment 가 null 일 수 있다(한동안 중립 고정이던 시기의 전략서 포함).
 export type SignalRulesView = {
   market_analysis?: { indicators: string[] } | null;
   sentiment?: { target_sectors: string[]; lookback_hours: number } | null;
@@ -516,7 +523,9 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
   // 범위 실행가능성(docs/m2-algorithms.md 1장): Σ weight_min ≤ 1 − cash_min ≤ Σ weight_max.
   // 확정값이 있으면 Validator 가 실제로 보정했는지를 정책 계산과의 차이 · 현금 목표로 알아본다.
   // 확정값이 없으면(정적 데모) 정책 범위가 조건을 지키는지만 적는다.
-  const cashMin = PROFILE.cashMin;
+  // 현금 하한은 서버 Validator 와 같게 max(전략서 cash_min, 하드캡 cash_min) 이다(backend/app/m2/stages.py).
+  // 성향 하한과 비교하면 전략서가 처음부터 더 높게 잡은 현금을 "검증이 올렸다" 고 잘못 적는다.
+  const cashMin = Math.max(meta.constraint?.cash_min ?? PROFILE.cashMin, HARDCAP.cashMin);
   const cashTarget = result.confirmed_cash_target ?? null;
   const sumMin = universe.reduce((s, a) => s + bounds[a.ticker].min, 0);
   const sumMax = universe.reduce((s, a) => s + bounds[a.ticker].max, 0);
@@ -571,7 +580,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
   const trig = meta.rebalance.trigger;
   const lastRebalance = {
     date: lastDecision.date,
-    trigger: meta.triggerLabel ?? `${trig.type} · ${trig.freq} · day ${trig.day}`,
+    trigger: meta.triggerLabel ?? [trig.type, trig.freq, trig.day != null ? `day ${trig.day}` : null].filter(Boolean).join(" · "),
     minInterval: meta.rebalance.min_interval_days,
     turnover: lastDecision.turnover,
     cost: lastDecision.cost,
@@ -648,7 +657,7 @@ export function buildReport(result: BacktestResult, meta: SpecMeta = STATIC_SPEC
   const inputPrompt = meta.inputPrompt ?? null;
   const runId = meta.runId ?? null;
   const specStatus = meta.specStatus ?? null;
-  const rebalanceLabel = `${FREQ_LABEL[trig.freq] ?? trig.freq} 리밸런싱`;
+  const rebalanceLabel = `${rebalanceKindLabel(trig)} 리밸런싱`;
 
   // 낙폭 차트 Y축 눈금. 위는 항상 0(고점)이고 아래만 데이터에서 정한다.
   // 제약 상한선(max_drawdown)도 이 안에 들어와야 기준선이 잘리지 않는다.

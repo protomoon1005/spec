@@ -20,9 +20,19 @@
 # 단계를 함수로 갈라 뒀으니 나중에 그래프로 감싸는 것은 얇은 껍데기 하나다.
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from app.m1 import candidates, intent, postprocess, prompt, questions, schema_builder, session
+from app.m1 import (
+    candidates,
+    constraints,
+    excluded,
+    intent,
+    postprocess,
+    prompt,
+    questions,
+    schema_builder,
+    session,
+)
 from app.m1.postprocess import CompileError
 from app.m1.questions import Question
 from app.repositories import bbl, profiles, specs
@@ -45,6 +55,10 @@ class Completed:
     session_id: str
     saved: specs.SavedSpec
     status: str = STATUS_COMPLETED
+    # 사용자가 원했지만 못 담은 것(m1/excluded.py 모양). 작업 결과에만 싣는다.
+    excluded: tuple[dict, ...] = field(default=())
+    # 문장에서 읽은 손실 한도와 그 근거(m1/constraints.LossLimit). 없으면 None.
+    loss_limit: constraints.LossLimit | None = None
 
 
 def start(user_id: int, user_text: str, llm_client) -> NeedAnswer | Completed:
@@ -68,12 +82,22 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
 
     user_text = state.full_text
     parsed = intent.extract(user_text, llm_client)
-    resolved = intent.resolve(parsed)
+    # 되묻기 선택지를 그대로 고른 답의 종목코드는 LLM 을 거치지 않고 지목 종목으로 넣는다.
+    resolved = intent.with_answered_tickers(intent.resolve(parsed), state.answers)
 
     question = questions.for_intent(resolved)
     if question is not None and question.kind not in state.asked:
         return _ask(state, question)
 
+    defaults = profiles.get_profile_defaults(
+        profile.preset_version or profiles.active_preset_version(), profile.risk_level
+    )
+    loss_limit = constraints.loss_limit_for(
+        user_text, profile_limit=(defaults or {}).get("max_drawdown_default")
+    )
+    # 손실을 꺼리면 채권 보충을 켠다. 섹터를 지목했는지(문장의 섹터 또는 지목 종목의 업종)는
+    # candidates.select 가 보충 업종(fill_sectors)으로 판정한다 — 종목 이름만 말한 경우도 잡는다.
+    guard = constraints.is_loss_averse(user_text, parsed.keywords, has_limit=loss_limit is not None)
     candidate_set = candidates.select(
         risk_level=profile.risk_level,
         requested_tickers=list(resolved.requested_tickers),
@@ -81,6 +105,7 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
         group_ids=list(parsed.asset_groups),
         preset_version=profile.preset_version,
         traits=list(resolved.traits),
+        guard_bonds=guard,
     )
     if not candidate_set.candidates:
         # 같은 질문을 두 번 묻지 않는다. 두 번째에도 담을 게 없으면 포기하고
@@ -98,11 +123,14 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
         user_text=user_text,
         candidate_set=candidate_set,
         blocks=blocks,
-        defaults=profiles.get_profile_defaults(candidate_set.preset_version, profile.risk_level),
+        defaults=defaults,
         rebalance_blocks=schema_builder.rebalance_blocks(resolved.rebalance_block_ids),
+        loss_limit=loss_limit.applied if loss_limit else None,
     )
 
     raw = llm_client.generate_json(text, schema, system=prompt.SYSTEM_PROMPT)
+    # 숫자로 말한 손실 한도는 LLM 출력보다 우선한다.
+    raw = constraints.apply_loss_limit(raw, loss_limit)
     compiled = postprocess.parse(
         raw, candidate_set, spec_id=specs.new_spec_id(), user_id=state.user_id
     )
@@ -113,7 +141,12 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
         input_prompt=user_text,
     )
     session.drop(state.session_id)
-    return Completed(session_id=state.session_id, saved=saved)
+    return Completed(
+        session_id=state.session_id,
+        saved=saved,
+        excluded=tuple(excluded.build(candidate_set, resolved)),
+        loss_limit=loss_limit,
+    )
 
 
 def _ask(state: session.CompileSession, question: Question) -> NeedAnswer:

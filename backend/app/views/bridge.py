@@ -38,14 +38,16 @@
 # 결측을 어떻게 다룰지는 스코어러 몫이다. OHLCV 가 갖춰져 들어오면 그대로 둔다.
 #
 # ── 스코어러 교체 지점은 SCORERS 한 곳이다 ───────────────────────────
-# 시장분석(app/scoring/market.py)·온도(app/scoring/regime.py)는 실물이다. 둘 다
-# 저장소·LightGBM 을 읽으므로 호출 시점에 지연 import 한다 — 이 모듈을 import 하는
+# 시장분석(app/scoring/market.py)·온도(app/scoring/regime.py)·감성(app/scoring/sentiment.py)은
+# 실물이다. 셋 다 저장소(시장분석은 LightGBM 도)를 읽으므로 호출 시점에 지연 import 한다 —
+# 이 모듈을 import 하는
 # 것만으로 DB·ML 의존성이 끌려오지 않게.
 # 목업(MOCK_SCORERS)은 남겨 둔다. DB 없는 bridge 회귀 테스트와, LightGBM 을 못 돌리는
 # TS 러너와의 대조가 쓴다.
-# 감성은 과거 뉴스 확보 불가 판정(docs/news-archive-feasibility.md)으로 목업이
-# 아니라 중립 고정이다 — 관점은 남기고 항상 "모른다"를 낸다.
-# 실물이 나오면 SCORERS dict 의 한 줄만 바뀐다.
+# 감성은 과거 뉴스 확보 불가 판정(docs/news-archive-feasibility.md)으로 한동안 중립
+# 고정이었다. 2026-10-27 빅카인즈 기사 엑셀을 받아 뉴스 감성 실물(app/scoring/sentiment.py)로
+# 바꿨다. 기사가 적재되지 않았거나 결측 게이트에 걸리면 그 실물이 중립(REASON_NO_DATA)을 낸다.
+# 목업 쪽(MOCK_SCORERS)의 감성은 여전히 중립 고정이다 — DB 없는 테스트와 TS 러너 대조가 쓴다.
 from __future__ import annotations
 
 import logging
@@ -120,7 +122,7 @@ MOCK_SCORERS: dict[str, ScorerFn] = {
 # ★ 스코어러 교체 지점. 관점 하나를 바꾸려면 여기 한 줄만 바꾼다.
 SCORERS: dict[str, ScorerFn] = {
     "market": _real_scorer("app.scoring.market"),
-    "sentiment": MOCK_SCORERS["sentiment"],
+    "sentiment": _real_scorer("app.scoring.sentiment"),
     "regime": _real_scorer("app.scoring.regime"),
 }
 
@@ -184,8 +186,14 @@ class BacktestJudge:
     def last_views(self) -> dict:
         # 직전 판단에 쓴 관점 가중치와 관점별 보정 확률. U09 브리핑이 리밸런싱마다
         # "가중치가 실적으로 어떻게 움직였는가"를 그리는 재료다.
+        # sentiment 는 감성 근거(묶음별 z · state · n_articles · article_ids · data_asof 와 그 묶음 종목들)다.
+        # 상태형 근거가 있는 묶음만 싣는다 — 중립(no_data) 종목은 probs 의 0.5 로만 드러난다.
         probs = self._pending[1] if self._pending else {}
-        return {"weights": dict(self.last_weights), "probs": probs}
+        return {
+            "weights": dict(self.last_weights),
+            "probs": probs,
+            "sentiment": _sentiment_views(self.last_scores),
+        }
 
     def loss_history(self) -> dict[str, list[float]]:
         return {view_type: list(values) for view_type, values in self._losses.items()}
@@ -215,6 +223,15 @@ class BacktestJudge:
 
     def judge(self, prices, *, as_of) -> IntegratedSignal:
         day = as_date(as_of)
+        weights = self.current_weights()
+        signal, scores, pending = self._evaluate(prices, day, weights)
+        self.last_scores = scores
+        self.last_weights = weights
+        self._pending = pending
+        return signal
+
+    def _evaluate(self, prices, day: date, weights: dict[str, float]):
+        # 판단 한 번. 상태를 바꾸지 않는다 — judge · preview_rebalance 가 같이 쓴다.
         features = self.features(prices, as_of=day)
 
         ready = [ticker for ticker in self._tickers if features[ticker] is not None]
@@ -230,14 +247,10 @@ class BacktestJudge:
                 # base.neutral_score 하나뿐이어야 한다 (views/base.py 주석).
                 scores.extend(neutral_scores(view_type, list(insufficient), reason=REASON_NO_DATA))
 
-        weights = self.current_weights()
         signal = integrate(scores, as_of=day, weights=weights)
-
-        self.last_scores = scores
-        self.last_weights = weights
         # 다음 record_outcome 이 채점할 대상. calibrated_prob 만 남긴다 —
         # Brier 채점에 쓰는 값이 그거다 (raw_score 는 integrate 몫).
-        self._pending = (
+        pending = (
             day,
             {
                 view_type: {
@@ -248,24 +261,55 @@ class BacktestJudge:
                 for view_type in VIEW_TYPES
             },
         )
-        return signal
+        return signal, scores, pending
 
-    def record_outcome(self, prices, *, as_of) -> None:
-        # 직전 판단의 실현을 정산해 관점별 Brier 손실을 누적한다.
-        # 러너가 실현을 알게 되는 지점에서 부른다. Brier 계산이 러너로 새지
-        # 않게 하려고 한 줄짜리 호출로 뺀 것이다.
-        #
-        # 실현 방향은 포트폴리오 평가액이 아니라 **가격**에서 뽑는다. 러너의
-        # pf.value() 는 vectorbt 실행이 끝난 뒤에야 나오므로 루프 안에서는 알 수
-        # 없다 (2026-09-13 러너 확인). 관점이 맞혔는지는 종목이 올랐는지로
-        # 채점하는 것이 원래 정의이기도 하다.
-        if self._pending is None:
-            return
-        previous_day, probabilities = self._pending
+    # ── 신호형 리밸런싱(RB_SIGNAL) 판정용 ──────────────────────────────
+    # 러너는 매주 "리밸런싱한다면 무슨 신호가 나오는가" 를 보고 방향이 바뀌었을 때만 리밸런싱한다.
+    # 관점 가중치 채점·갱신은 리밸런싱일에만 해야 달력형과 갱신 시점 규칙이 같으므로,
+    # preview_rebalance 는 record_outcome(as_of) + judge(as_of) 를 **상태를 바꾸지 않고** 계산하고
+    # commit 이 그 결과를 그대로 반영한다. commit(preview_rebalance(d)) 는 record_outcome(d) 뒤
+    # judge(d) 와 같은 상태 · 같은 신호를 낸다(tests/test_bridge.py). 두 번 판단하지 않는다.
+    def preview_rebalance(self, prices, *, as_of) -> dict:
         day = as_date(as_of)
+        settles, graded = self._grade(prices, day)
+        losses = self._losses
+        if graded:
+            losses = {vt: [*self._losses[vt], graded[vt]] for vt in VIEW_TYPES}
+        weights = rolling_weights(losses)
+        signal, scores, pending = self._evaluate(prices, day, weights)
+        return {
+            "signal": signal,
+            "scores": scores,
+            "weights": weights,
+            "pending": pending,
+            "settles": settles,
+            "graded": graded,
+            # commit 때 그사이 상태가 바뀌지 않았는지 확인한다
+            "base": (self._pending, {vt: len(v) for vt, v in self._losses.items()}),
+        }
+
+    def commit(self, preview: dict) -> IntegratedSignal:
+        if preview["base"] != (self._pending, {vt: len(v) for vt, v in self._losses.items()}):
+            raise RuntimeError("preview 뒤에 판단기 상태가 바뀌었다 — 다시 preview 해야 한다")
+        if preview["settles"]:
+            self._pending = None
+        if preview["graded"]:
+            for view_type in VIEW_TYPES:
+                self._losses[view_type].append(preview["graded"][view_type])
+        self.last_scores = preview["scores"]
+        self.last_weights = preview["weights"]
+        self._pending = preview["pending"]
+        return preview["signal"]
+
+    def _grade(self, prices, day: date) -> tuple[bool, dict[str, float] | None]:
+        # 직전 판단을 day 에 정산하면 나올 관점별 손실. 상태를 바꾸지 않는다.
+        # 반환은 (정산이 일어나는가, {관점: 손실} 또는 채점할 종목이 없으면 None).
+        if self._pending is None:
+            return False, None
+        previous_day, probabilities = self._pending
         if day <= previous_day:
             # 아직 실현되지 않았다. 같은 시점을 두 번 채점하지 않는다.
-            return
+            return False, None
 
         outcomes: dict[str, int] = {}
         for ticker in self._tickers:
@@ -276,17 +320,56 @@ class BacktestJudge:
             if not all(ticker in probabilities[view_type] for view_type in VIEW_TYPES):
                 continue
             outcomes[ticker] = 1 if after > before else 0
-
-        self._pending = None
         if not outcomes:
-            return
+            return True, None
 
         graded = sorted(outcomes)
-        for view_type in VIEW_TYPES:
-            losses = [
+        return True, {
+            view_type: math.fsum(
                 brier_loss(probabilities[view_type][ticker], outcomes[ticker]) for ticker in graded
-            ]
-            self._losses[view_type].append(math.fsum(losses) / len(losses))
+            )
+            / len(graded)
+            for view_type in VIEW_TYPES
+        }
+
+    def record_outcome(self, prices, *, as_of) -> None:
+        # 직전 판단의 실현을 정산해 관점별 Brier 손실을 누적한다.
+        # 러너가 실현을 알게 되는 지점에서 부른다. Brier 계산이 러너로 새지
+        # 않게 하려고 한 줄짜리 호출로 뺀 것이다.
+        #
+        # 실현 방향은 포트폴리오 평가액이 아니라 **가격**에서 뽑는다. 러너의
+        # pf.value() 는 vectorbt 실행이 끝난 뒤에야 나오므로 루프 안에서는 알 수
+        # 없다 (2026-09-13 러너 확인). 관점이 맞혔는지는 종목이 올랐는지로
+        # 채점하는 것이 원래 정의이기도 하다.
+        settles, graded = self._grade(prices, as_date(as_of))
+        if settles:
+            self._pending = None
+        if graded:
+            for view_type in VIEW_TYPES:
+                self._losses[view_type].append(graded[view_type])
+
+
+SENTIMENT_VIEW_KEYS: tuple[str, ...] = ("sector", "z", "state", "n_articles", "article_ids", "data_asof")
+# 브리핑 화면의 렌즈 · 모델 칸. 기사형 evidence 의 필수 키지만 없을 수도 있어 .get 으로 싣는다(없으면 None).
+SENTIMENT_VIEW_OPTIONAL_KEYS: tuple[str, ...] = ("lens_id", "model_version")
+
+
+def _sentiment_views(scores: Sequence[ViewScore]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for score in scores:
+        evidence = score.evidence
+        if score.view_type != "sentiment" or "state" not in evidence:
+            continue
+        cell = out.setdefault(
+            evidence["sector"],
+            {key: evidence[key] for key in SENTIMENT_VIEW_KEYS}
+            | {key: evidence.get(key) for key in SENTIMENT_VIEW_OPTIONAL_KEYS}
+            | {"tickers": []},
+        )
+        cell["tickers"].append(score.ticker)
+    for cell in out.values():
+        cell["tickers"].sort()
+    return dict(sorted(out.items()))
 
 
 # ── 입력 어댑터 (pandas 를 import 하지 않는다) ───────────────────────

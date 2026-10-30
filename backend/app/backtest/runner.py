@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from app.views.bridge import BacktestJudge
+from app.views.integrator import DEADZONE
 
 from .policy import CAP_EXEMPT_GROUPS, caps_for, profile_for, resolve_bounds
 
@@ -109,6 +110,77 @@ def monthly_first(dates: list[str]) -> list[str]:
     return out
 
 
+def monthly_on_or_after(dates: list[str], day: int) -> list[str]:
+    """각 달에서 day 일 이후(포함) 첫 날짜. 그 달에 그런 날짜가 없으면 그 달은 건너뛴다.
+
+    day=1 이면 monthly_first 와 같다. lib/backtest.ts 의 monthlyOnOrAfter 와 같은 규칙이다.
+    """
+    out: list[str] = []
+    done = ""
+    for d in dates:
+        if d[:7] != done and int(d[8:10]) >= day:
+            out.append(d)
+            done = d[:7]
+    return out
+
+
+def quarterly_first(dates: list[str]) -> list[str]:
+    """각 분기(1·4·7·10월 시작)의 첫 날짜. lib/backtest.ts 의 quarterlyFirst 와 같다."""
+    out: list[str] = []
+    last = ""
+    for d in dates:
+        key = f"{d[:4]}-Q{(int(d[5:7]) - 1) // 3}"
+        if key != last:
+            out.append(d)
+            last = key
+    return out
+
+
+# --- 비중 이탈(threshold) ----------------------------------------------------
+# RB_THRESHOLD_5 "목표 비중에서 5%p 이상 벌어진 종목이 생기면 되돌린다"(db/seeds/05_bbl.sql).
+# 전략서 trigger 에는 임계값 칸이 없고(TriggerSpec extra=forbid) threshold 블록은 이것 하나라
+# 값은 블록 정의에서 온다. lib/backtest.ts 의 DRIFT_THRESHOLD 와 같아야 한다.
+DRIFT_THRESHOLD = 0.05
+
+
+def drifted_weights(
+    target: dict[str, float], prev_px: dict[str, float], now_px: dict[str, float], tickers: list[str]
+) -> dict[str, float]:
+    """직전 리밸런싱 목표 비중이 그 뒤 가격 변화로 흘러간 추정 비중.
+
+    w_i = t_i·r_i / (Σ_j t_j·r_j + (1 − Σ_j t_j)),  r_i = P_i(지금) / P_i(직전 리밸런싱)
+    현금은 움직이지 않는다고 보고, 비용·체결 오차는 무시한다 — 두 러너가 체결 엔진과 무관하게
+    같은 값을 내도록 실제 보유 수량이 아니라 이 추정식을 쓴다. 가격이 없거나 0 이하이면 r=1.
+    합은 tickers 순서로 하나씩 더한다(numpy 합은 순서가 달라 TS 와 끝자리가 갈릴 수 있다).
+    lib/backtest.ts 의 driftedWeights 와 같은 식이다.
+    """
+    grown: dict[str, float] = {}
+    invested = 0.0
+    total_target = 0.0
+    for t in tickers:
+        a, b = prev_px.get(t), now_px.get(t)
+        r = b / a if a is not None and b is not None and a > 0 and b > 0 else 1.0
+        grown[t] = target[t] * r
+        invested += grown[t]
+        total_target += target[t]
+    denom = invested + (1.0 - total_target)
+    return {t: grown[t] / denom for t in tickers}
+
+
+def max_drift(
+    target: dict[str, float], prev_px: dict[str, float], now_px: dict[str, float], tickers: list[str]
+) -> float:
+    """종목별 |흘러간 비중 − 목표 비중| 의 최댓값(절대 %p, 0.05 = 5%p)."""
+    w = drifted_weights(target, prev_px, now_px, tickers)
+    return max(abs(w[t] - target[t]) for t in tickers)
+
+
+# --- 신호 방향(signal) --------------------------------------------------------
+def signal_directions(signals: dict[str, float], tickers: list[str]) -> dict[str, int]:
+    """RB_SIGNAL 의 "신호 방향". |s| < 데드존(0.10) 은 0, 그 밖은 부호(+1 · −1)."""
+    return {t: 0 if abs(signals[t]) < DEADZONE else (1 if signals[t] > 0 else -1) for t in tickers}
+
+
 # --- 러너 -------------------------------------------------------------------
 def run(
     prices_wide: pd.DataFrame,
@@ -120,8 +192,21 @@ def run(
     use_signals: bool = True,
     *,
     weigh=None,
+    drift: tuple[float, int] | None = None,
+    signal_interval: int | None = None,
 ) -> dict:
     """vectorbt 로 한 계열을 돌린다.
+
+    drift=(임계값, 최소 간격 일수) 를 주면 rebalance_dates 는 "판정 후보일" 이 된다. 첫 후보일은
+    무조건 리밸런싱하고, 그 뒤로는 직전 목표 비중의 추정 이탈(max_drift)이 임계값 이상이고 직전
+    리밸런싱과 최소 간격 이상 떨어진 후보일에만 리밸런싱한다. 이탈했는데 간격이 모자란 날은
+    skipped_rebalance_dates 에 남는다. 일정이 비중에 따라 바뀌므로 미리 걸러 둘 수 없어서다.
+    signal_interval=최소 간격 일수를 주면(신호형) 역시 rebalance_dates 는 판정 후보일이다. 후보일마다
+    judge.preview_rebalance 로 "지금 리밸런싱하면 나올 신호" 를 상태 변경 없이 구하고, 종목별 방향
+    (signal_directions)이 직전 리밸런싱 때와 하나라도 다르고 간격이 되면 그 판단을 commit 해 쓴다 —
+    관점 가중치 채점 · 갱신은 리밸런싱일에만 일어나고 같은 날 두 번 판단하지 않는다. use_signals=True 일
+    때만 뜻이 있다(대조군은 s ≡ 0 이라 방향이 안 바뀐다 — service 는 전략 계열의 날짜를 대조군에 준다).
+    None 이면 rebalance_dates 가 곧 리밸런싱일이다(달력형 — 최소 간격은 inputs 가 이미 적용).
 
     use_signals=False 면 s=0 (허용범위 정중앙) — 신호만 뺀 대조군이다.
     weigh 를 주면 비중 계산을 weigh(date, signals) 로 바꿔 끼운다(M2 체인, service 경로).
@@ -146,11 +231,35 @@ def run(
 
     target = pd.DataFrame(np.nan, index=px.index, columns=tickers)
     decisions: list[dict] = []
+    skipped: list[str] = []
+    last: tuple[str, dict[str, float], dict[str, float]] | None = None  # (날짜, 목표, 그날 가격)
+    if signal_interval is not None and not use_signals:
+        raise ValueError("신호형 리밸런싱은 신호를 쓰는 계열에서만 판정할 수 있다")
+    last_dirs: dict[str, int] | None = None
 
     for d in valuation_dates:
         if d not in rebal:
             continue
-        if use_signals:
+        now_px = {t: float(px.at[d, t]) for t in tickers}
+        if drift is not None and last is not None:
+            threshold, min_interval = drift
+            if max_drift(last[1], last[2], now_px, tickers) < threshold:
+                continue
+            if (date.fromisoformat(d) - date.fromisoformat(last[0])).days < min_interval:
+                skipped.append(d)
+                continue
+        if signal_interval is not None:
+            preview = judge.preview_rebalance(prices_wide, as_of=d)
+            dirs = signal_directions(preview["signal"].signals, tickers)
+            if last is not None:
+                if dirs == last_dirs:
+                    continue
+                if (date.fromisoformat(d) - date.fromisoformat(last[0])).days < signal_interval:
+                    skipped.append(d)
+                    continue
+            signals = dict(judge.commit(preview).signals)
+            last_dirs = dirs
+        elif use_signals:
             # as_of 이후 절단과 워밍업 120행 절단은 bridge 가 한다
             judge.record_outcome(prices_wide, as_of=d)
             signals = dict(judge.judge(prices_wide, as_of=d).signals)
@@ -163,6 +272,7 @@ def run(
         else:
             mapped, tgt, cash, apps = weigh(d, signals)
         target.loc[d] = [tgt[t] for t in tickers]
+        last = (d, {t: float(tgt[t]) for t in tickers}, now_px)
         decision = {
             "date": d,
             "signals": signals,
@@ -192,6 +302,9 @@ def run(
     return {
         "series": [{"date": d, "equity": float(value.loc[d])} for d in valuation_dates],
         "decisions": decisions,
+        # 실제로 리밸런싱한 날과, 조건은 됐지만 최소 간격에 걸린 날(drift · signal 일 때만 생긴다)
+        "rebalance_dates": [x["date"] for x in decisions],
+        "skipped_rebalance_dates": skipped,
     }
 
 

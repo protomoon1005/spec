@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 from typing import TypedDict
 
 # 중립 반환 시 쓰는 사유 코드. 두 경우를 구분해야 나중에 "그 관점이 꺼져 있었다"와
@@ -38,7 +39,15 @@ class MarketEvidence(TypedDict):
     model_version: str
 
 
-class SentimentEvidence(TypedDict):
+class _SentimentStateFields(TypedDict, total=False):
+    # 2026-10-27 빅카인즈 세션 상태(app/scoring/sentiment.py). 기사형 키는 그대로 두고 더한 선택 키.
+    # (NotRequired 는 from __future__ annotations 아래 3.11 에서 필수 키로 잡혀 상속으로 나눴다.)
+    z: float
+    state: str
+    data_asof: str  # 판단에 쓴 세션(거래일) ISO 날짜
+
+
+class SentimentEvidence(_SentimentStateFields):
     article_ids: list[int]
     lens_id: str
     sector: str
@@ -86,6 +95,9 @@ def sentiment_evidence(
     sector: str,
     model_version: str,
     n_articles: int | None = None,
+    z: float | None = None,
+    state: str | None = None,
+    data_asof: date | None = None,
 ) -> SentimentEvidence:
     # n_articles 는 기본적으로 article_ids 길이다. 중복제거 후 집계에 쓴 기사 수와
     # 근거로 보여줄 기사 목록이 달라질 수 있어(목록만 상위 N개로 자르는 경우)
@@ -97,13 +109,26 @@ def sentiment_evidence(
     count = len(article_ids) if n_articles is None else n_articles
     if count < 0:
         raise ValueError(f"n_articles 가 음수다: {count}")
-    return SentimentEvidence(
+    built = SentimentEvidence(
         article_ids=[int(article_id) for article_id in article_ids],
         lens_id=lens_id,
         sector=sector,
         n_articles=count,
         model_version=model_version,
     )
+    # 세 값은 상태형 감성(뉴스 세션 집계)만 넣는다. 주면 셋 다 줘야 한다.
+    extras = (z, state, data_asof)
+    if any(value is not None for value in extras):
+        if any(value is None for value in extras):
+            raise ValueError("z · state · data_asof 는 같이 준다")
+        if not math.isfinite(z):
+            raise ValueError(f"z 가 유한하지 않다: {z!r}")
+        if not state:
+            raise ValueError("state 가 비었다")
+        built["z"] = float(z)
+        built["state"] = state
+        built["data_asof"] = data_asof.isoformat()
+    return built
 
 
 def regime_evidence(

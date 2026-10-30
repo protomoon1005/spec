@@ -68,6 +68,10 @@ def compile_spec(job_payload: dict) -> dict:
         "status": result.status,
         "spec_id": result.saved.spec_id,
         "universe_size": result.saved.universe_size,
+        # 사용자가 원했지만 못 담은 것 [{"ticker", "name", "reason_code", "reason"}] (app/m1/excluded.py)
+        "excluded": list(result.excluded),
+        # 문장에서 읽은 손실 한도와 근거. 없으면 null (app/m1/constraints.py)
+        "loss_limit": result.loss_limit.as_dict() if result.loss_limit else None,
     }
 
 

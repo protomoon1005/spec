@@ -24,6 +24,10 @@ KIND_NOTHING_HOLDABLE = "nothing_holdable"
 
 MAX_CHOICES = 6
 
+# 상장폐지 종목도 이름으로는 걸린다. 선택지에서 빼면 "그런 종목이 없다" 로 보이고, 그냥 두면
+# 골랐을 때 조용히 빠진다. 표시를 붙여 보여 주고, 고르면 excluded 에 사유가 남는다(m1/excluded.py).
+DELISTED_LABEL = " (상장폐지)"
+
 
 @dataclass(frozen=True)
 class Question:
@@ -38,7 +42,7 @@ def for_intent(resolved: ResolvedIntent) -> Question | None:
         mention = resolved.unresolved_names[0]
         matches = etf_master.find_by_name(mention, limit=MAX_CHOICES)
         if matches:
-            choices = tuple(f"{r.ticker} {r.name}" for r in matches)
+            choices = tuple(choice_label(r) for r in matches)
             return Question(
                 kind=KIND_AMBIGUOUS_NAME,
                 text=f"'{mention}' 으로 찾으면 여러 개가 나옵니다. 어느 것을 말씀하신 건가요?",
@@ -57,6 +61,11 @@ def for_intent(resolved: ResolvedIntent) -> Question | None:
             choices=("안전하게", "배당을 받고 싶다", "특정 업종에 집중", "종목을 직접 고르겠다"),
         )
     return None
+
+
+def choice_label(record) -> str:
+    # "종목코드 종목명". 답이 이 모양으로 오면 pipeline 이 앞의 종목코드를 그대로 쓴다.
+    return f"{record.ticker} {record.name}" + ("" if record.active else DELISTED_LABEL)
 
 
 def for_empty_candidates(candidate_set: CandidateSet) -> Question:

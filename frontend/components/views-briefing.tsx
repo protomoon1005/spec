@@ -22,6 +22,7 @@ import {
   type Briefing,
   type NoBriefing,
   type RunForBriefing,
+  type SentimentEvidence,
   type ViewKey,
 } from "@/lib/views-briefing";
 
@@ -30,10 +31,13 @@ const VIEW_COLOR: Record<ViewKey, string> = { market: "#4a8ee6", sentiment: "#bd
 const SOURCE: Record<string, { label: string; tone: string; note: string }> = {
   real: { label: "실모델", tone: "ok", note: "학습한 모델이 그 시점까지의 데이터로 낸 확률입니다." },
   mock: { label: "목업", tone: "warn", note: "아직 모델이 연결되지 않아 고정된 가짜 점수입니다." },
-  neutral: { label: "중립 고정", tone: "muted", note: "항상 판단 불가(확률 0.5)를 냅니다." },
+  neutral: { label: "중립", tone: "muted", note: "판단 근거가 없어 확률 0.5(판단 불가)를 냅니다." },
 };
-// 감성은 일부러 중립이다. 이유를 출처 배지 옆에 적는다.
-const SENTIMENT_NOTE = "과거 뉴스를 확보할 수 없어 중립으로 고정했습니다 (팀 결정).";
+// 설명은 관점마다 따로 두지 않고 출처 배지(real · mock · neutral)를 그대로 따른다. 뉴스 감성도 같다 —
+// 실물이 붙으면 real, 지수가 없는 구간이면 neutral 로 온다.
+
+// 뉴스 감성 근거의 자산군 묶음 이름. 모르는 값은 그대로 적는다.
+const SECTOR_LABEL: Record<string, string> = { EQUITY: "주식형", BOND: "채권형", COMMODITY: "원자재" };
 
 const pctW = (v: number, d = 1) => `${(v * 100).toFixed(d)}%`;
 const ppW = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1)}%p`;
@@ -196,9 +200,81 @@ function ViewCards({ b }: { b: Briefing }) {
             <p style={{ fontSize: 13, color: C.muted, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
               {v.basis}
               <br />
-              {v.key === "sentiment" && src === "neutral" ? SENTIMENT_NOTE : s?.note}
+              {s?.note}
             </p>
+            {v.key === "sentiment" && b.sentimentEvidence.length > 0 && <EvidenceNote list={b.sentimentEvidence} />}
           </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// 뉴스 감성 근거(자산군마다 한 줄). 기록에 온 칸만 적는다(없는 칸은 빼고, 지어내지 않는다).
+// 기사 제목은 GET /news/articles?ids= 로 받는다(본문은 저장하지 않아 제목 · 언론사 · 링크만).
+// 못 받으면 ID 만 적는다. 링크는 원본 파일에서 온 값이라 http(s) 일 때만 건다.
+type Article = { article_id: number; title: string; source: string; url: string | null; published_at: string };
+
+function useArticles(ids: string[]): Map<string, Article> | null {
+  const key = [...new Set(ids)].slice(0, 50).join(",");
+  const [found, setFound] = useState<{ key: string; byId: Map<string, Article> } | null>(null);
+  useEffect(() => {
+    if (!key) return;
+    let alive = true;
+    api<Article[]>(`/news/articles?ids=${key}`)
+      .then((rows) => alive && setFound({ key, byId: new Map(rows.map((a) => [String(a.article_id), a])) }))
+      .catch(() => alive && setFound({ key, byId: new Map() }));
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+  return found?.key === key ? found.byId : null;
+}
+
+function EvidenceNote({ list }: { list: SentimentEvidence[] }) {
+  const articles = useArticles(list.flatMap((e) => e.article_ids));
+  return (
+    <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+      {list.map((e, i) => {
+        const items: [string, string][] = [];
+        if (e.n_articles !== null) items.push(["기사", `${e.n_articles}건`]);
+        if (e.z !== null) items.push(["z", `${e.z < 0 ? "−" : "+"}${Math.abs(e.z).toFixed(2)}`]);
+        if (e.state) items.push(["상태", e.state]);
+        if (e.model_version) items.push(["모델", e.model_version]);
+        if (e.lens_id) items.push(["렌즈", e.lens_id]);
+        if (e.as_of) items.push(["기준", e.as_of]);
+        const titled = e.article_ids.map((id) => articles?.get(id)).filter((a): a is Article => !!a);
+        if (e.article_ids.length && !titled.length) items.push([`극성 상위 기사 ID`, e.article_ids.join(", ")]);
+        return (
+          <div key={e.sector ?? i}>
+            <p style={{ fontSize: 12, color: C.muted, display: "flex", flexWrap: "wrap", gap: "2px 12px" }}>
+              {e.sector && <b style={{ color: C.text, fontWeight: 600 }}>{SECTOR_LABEL[e.sector] ?? e.sector}</b>}
+              {items.map(([k, v]) => (
+                <span key={k}>
+                  {k}{" "}
+                  <span className={k === "모델" || k === "기준" ? undefined : "mono"} style={{ color: C.text }}>
+                    {v}
+                  </span>
+                </span>
+              ))}
+            </p>
+            {titled.length > 0 && (
+              <ul style={{ fontSize: 12, color: C.muted, margin: "4px 0 0", paddingLeft: 16, display: "grid", gap: 2 }}>
+                {titled.map((a) => (
+                  <li key={a.article_id} style={{ overflowWrap: "anywhere" }}>
+                    {a.url && /^https?:\/\//i.test(a.url) ? (
+                      <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.text }}>
+                        {a.title}
+                      </a>
+                    ) : (
+                      <span style={{ color: C.text }}>{a.title}</span>
+                    )}{" "}
+                    · {a.source} · {a.published_at.slice(0, 10)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         );
       })}
     </div>
@@ -421,7 +497,10 @@ function ProbTable({ b }: { b: Briefing }) {
         <ScaleChip p={0.25} label="0.25 이하" />
         <ScaleChip p={0.5} label="0.50 중립" />
         <ScaleChip p={0.75} label="0.75 이상" />
-        <span>0.5 보다 높으면 상승, 낮으면 하락 쪽 판단입니다. 감성 열이 전부 0.50 인 것은 중립 고정이기 때문입니다.</span>
+        <span>
+          0.5 보다 높으면 상승, 낮으면 하락 쪽 판단입니다.
+          {b.sources.sentiment === "neutral" && " 뉴스 감성 열이 전부 0.50 인 것은 출처가 중립이기 때문입니다."}
+        </span>
       </div>
     </section>
   );

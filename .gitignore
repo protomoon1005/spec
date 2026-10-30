@@ -24,3 +24,6 @@ celerybeat-schedule
 # OS
 .DS_Store
 Thumbs.db
+
+# 빅카인즈 기사 원본 · 채점 결과 — 재배포 제한으로 커밋하지 않는다 (scripts/score_news.py · ingest_news.py)
+data/news/

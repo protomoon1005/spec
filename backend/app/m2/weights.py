@@ -20,11 +20,15 @@ from datetime import date
 
 from app.contracts.target_weights import GroupCapApplication, TargetWeights
 
-# ── RiskSizer v0.1 상수 (docs/m2-algorithms.md 2장 소절, 2026-10-04 M2 결정) ──
+# ── RiskSizer v0.2 상수 (docs/m2-algorithms.md 2장 소절, 2026-10-04 M2 결정 · 2026-10-27 h 추가) ──
 # 바꾸면 버전을 올린다. 근거는 문서에 있다.
-RISK_SIZER_VERSION = "v0.1"
+# v0.2: 공식 · k · 월간 21 · 주간 5 는 v0.1 그대로이고 보유 기간 h 만 늘었다 — 분기 63(= 21 × 3,
+# 한 분기 평균 거래일), 비중 이탈 · 신호형은 전략서의 min_interval_days(horizon_for).
+RISK_SIZER_VERSION = "v0.2"
 ATR_MULTIPLE = 2
-HORIZON_DAYS = {"monthly": 21, "weekly": 5}  # 리밸런싱 사이 보유 기간(거래일)
+HORIZON_DAYS = {"monthly": 21, "weekly": 5, "quarterly": 63}  # 달력형 리밸런싱 사이 보유 기간(거래일)
+# 날짜가 아니라 조건으로 리밸런싱하는 규칙. 보유 기간을 규칙의 최소 간격으로 본다
+EVENT_TRIGGERS = ("threshold", "signal")
 
 # 2~4 정규화·클램프 반복 상한
 MAX_ROUNDS = 3
@@ -78,12 +82,24 @@ class WeightDecision:
 
 
 def horizon_for(rule: Mapping | None) -> int:
-    """리밸런싱 규칙 → 보유 기간 h(거래일). v0.1 은 달력 월간·주간만 정의돼 있다."""
-    trigger = (rule or {}).get("trigger") or {}
+    """리밸런싱 규칙 → 보유 기간 h(거래일).
+
+    달력형은 HORIZON_DAYS(월간 21 · 주간 5 · 분기 63). 비중 이탈 · 신호형은 다음 리밸런싱이 언제일지
+    모르므로 그 규칙이 보장하는 최소 보유 기간, 전략서의 min_interval_days 를 쓴다(2026-10-27 결정).
+    min_interval_days 는 달력 일수인데 h 는 거래일이다 — 그대로 옮긴다(결정 그대로, known-issues).
+    """
+    rule = rule or {}
+    trigger = rule.get("trigger") or {}
+    kind = trigger.get("type")
     freq = trigger.get("freq")
-    if trigger.get("type") != "calendar" or freq not in HORIZON_DAYS:
-        raise WeightChainError(f"RiskSizer v0.1 에 보유 기간이 정의되지 않은 리밸런싱 규칙: {rule}")
-    return HORIZON_DAYS[freq]
+    if kind == "calendar" and freq in HORIZON_DAYS:
+        return HORIZON_DAYS[freq]
+    interval = rule.get("min_interval_days")
+    if kind in EVENT_TRIGGERS and isinstance(interval, int) and interval > 0:
+        return interval
+    raise WeightChainError(
+        f"RiskSizer {RISK_SIZER_VERSION} 에 보유 기간이 정의되지 않은 리밸런싱 규칙: {rule}"
+    )
 
 
 def risk_caps(

@@ -20,24 +20,29 @@ class OllamaClient:
         self._base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self._model = model or settings.ollama_model
         self._timeout = settings.llm_request_timeout_seconds
+        self._options = {"temperature": settings.llm_temperature, "seed": settings.llm_seed}
 
-    def generate_json(self, prompt: str, json_schema: dict, *, system: str | None = None) -> dict:
+    def build_payload(self, prompt: str, json_schema: dict, *, system: str | None = None) -> dict:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
+        return {
+            "model": self._model,
+            "messages": messages,
+            "stream": False,
+            "format": json_schema,
+            # qwen3 는 기본으로 생각(thinking)부터 길게 써서 호출 한 번이 1분 가까이 걸린다.
+            # 결과는 format 으로 JSON 이 강제되므로 생각은 끈다.
+            "think": False,
+            # 재현성 — 샘플링 온도 0, 시드 고정(app/core/config.py llm_temperature · llm_seed).
+            "options": dict(self._options),
+        }
 
+    def generate_json(self, prompt: str, json_schema: dict, *, system: str | None = None) -> dict:
         response = httpx.post(
             f"{self._base_url}/api/chat",
-            json={
-                "model": self._model,
-                "messages": messages,
-                "stream": False,
-                "format": json_schema,
-                # qwen3 는 기본으로 생각(thinking)부터 길게 써서 호출 한 번이 1분 가까이 걸린다.
-                # 결과는 format 으로 JSON 이 강제되므로 생각은 끈다.
-                "think": False,
-            },
+            json=self.build_payload(prompt, json_schema, system=system),
             timeout=self._timeout,
         )
         response.raise_for_status()

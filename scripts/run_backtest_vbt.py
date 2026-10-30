@@ -4,6 +4,12 @@
   python scripts/run_backtest_vbt.py              # 돌리고 TS 와 비교
   python scripts/run_backtest_vbt.py --write      # frontend/data/backtest-result-py.json 도 저장
   RISK_LEVEL=3 python scripts/run_backtest_vbt.py # 성향 변경
+  python scripts/run_backtest_vbt.py --signal-dates  # 신호형(RB_SIGNAL) 리밸런싱 날짜만 써 두고 끝
+
+--signal-dates: TS 러너에는 3관점 판단이 없어 신호형 일정을 스스로 정할 수 없다. 파이썬이 목업
+스코어러(bridge.MOCK_SCORERS — DB 없이 결정적)로 날짜를 정해 frontend/data/signal-rebalance-dates.json
+에 쓰고, TS 러너(frontend/scripts/run-backtest.ts)가 그 날짜로 대조군을 돌린다. 순서는
+이 스크립트 --signal-dates → TS 러너 → pytest -m requires_backtest.
 
 두 구현이 일치하는지 보는 것이 이 스크립트의 요점이다. 서로 다른 언어와
 엔진으로 짠 러너가 같은 입력에 같은 주문을 내면, "같은 입력에 같은 출력"이
@@ -48,6 +54,23 @@ SPEC_UNIVERSE = [
 PERIOD_START = "2023-01-01"
 
 
+# db/seeds/05_bbl.sql 의 RB_SIGNAL params_schema
+SIGNAL_RULE = {"trigger": {"type": "signal", "freq": "daily"}, "min_interval_days": 5}
+
+
+def signal_rebalance(wide, holdings, risk_level: int, weekly: list[str]) -> dict:
+    """신호형 전략 계열을 목업 스코어러로 돌린다. tests/test_backtest_parity.py 도 이 함수를 쓴다."""
+    from app.views import bridge
+
+    real = bridge.SCORERS
+    bridge.SCORERS = bridge.MOCK_SCORERS
+    try:
+        return run(wide, holdings, risk_level, weekly, weekly, INITIAL, use_signals=True,
+                   signal_interval=SIGNAL_RULE["min_interval_days"])
+    finally:
+        bridge.SCORERS = real
+
+
 def main() -> int:
     risk_level = int(os.environ.get("RISK_LEVEL", 4))
     profile = profile_for(risk_level)
@@ -79,6 +102,21 @@ def main() -> int:
     all_dates = [d for d in wide[MARKET_TICKER].dropna().index.tolist() if d >= PERIOD_START]
     weekly = weekly_dates(all_dates)
     rebalance = monthly_first(weekly)
+
+    if "--signal-dates" in sys.argv:
+        got = signal_rebalance(wide, holdings, risk_level, weekly)
+        (OUT / "signal-rebalance-dates.json").write_text(
+            json.dumps(
+                {"risk_level": risk_level, "rule": SIGNAL_RULE, "scorers": "mock",
+                 "rebalance_dates": got["rebalance_dates"],
+                 "skipped_rebalance_dates": got["skipped_rebalance_dates"]},
+                ensure_ascii=False, indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"신호형 리밸런싱 {len(got['rebalance_dates'])}회 · 건너뜀 "
+              f"{len(got['skipped_rebalance_dates'])}회 → frontend/data/signal-rebalance-dates.json")
+        return 0
 
     print(f"성향        {profile['label']} (risk_level {risk_level})")
     print(f"유니버스    {len(holdings)}종목")

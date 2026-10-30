@@ -235,3 +235,111 @@ def test_needs_a_confirmed_profile(engine, make_user, rebalance):
 
     with pytest.raises(CompileError, match="투자 성향"):
         pipeline.start(user_id, "채권으로", _Fake(rebalance, [_intent()]))
+
+
+# --- 손실 한도 · 채권 보충 · 제외 사유 (2026-10-27) ----------------------------
+
+
+class _Recording(_Fake):
+    """전략서 생성에 들어간 프롬프트와 후보(스키마)를 남긴다."""
+
+    def generate_json(self, prompt: str, schema: dict, *, system: str | None = None) -> dict:
+        if "keywords" not in schema["properties"]:
+            self.compile_prompt = prompt
+        return super().generate_json(prompt, schema, system=system)
+
+
+def test_spoken_loss_limit_overrides_the_model(engine, make_profile, rebalance):
+    """모델은 max_drawdown 0.25 를 낸다. 문장의 '최대 5%' 가 이긴다."""
+    neutral = make_profile(3)
+    fake = _Fake(rebalance, [_intent(asset_groups=["BOND"])])
+
+    result = pipeline.start(neutral.user_id, "채권으로, 최대 5%만 잃고 싶어", fake)
+
+    assert result.loss_limit is not None and result.loss_limit.applied == pytest.approx(0.05)
+    with engine.connect() as conn:
+        stored = conn.execute(
+            text("SELECT constraint_user FROM strategy_specs WHERE spec_id = :s"),
+            {"s": result.saved.spec_id},
+        ).scalar_one()
+    assert stored["max_drawdown"] == pytest.approx(0.05)
+
+
+def test_loose_loss_limit_is_cut_to_the_profile_default(engine, make_profile, rebalance):
+    neutral = make_profile(3)
+    defaults = profiles.get_profile_defaults(neutral.preset_version, 3)
+    fake = _Fake(rebalance, [_intent(asset_groups=["BOND"])])
+
+    result = pipeline.start(neutral.user_id, "채권으로, 손실은 40% 까지 괜찮아", fake)
+
+    assert result.loss_limit.clamped_to_profile is True
+    assert result.loss_limit.applied == pytest.approx(defaults["max_drawdown_default"])
+
+
+def test_sector_with_loss_aversion_gets_bonds(engine, make_profile, rebalance):
+    neutral = make_profile(3)
+    payload = _intent(sectors=["SECTOR_SEMICONDUCTOR"], asset_groups=["EQUITY"])
+    fake = _Recording(rebalance, [payload])
+
+    pipeline.start(neutral.user_id, "반도체에 싣되 크게 잃지는 않게", fake)
+
+    assert "(손실 제약을 지키려고 보충한 채권)" in fake.compile_prompt
+
+
+def test_sector_without_loss_aversion_gets_no_bonds(engine, make_profile, rebalance):
+    neutral = make_profile(3)
+    payload = _intent(sectors=["SECTOR_SEMICONDUCTOR"], asset_groups=["EQUITY"])
+    fake = _Recording(rebalance, [payload])
+
+    pipeline.start(neutral.user_id, "반도체 위주로", fake)
+
+    assert "보충한 채권" not in fake.compile_prompt
+
+
+def test_completed_result_lists_what_was_excluded(engine, make_profile, rebalance, blocked_etfs):
+    """지목한 상장폐지 종목을 빼고 만들었으면 그 사실과 사유가 작업 결과에 남는다."""
+    neutral = make_profile(3)
+    payload = _intent(mentioned_names=[blocked_etfs["delisted"]], asset_groups=["BOND"])
+
+    result = pipeline.start(neutral.user_id, "이거 담아줘", _Fake(rebalance, [payload]))
+
+    assert result.status == pipeline.STATUS_COMPLETED
+    assert {
+        "ticker": blocked_etfs["delisted"],
+        "name": blocked_etfs["delisted_name"],
+        "reason_code": "DELISTED",
+        "reason": "상장폐지된 종목이다",
+    } in result.excluded
+
+
+def test_picking_a_delisted_choice_is_not_silently_replaced(engine, make_profile, rebalance, blocked_etfs):
+    """되묻기에서 상장폐지 종목을 고르면, 의도 추출이 이름을 놓쳐도 종목코드로 지목된다."""
+    neutral = make_profile(3)
+    fake = _Fake(rebalance, [_intent(mentioned_names=["테스트"]), _intent(asset_groups=["BOND"])])
+    asked = pipeline.start(neutral.user_id, "테스트 담아줘", fake)
+    choice = next(c for c in asked.question.choices if c.startswith(blocked_etfs["delisted"]))
+    assert choice.endswith(questions.DELISTED_LABEL)
+
+    result = pipeline.answer(asked.session_id, choice, fake)
+
+    assert result.status == pipeline.STATUS_COMPLETED
+    codes = [e["reason_code"] for e in result.excluded if e["ticker"] == blocked_etfs["delisted"]]
+    assert codes == ["DELISTED"]
+
+
+def test_compile_task_result_carries_excluded_and_loss_limit(engine, make_profile, rebalance, monkeypatch):
+    from app.workers import tasks
+
+    neutral = make_profile(1)
+    fake = _Fake(rebalance, [_intent(keywords=["수익"])])
+    monkeypatch.setattr("app.llm.client.get_llm_client", lambda: fake)
+
+    out = tasks.compile_spec.run(
+        {"user_id": neutral.user_id, "input_prompt": "수익률 높게, 손실은 5% 이내"}
+    )
+
+    assert out["status"] == "completed"
+    assert out["loss_limit"]["applied"] == pytest.approx(0.05)
+    assert out["loss_limit"]["matched"]
+    groups = [e for e in out["excluded"] if e["ticker"] is None]
+    assert groups and set(groups[0]) == {"ticker", "name", "reason_code", "reason"}

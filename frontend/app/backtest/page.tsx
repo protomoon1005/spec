@@ -178,7 +178,7 @@ function Failure({ reason }: { reason: string | null | undefined }) {
     <div className="flow-msg err" role="alert">
       <p style={{ color: "var(--c-bright)" }}>
         {rebalance
-          ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 매주 · 매달 첫 거래일 규칙만 돌릴 수 있어요."
+          ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 BBL 리밸런싱 블록 6개(매달 첫 거래일 · 매달 15일 · 분기 · 매주 · 비중 이탈 5% · 신호 전환)만 돌릴 수 있어요."
           : blocked
             ? "하드캡 검증을 통과하지 못한 전략서라 백테스트하지 않았어요. 검증을 통과한 전략서만 돌립니다."
             : `실패 이유: ${raw}`}
@@ -220,7 +220,7 @@ function clock(sec: number): string {
 const SOURCE_BADGE: Record<string, { label: string; tone: string }> = {
   real: { label: "실모델", tone: "ok" },
   mock: { label: "목업", tone: "warn" },
-  neutral: { label: "중립 고정", tone: "muted" },
+  neutral: { label: "중립", tone: "muted" },
 };
 const VIEW_LABEL: Record<string, string> = { market: "시장분석", sentiment: "뉴스 감성", regime: "시장온도" };
 
@@ -231,7 +231,7 @@ function Result({ run }: { run: BacktestRun }) {
       {/* 목업 관점이 하나라도 섞였으면 경고한다. 출처 기록이 없는 옛 실행은 전부 목업이었다. */}
       {(!run.scorer_sources || Object.values(run.scorer_sources).includes("mock")) && (
         <p className="flow-msg warn" style={{ marginTop: 0, marginBottom: 16 }}>
-          목업 신호가 섞인 실행입니다(관점 출처 참고). 감성은 중립 고정입니다. 결과를 실력으로 읽으면 안 됩니다.
+          목업 신호가 섞인 실행입니다(관점 출처 참고). 결과를 실력으로 읽으면 안 됩니다.
         </p>
       )}
       {run.summary && (

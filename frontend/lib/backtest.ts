@@ -57,7 +57,155 @@ export type RunResult = {
   series: { date: string; equity: number }[];
   decisions: Decision[];
   finalHoldings: Record<string, number>;
+  /** 실제로 리밸런싱한 날 */
+  rebalanceDates: string[];
+  /** 이탈했지만 최소 간격에 걸려 건너뛴 날 (drift 일 때만 생긴다) */
+  skippedRebalanceDates: string[];
 };
+
+// --- 일정 -------------------------------------------------------------------
+// backend/app/backtest/runner.py · inputs.py 와 같은 규칙이다. 두 러너 대조
+// (backend/tests/test_backtest_parity.py)가 블록별 리밸런싱 날짜를 비교한다.
+
+/** 각 주의 마지막 거래일 */
+export function weeklyDates(dates: string[]): string[] {
+  const out: string[] = [];
+  let lastKey = "";
+  for (const d of dates) {
+    // +4 는 1970-01-01(목)을 주 시작 요일에 맞추는 보정이다. 연도를 키에 넣어
+    // 해를 넘는 주가 두 구간으로 갈리게 한다 — 원래 동작을 그대로 유지한다.
+    const dt = new Date(`${d}T00:00:00Z`);
+    const key = `${dt.getUTCFullYear()}-${Math.floor((dt.getTime() / 86400000 + 4) / 7)}`;
+    if (key === lastKey) out[out.length - 1] = d;
+    else {
+      out.push(d);
+      lastKey = key;
+    }
+  }
+  return out;
+}
+
+/** 각 달의 첫 날짜 */
+export function monthlyFirst(dates: string[]): string[] {
+  return monthlyOnOrAfter(dates, 1);
+}
+
+/** 각 달에서 day 일 이후(포함) 첫 날짜. 그런 날짜가 없는 달은 건너뛴다 */
+export function monthlyOnOrAfter(dates: string[], day: number): string[] {
+  const out: string[] = [];
+  let done = "";
+  for (const d of dates) {
+    if (d.slice(0, 7) !== done && Number(d.slice(8, 10)) >= day) {
+      out.push(d);
+      done = d.slice(0, 7);
+    }
+  }
+  return out;
+}
+
+/** 각 분기(1·4·7·10월 시작)의 첫 날짜 */
+export function quarterlyFirst(dates: string[]): string[] {
+  const out: string[] = [];
+  let last = "";
+  for (const d of dates) {
+    const key = `${d.slice(0, 4)}-Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3)}`;
+    if (key !== last) {
+      out.push(d);
+      last = key;
+    }
+  }
+  return out;
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+}
+
+/** 앞 리밸런싱일과의 간격이 모자란 날짜를 건너뛴다 (FN-506 최소 간격 검사) */
+export function applyMinInterval(candidates: string[], minIntervalDays: number): { kept: string[]; skipped: string[] } {
+  const kept: string[] = [];
+  const skipped: string[] = [];
+  for (const d of candidates) {
+    if (kept.length > 0 && daysBetween(kept[kept.length - 1], d) < minIntervalDays) skipped.push(d);
+    else kept.push(d);
+  }
+  return { kept, skipped };
+}
+
+/**
+ * RB_THRESHOLD_5 "목표 비중에서 5%p 이상 벌어진 종목이 생기면 되돌린다"(db/seeds/05_bbl.sql).
+ * 전략서 trigger 에 임계값 칸이 없어 블록 정의에서 온다. runner.py 의 DRIFT_THRESHOLD 와 같다.
+ */
+export const DRIFT_THRESHOLD = 0.05;
+
+export type RebalanceRule = { trigger: { type: string; freq: string; day?: number | null }; min_interval_days: number };
+
+/** (type/freq/day) → 주간 평가일 → 후보일, 이탈 임계값. backend inputs._SCHEDULES 와 같다 */
+export const SCHEDULES: Record<string, { candidates: (weekly: string[]) => string[]; drift: number | null }> = {
+  "calendar/monthly/1": { candidates: monthlyFirst, drift: null },
+  "calendar/monthly/15": { candidates: (w) => monthlyOnOrAfter(w, 15), drift: null },
+  "calendar/quarterly/1": { candidates: quarterlyFirst, drift: null },
+  "calendar/weekly/1": { candidates: (w) => [...w], drift: null },
+  "threshold/daily/null": { candidates: (w) => [...w], drift: DRIFT_THRESHOLD },
+};
+
+/**
+ * 리밸런싱 규칙 → runBacktest 의 rebalanceDates · drift. 달력형은 최소 간격을 여기서 미리 거르고,
+ * threshold 는 후보일 전부를 주고 러너가 판정 중에 거른다. 신호형(signal)은 아직 없다.
+ */
+export function scheduleFor(
+  rule: RebalanceRule,
+  weekly: string[],
+): { rebalanceDates: string[]; skipped: string[]; drift?: { threshold: number; minIntervalDays: number } } {
+  const t = rule.trigger;
+  const entry = SCHEDULES[`${t.type}/${t.freq}/${t.day ?? null}`];
+  if (!entry) throw new Error(`러너가 지원하지 않는 리밸런싱 규칙: ${JSON.stringify(rule)}`);
+  const candidates = entry.candidates(weekly);
+  if (entry.drift === null) {
+    const { kept, skipped } = applyMinInterval(candidates, rule.min_interval_days);
+    return { rebalanceDates: kept, skipped };
+  }
+  return { rebalanceDates: candidates, skipped: [], drift: { threshold: entry.drift, minIntervalDays: rule.min_interval_days } };
+}
+
+/**
+ * 직전 리밸런싱 목표 비중이 그 뒤 가격 변화로 흘러간 추정 비중.
+ *   w_i = t_i·r_i / (Σ_j t_j·r_j + (1 − Σ_j t_j)),  r_i = P_i(지금) / P_i(직전 리밸런싱)
+ * 현금은 움직이지 않는다고 보고 비용은 무시한다. 실제 보유 수량을 쓰지 않는 이유는 파이썬 러너
+ * (vectorbt 일괄 체결)가 실행 중에 수량을 모르기 때문이다 — 두 러너가 같은 식을 쓴다.
+ * runner.py 의 drifted_weights 와 같은 순서로 더한다. 가격이 없거나 0 이하이면 r=1.
+ */
+export function driftedWeights(
+  target: Record<string, number>,
+  prevPx: Record<string, number>,
+  nowPx: Record<string, number>,
+  tickers: string[],
+): Record<string, number> {
+  const grown: Record<string, number> = {};
+  let invested = 0;
+  let totalTarget = 0;
+  for (const t of tickers) {
+    const a = prevPx[t];
+    const b = nowPx[t];
+    const r = a !== undefined && b !== undefined && a > 0 && b > 0 ? b / a : 1;
+    grown[t] = target[t] * r;
+    invested += grown[t];
+    totalTarget += target[t];
+  }
+  const denom = invested + (1 - totalTarget);
+  return Object.fromEntries(tickers.map((t) => [t, grown[t] / denom]));
+}
+
+/** 종목별 |흘러간 비중 − 목표 비중| 의 최댓값 (절대 %p, 0.05 = 5%p) */
+export function maxDrift(
+  target: Record<string, number>,
+  prevPx: Record<string, number>,
+  nowPx: Record<string, number>,
+  tickers: string[],
+): number {
+  const w = driftedWeights(target, prevPx, nowPx, tickers);
+  return Math.max(...tickers.map((t) => Math.abs(w[t] - target[t])));
+}
 
 // --- 지표 -------------------------------------------------------------------
 // 전부 t 시점까지의 종가만 본다. 미래를 참조하면 백테스트가 무의미해진다.
@@ -194,8 +342,13 @@ export type RunOptions = {
   hardcapMaxPerAsset: number;
   /** 평가 시점 목록 (보통 주간). 오름차순 */
   valuationDates: string[];
-  /** 리밸런싱 시점 목록. valuationDates 의 부분집합이어야 한다 */
+  /** 리밸런싱 시점 목록. valuationDates 의 부분집합이어야 한다. drift 가 있으면 판정 후보일 */
   rebalanceDates: string[];
+  /**
+   * 비중 이탈 규칙. 주면 첫 후보일은 무조건, 그 뒤는 직전 목표의 추정 이탈(maxDrift)이 임계값
+   * 이상이고 직전 리밸런싱과 minIntervalDays 이상 떨어진 후보일에만 리밸런싱한다
+   */
+  drift?: { threshold: number; minIntervalDays: number };
   initialCash: number;
   /** "signal" = 3관점 신호 사용, "equalWeight" = 신호 없이 동일가중 (대조군) */
   mode: "signal" | "equalWeight";
@@ -212,6 +365,9 @@ export function runBacktest(opts: RunOptions): RunResult {
 
   const series: { date: string; equity: number }[] = [];
   const decisions: Decision[] = [];
+  const skippedRebalanceDates: string[] = [];
+  const tickers = holdings.map((h) => h.ticker);
+  let last: { date: string; target: Record<string, number>; px: Record<string, number> } | null = null;
 
   for (const date of valuationDates) {
     // 1) 이 시점의 평가액을 먼저 구한다
@@ -223,8 +379,16 @@ export function runBacktest(opts: RunOptions): RunResult {
     let equity = cash;
     for (const h of holdings) equity += (shares[h.ticker] ?? 0) * (px[h.ticker] ?? 0);
 
-    // 2) 리밸런싱일이면 신호를 내고 목표 비중으로 옮긴다
-    if (rebalanceSet.has(date) && equity > 0) {
+    // 2) 리밸런싱일이면 신호를 내고 목표 비중으로 옮긴다. drift 면 이탈·간격을 먼저 본다
+    let due = rebalanceSet.has(date) && equity > 0;
+    if (due && opts.drift && last) {
+      if (maxDrift(last.target, last.px, px, tickers) < opts.drift.threshold) due = false;
+      else if (daysBetween(last.date, date) < opts.drift.minIntervalDays) {
+        skippedRebalanceDates.push(date);
+        due = false;
+      }
+    }
+    if (due) {
       const signals: Record<string, number> = {};
       for (const h of holdings) {
         if (mode === "equalWeight") {
@@ -266,6 +430,7 @@ export function runBacktest(opts: RunOptions): RunResult {
         costPaid += fee + gross * costs.slippage;
       }
 
+      last = { date, target, px };
       decisions.push({
         date,
         signals,
@@ -284,7 +449,13 @@ export function runBacktest(opts: RunOptions): RunResult {
     series.push({ date, equity: Math.round(after) });
   }
 
-  return { series, decisions, finalHoldings: shares };
+  return {
+    series,
+    decisions,
+    finalHoldings: shares,
+    rebalanceDates: decisions.map((d) => d.date),
+    skippedRebalanceDates,
+  };
 }
 
 /** 첫날 전액 매수 후 보유. 시장 참조용 벤치마크. */
