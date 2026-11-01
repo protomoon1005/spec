@@ -7,14 +7,14 @@
     "rules": [
       { "op": "cross_below", "kind": "event", "patterns": ["아래로 떨어지면", "아래로 내려가면", "밑으로 떨어지면", "밑으로 내려가면", "하향 돌파하면"],
         "example": { "phrase": "RSI 30 아래로 떨어지면", "condition": { "left": "RSI_14", "op": "cross_below", "right": 30 } } },
-      { "op": "lt", "kind": "state", "patterns": ["아래면", "아래일 때", "밑이면", "밑일 때", "미만이면"],
+      { "op": "lt", "kind": "state", "patterns": ["아래면", "아래일 때", "밑이면", "밑일 때", "미만이면", "이하면", "이하일 때", "이하로"],
         "example": { "phrase": "RSI 30 아래면", "condition": { "left": "RSI_14", "op": "lt", "right": 30 } } },
       { "op": "cross_above", "kind": "event", "patterns": ["위로 올라가면", "올라가면", "돌파하면", "상향 돌파하면", "뚫으면"],
         "example": { "phrase": "RSI 70 위로 올라가면", "condition": { "left": "RSI_14", "op": "cross_above", "right": 70 } } },
-      { "op": "gt", "kind": "state", "patterns": ["위면", "위일 때", "넘으면", "초과면"],
+      { "op": "gt", "kind": "state", "patterns": ["위면", "위일 때", "넘으면", "초과면", "이상이면", "이상일 때", "이상으로"],
         "example": { "phrase": "RSI 70 위면", "condition": { "left": "RSI_14", "op": "gt", "right": 70 } } }
     ],
-    "unsupported": "'이하/이상'(같음 포함)은 연산자 사전에 없다. lt/gt 로 근사할지는 팀 결정 전까지 clarify."
+    "inclusive_note": "'이하'는 lt, '이상'은 gt 로 처리하고 clarify 하지 않는다 (2026-11-02 결정). 연산자 사전에 같음 포함 비교가 없어서이며, 값이 기준과 정확히 같은 날은 신호가 나지 않는다. 재서술은 '아래/위'로 나온다."
   },
 
   "indicator_aliases": [

@@ -63,6 +63,7 @@ def test_direction_rule_event_vs_state():
     assert "아래면" in rules["lt"] and "아래일 때" in rules["lt"]
     assert "올라가면" in rules["cross_above"] and "돌파하면" in rules["cross_above"]
     assert "위면" in rules["gt"] and "위일 때" in rules["gt"]
+    assert "이하면" in rules["lt"] and "이상이면" in rules["gt"]     # 이하=lt, 이상=gt (clarify 안 함)
 
 
 @pytest.mark.parametrize("ticker,expected_tax", [("005930", 0.0020), ("069500", 0.0)])
