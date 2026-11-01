@@ -6,8 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 자동매매를 원하지만 코딩을 못 하는 한국인 일반 투자자가 한국어로 전략을 말하면, 전략 요소 사전에 있는 요소만 쓰는 전략서(JSON)로 바꾸고 백테스트 결과를 보여 준다
 - 지금은 주제 변경 기반 정리 중이다(2026-11-01 시작). 계획과 결정 사항은 `docs/pivot-plan.md`
-  - 옛 주제(국내 ETF 모의운용, 투자 성향, 3개 신호원)의 코드는 1단계에서 지웠다(2026-11-01). DB 테이블 정리와 가격 스냅샷은 2 · 3단계다
-  - 2단계 전까지는 개발 DB 의 옛 NOT NULL 칸(`users.role`, `strategy_specs.profile_id` 등) 때문에 계정 · 전략서 저장이 실패한다
+  - 저장소에 옛 주제(국내 ETF 모의운용, 투자 성향, 3개 신호원)의 코드가 아직 남아 있다. 기반 정리 1단계부터 3단계에서 지운다
 
 ## 절대 규칙
 
@@ -36,14 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 명령 — 전부 Docker 안에서 실행
 
 ```sh
-docker compose up -d --build                # 전 스택 기동
-docker compose exec api ruff check .        # lint
-docker compose exec api ruff check /repo/scripts --config /app/pyproject.toml   # scripts/ lint (위 명령 범위 밖)
-docker compose exec api pytest -m "not requires_ollama and not requires_backfill and not requires_backtest" -q  # 테스트
-docker compose exec api pytest tests/test_m2_feasibility.py::test_same_input_twice_same_result -q        # 단일 테스트
-docker compose exec api python /repo/scripts/check_asof_guard.py                                          # as_of 가드
-docker compose exec frontend npx tsc --noEmit                                                             # 프론트 타입 검사
-docker compose logs -f                      # 로그
+docker compose up -d --build                # 전 스택 기동                    # 로그
 ```
 
 - 저장소 루트가 `/repo` 로, `backend/` 가 `/app` 으로 마운트된다. 앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo` 에서 찾는다
@@ -58,7 +50,7 @@ docker compose logs -f                      # 로그
 - 테스트
   - `tests/conftest.py` 가 `CELERY_TASK_ALWAYS_EAGER=true` 를 넣는다
   - DB 픽스처를 쓰는 테스트는 seed 된 상태여야 한다. 지금은 개발 DB 를 같이 쓴다. 2단계에서 테스트 전용 DB 로 나눈다
-  - 마커: `requires_ollama` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외한다
+  - 마커: `requires_ollama` · `requires_ml` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외한다. `requires_ml` 과 `requires_backfill` 은 1단계에서 관련 테스트와 함께 없어진다
   - `requires_backtest` 는 `docker compose exec -w /repo/backend api pytest -m requires_backtest -q` 로 따로 돌린다. `-w` 가 없으면 루트 `data/` 를 못 찾는다
 - 프론트
   - `frontend/` 에서 `npm run dev`. 검사는 `docker compose exec frontend npx tsc --noEmit`. `npm run lint` 는 ESLint 미설정이라 대화형으로 멈춘다
@@ -79,7 +71,7 @@ docker compose logs -f                      # 로그
   - 전략서 계약: `app/contracts/spec.py`(Pydantic v2)
   - 검증기: `app/m2/validator.py`, `checks.py`, `stages.py`, `feasibility.py`
   - 백테스트: `app/backtest/`
-  - 지표 계산: `app/backtest/features.py`. stdlib 순수 함수이고 결측은 None
+  - 지표 계산: `app/views/market/features.py`. stdlib 순수 함수이고 결측은 None. `views/` 가 지워지면서 1단계에서 자리를 옮긴다
 - as_of 규약(`app/repositories/`)
   - `as_of` 는 키워드 필수, 기본값 금지. 가격 조회는 `as_of` 이하만 돌려준다
   - `scripts/check_asof_guard.py` 가 `app/` 전체 AST 에서 가드 테이블 이름 문자열을 잡는다. docstring 도 걸리므로 해당 파일은 설명을 `#` 주석으로 쓴다
