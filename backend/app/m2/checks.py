@@ -1,8 +1,7 @@
 # Validator 1·2·3단 검사 (FN-301 · FN-302 · FN-303). 순수 함수.
 #
-# 3단 논리 검사 중 앞 둘(하한 ≤ 상한, 프리셋 허용범위)은 제대로 보고, 낙폭 모순은
-# 명백한 경우만 잡는 얇은 형태다. 리밸런싱 최소 간격은 위반이 아니라 4단에서
-# 하드캡 값으로 올린다(hardcap.py).
+# 3단 논리 검사는 하한 ≤ 상한을 제대로 보고, 낙폭 모순은 명백한 경우만 잡는 얇은 형태다.
+# 성향 프리셋 허용범위 검사는 주제 변경(결정 3)으로 지웠다.
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -106,7 +105,7 @@ def max_drawdown(closes: Sequence[float]) -> float | None:
 
 
 def check_logic(spec: SpecV0_1, ctx: SpecContext, *, cash_min: float) -> list[Violation]:
-    """cash_min 은 범위 보정이 쓰는 값과 같은 것(하드캡을 켰으면 max(요청, 하드캡))."""
+    """cash_min 은 범위 보정이 쓰는 값과 같은 것(사용자가 말한 cash_min)."""
     out: list[Violation] = []
 
     for item in spec.universe:
@@ -121,60 +120,8 @@ def check_logic(spec: SpecV0_1, ctx: SpecContext, *, cash_min: float) -> list[Vi
                 )
             )
 
-        # (2) 종목 위험등급 × 계정 성향이 프리셋 허용범위 안인가
-        etf = ctx.etfs.get(item.ticker)
-        if etf is None:
-            continue  # 2단 몫이다. 2단을 끈 실험에서만 여기까지 온다
-        if etf.risk_tag is None or etf.risk_tag not in ctx.bounds:
-            out.append(
-                Violation(
-                    "RISK_TAG_UNKNOWN",
-                    f"{item.ticker}: 위험등급을 알 수 없다",
-                    ticker=item.ticker,
-                    detail={"risk_tag": etf.risk_tag},
-                )
-            )
-            continue
-        bound = ctx.bounds[etf.risk_tag]
-        detail = {
-            "risk_level": ctx.risk_level,
-            "risk_tag": etf.risk_tag,
-            "allowed_min": bound.allowed_min,
-            "allowed_max": bound.allowed_max,
-        }
-        if bound.allowed_max <= 0:
-            out.append(
-                Violation(
-                    "PRESET_FORBIDDEN",
-                    f"{item.ticker}: 이 성향은 {etf.risk_tag} 종목을 담을 수 없다 (허용 상한 0.00)",
-                    ticker=item.ticker,
-                    detail=detail,
-                )
-            )
-        elif item.weight_max > bound.allowed_max + WEIGHT_TOLERANCE:
-            out.append(
-                Violation(
-                    "PRESET_EXCEEDED",
-                    f"{item.ticker}: 이 성향의 {etf.risk_tag} 상한을 넘었다 "
-                    f"({item.weight_max} > {bound.allowed_max})",
-                    ticker=item.ticker,
-                    field="weight_max",
-                    detail=detail,
-                )
-            )
-        if item.weight_min < bound.allowed_min - WEIGHT_TOLERANCE:
-            out.append(
-                Violation(
-                    "PRESET_BELOW",
-                    f"{item.ticker}: 이 성향의 {etf.risk_tag} 하한보다 낮다 "
-                    f"({item.weight_min} < {bound.allowed_min})",
-                    ticker=item.ticker,
-                    field="weight_min",
-                    detail=detail,
-                )
-            )
 
-    # (3) 낙폭 목표 ↔ 유니버스 변동성. 투자 가능 금액 전부를 가장 덜 빠진 종목에 넣어도
+    # (2) 낙폭 목표 ↔ 유니버스 변동성. 투자 가능 금액 전부를 가장 덜 빠진 종목에 넣어도
     #     구간 최대낙폭이 목표를 넘으면 명백한 모순이다. 분산 효과까지 따지면 엄밀한
     #     하한은 아니라서 "명백한" 경우만 잡는 얇은 규칙이다.
     known = {t: dd for t in (i.ticker for i in spec.universe) if (dd := ctx.drawdowns.get(t)) is not None}

@@ -4,7 +4,7 @@
 -- 일곱 군데 달려 있다. 자리와 타입은 고정됐는데 어떤 값이 허용되는지가 비어 있었고,
 -- 이 시드가 그 빈칸을 채운다. **여기 없는 값은 전략서에 들어갈 수 없다.**
 --
--- 설계는 docs/m1_milestone.md 3단계 참고.
+-- 설계는 docs/archive/m1_milestone.md 3단계 참고.
 --
 -- ── 식별자 규약 ──────────────────────────────────────────────────────
 --   지표 블록은 block_id 가 곧 전략서에 들어갈 값이다. ret_20 블록을 고르면
@@ -84,7 +84,7 @@ INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema)
  '{"slot": "signal_rules.market_temperature.volatility_index", "value": "VIX_CLOSE"}');
 
 -- =====================================================================
--- 리밸런싱 (rebalance) — 6개
+-- 리밸런싱 (rebalance) — 5개
 -- =====================================================================
 -- params_schema 가 전략서의 rebalance 자리에 **통째로** 들어간다.
 -- min_interval_days 는 하드캡(5일)보다 짧게 두지 않는다 — 넣어도 나중에 접힌다.
@@ -104,10 +104,7 @@ INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema)
  '{"trigger": {"type": "calendar", "freq": "weekly", "day": 1}, "min_interval_days": 5}'),
 ('RB_THRESHOLD_5', 'rebalance', '비중이 5%p 벗어나면',
  '날짜와 무관하게, 목표 비중에서 5%p 이상 벌어진 종목이 생기면 되돌린다.',
- '{"trigger": {"type": "threshold", "freq": "daily"}, "min_interval_days": 5}'),
-('RB_SIGNAL', 'rebalance', '신호가 바뀌면',
- '판단 계층의 신호 방향이 바뀔 때 되돌린다. 가장 자주 거래하게 된다.',
- '{"trigger": {"type": "signal", "freq": "daily"}, "min_interval_days": 5}');
+ '{"trigger": {"type": "threshold", "freq": "daily"}, "min_interval_days": 5}');
 
 -- =====================================================================
 -- 필터 (filter) — 7개
@@ -204,7 +201,6 @@ INSERT INTO bbl_tags (block_id, tag) VALUES
 ('RB_QUARTERLY', 'kw:분기'), ('RB_QUARTERLY', 'kw:장기'), ('RB_QUARTERLY', 'risk:low'),
 ('RB_WEEKLY', 'kw:주간'), ('RB_WEEKLY', 'kw:자주'), ('RB_WEEKLY', 'risk:mid'),
 ('RB_THRESHOLD_5', 'kw:이탈'), ('RB_THRESHOLD_5', 'kw:비중유지'), ('RB_THRESHOLD_5', 'risk:mid'),
-('RB_SIGNAL', 'kw:신호'), ('RB_SIGNAL', 'kw:자주'), ('RB_SIGNAL', 'risk:high'),
 -- 필터
 ('FL_NO_LEVERAGE', 'kw:안전하게'), ('FL_NO_LEVERAGE', 'kw:보수적'), ('FL_NO_LEVERAGE', 'risk:low'),
 ('FL_ACTIVE_ONLY', 'kw:상장폐지'), ('FL_ACTIVE_ONLY', 'risk:low'),

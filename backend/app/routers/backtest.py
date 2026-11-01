@@ -1,8 +1,7 @@
 """backtest 라우터. 전략서 하나를 과거 구간에 돌리고 결과를 본다.
 
-M4 가 만든 러너를 API 에 잇는 배선이다(2026-09-28). 러너는 워커의 run_backtest
-태스크가 app/backtest/service.py 를 거쳐 부르고, 이 라우터는 실행 기록을 넣고
-읽기만 한다 — runner·policy 를 import 하지 않는다.
+러너는 워커의 run_backtest 태스크가 app/backtest/service.py 를 거쳐 부르고, 이 라우터는
+실행 기록을 넣고 읽기만 한다 — runner 를 import 하지 않는다.
 """
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.backtest import service
-from app.core.security import AuthUser, require_any_role
+from app.core.security import AuthUser, require_user
 from app.repositories import backtests, specs
 from app.workers.tasks import run_backtest
 
@@ -56,32 +55,20 @@ class BacktestRunDetail(BacktestRunResponse):
     data_snapshot_asof: date | None
     feature_set_version: str | None
     metrics: BacktestMetrics | None
-    # 전략·대조군·시장 계열별 total·cagr·vol·sharpe·sortino·mdd·final
+    # 전략 · 시장 계열별 total · cagr · vol · sharpe · sortino · mdd · final
     summary: dict[str, dict[str, float]] | None
-    series: list[dict] | None  # done 일 때만. [{date, strategy, control, market}]
-    scorer_sources: dict[str, str] | None  # 관점별 real · mock · neutral
+    series: list[dict] | None  # done 일 때만. [{date, strategy, market}]
     schedule: dict | None
-    weight_path: str | None
-    # 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지. status: passed · failed · none.
-    # 2026-10-05 이전 실행에는 없다(그때는 늘 AI 원래 범위로 돌았다)
-    validation: dict | None = None
-    # M2 체인이 실제로 쓴 확정값(범위 · 현금 목표 · 1회 손실 · 간격 · RiskSizer 상수). 리포트 화면이
-    # 비중 범위를 프론트에서 다시 계산하지 않고 이 값을 그린다. 체인 전 실행에는 없다
-    m2: dict | None = None
     reason: str | None  # failed 일 때만
-    # 아래는 done 일 때만. 리포트 화면(/report?run_id=)이 비중 표·캡 로그·리밸런싱
-    # 이력을 이 실행 그대로 그리는 데 쓴다. 저장은 전부터 하고 있었고 내보내지만
-    # 않았다 — 그래서 리포트가 이 실행 대신 미리 저장된 결과 파일을 읽고 있었다.
-    risk_level: int | None
-    universe: list[dict] | None  # 이 실행이 쓴 종목과 등급·분류·요청 밴드
-    decisions: list[dict] | None  # 전략 리밸런싱 결정 (signals·mapped·target·cash·capApplications)
-    control_decisions: list[dict] | None  # 대조군(신호 미사용) 결정
+    # 아래는 done 일 때만. 리포트 화면(/report?run_id=)이 이 실행 그대로 그리는 데 쓴다
+    universe: list[dict] | None  # 이 실행이 쓴 종목과 분류 · 비중 범위
+    decisions: list[dict] | None  # 리밸런싱 결정 (date · target · cash)
 
 
 @router.post("/runs", response_model=BacktestRunResponse, status_code=status.HTTP_202_ACCEPTED,
              summary="과거 데이터로 전략 돌려보기")
 def create_backtest_run(
-    payload: BacktestRunRequest, user: AuthUser = Depends(require_any_role)
+    payload: BacktestRunRequest, user: AuthUser = Depends(require_user)
 ) -> BacktestRunResponse:
     """전략서 하나를 과거 구간에 돌려서 "그때 이걸 했으면 얼마 벌었을까"를 계산한다.
 
@@ -108,13 +95,11 @@ def create_backtest_run(
 
 
 @router.get("/runs/{run_id}", response_model=BacktestRunDetail, summary="돌려본 결과 보기")
-def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) -> BacktestRunDetail:
+def get_backtest_run(run_id: int, user: AuthUser = Depends(require_user)) -> BacktestRunDetail:
     """돌려본 결과와 성적을 본다. 아직 돌아가는 중이면 그 상태가 나온다.
 
     상태는 queued → running → done | failed. 곡선은 done 일 때만, 실패 이유는
     failed 일 때만 나온다. 남의 실행 기록이면 404.
-
-    관점별 출처(real · neutral · mock)는 scorer_sources 가 알려 준다 — 감성은 중립 고정이다.
     """
     run = backtests.get_run(run_id)
     if run is None or run["user_id"] != user.user_id:
@@ -127,15 +112,8 @@ def get_backtest_run(run_id: int, user: AuthUser = Depends(require_any_role)) ->
         metrics=BacktestMetrics(**{key: run[key] for key in BacktestMetrics.model_fields}) if done else None,
         summary=results.get("summary"),
         series=results.get("series") if done else None,
-        scorer_sources=results.get("scorer_sources"),
         schedule=results.get("schedule"),
-        weight_path=results.get("weight_path"),
-        validation=results.get("validation"),
-        m2=results.get("m2"),
         reason=results.get("error"),
-        risk_level=results.get("risk_level"),
-        # universe 는 2026-09-29 이전 실행에는 없다(그때는 저장하지 않았다). 없으면 None.
         universe=results.get("universe") if done else None,
         decisions=results.get("decisions") if done else None,
-        control_decisions=results.get("control_decisions") if done else None,
     )

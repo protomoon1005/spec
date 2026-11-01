@@ -1,37 +1,29 @@
 "use client";
 
-// 백테스트 — docs/frontend_milestone.md 6단계, 확정 결정 3·4번.
+// 백테스트.
 //
 // 이번 탭에서 완료한 전략서(spec_id)가 있으면 그 전략서로 백테스트를 돌린다.
 // POST /backtest/runs 로 접수하고 3초마다 GET 으로 상태를 받아 한 줄씩 쌓는다.
-// 전략서가 없으면 예전처럼 저장된 결과 파일(data/backtest-result.json)을 보여 준다.
+// 전략서가 없으면 전략 요청 화면으로 안내한다.
 //
 // 도는 동안은 경과 시계와 흐르는 막대, 상태 로그는 "실행 기록" 으로 접는다.
-// 결과에는 "신호를 쓴 효과"(전략 − 대조군)를 한 줄로 뽑는다 — 같은 제약에서 3관점 신호만 뺀
-// 것이 대조군이라 그 차이가 이 프로젝트가 보여 주려는 값이다.
 // 실패 중 "러너가 지원하지 않는 리밸런싱 규칙" 은 풀어 쓰고 원문은 작게 남긴다.
-// "다음 — 최종 확인" 은 결과가 나왔을 때만 누를 수 있다(저장된 데모는 늘 있음).
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
 import { api, type BacktestRun, loadBacktestRun, loadCompileResult, saveBacktestRun } from "@/lib/api";
-import { control, DATA_SOURCE, market, PERIOD_END, PERIOD_START, PROFILE_LABEL, strategy } from "@/lib/data";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-const signedPp = (v: number) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%p`;
 
 // 데모 계획 1.4 의 평가 구간 끝. 시작일은 서버 기본값(2023-01-01)을 쓴다.
 const REQUEST_PERIOD_END = "2025-12-31";
 const POLL_MS = 3000;
 
-// 저장된 결과와 서버 결과를 같은 세 계열, 같은 문장으로 적는다.
 const SERIES = [
-  { key: "strategy", label: "전략 (3관점 신호 사용)" },
-  { key: "control", label: "대조군 (같은 제약, 신호 없음)" },
+  { key: "strategy", label: "전략" },
   { key: "market", label: "시장 (KODEX 200 매수 후 보유)" },
 ] as const;
 
@@ -60,7 +52,12 @@ export default function BacktestPage() {
 
 function Body({ specId }: { specId: string | null | undefined }) {
   if (specId === undefined) return <p className="flow-state">불러오는 중…</p>;
-  return specId ? <LiveRun specId={specId} /> : <Stored />;
+  if (specId) return <LiveRun specId={specId} />;
+  return (
+    <p className="flow-msg" style={{ marginTop: 0 }}>
+      이번 탭에서 완료한 전략서가 없어요. <Link href="/compile">전략 요청</Link>에서 전략서를 먼저 만들어 주세요.
+    </p>
+  );
 }
 
 function LiveRun({ specId }: { specId: string }) {
@@ -163,7 +160,6 @@ function LiveRun({ specId }: { specId: string }) {
           ))}
         </ul>
       </details>
-      <Next enabled={done} />
     </>
   );
 }
@@ -172,41 +168,21 @@ function LiveRun({ specId }: { specId: string }) {
 function Failure({ reason }: { reason: string | null | undefined }) {
   const raw = reason ?? "이유를 받지 못했어요";
   const rebalance = raw.startsWith("러너가 지원하지 않는 리밸런싱 규칙");
-  // backend m2_chain._blocked 의 문장. 검증을 통과한 전략서만 백테스트한다(2026-10-21 결정).
-  const blocked = raw.includes("막힌 전략서는 백테스트하지 않는다");
   return (
     <div className="flow-msg err" role="alert">
       <p style={{ color: "var(--c-bright)" }}>
         {rebalance
-          ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 BBL 리밸런싱 블록 6개(매달 첫 거래일 · 매달 15일 · 분기 · 매주 · 비중 이탈 5% · 신호 전환)만 돌릴 수 있어요."
-          : blocked
-            ? "하드캡 검증을 통과하지 못한 전략서라 백테스트하지 않았어요. 검증을 통과한 전략서만 돌립니다."
-            : `실패 이유: ${raw}`}
+          ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 리밸런싱 블록 5개(매달 첫 거래일 · 매달 15일 · 분기 · 매주 · 비중 이탈 5%)만 돌릴 수 있어요."
+          : `실패 이유: ${raw}`}
       </p>
-      {(rebalance || blocked) && (
+      {rebalance && (
         <p className="mono flow-hint" style={{ marginTop: 6, fontSize: 11 }}>
           {raw}
         </p>
       )}
       <p style={{ marginTop: 8 }}>
-        {blocked ? (
-          <Link href="/hardcap">하드캡 검증 화면에서 무엇이 걸렸는지 보기</Link>
-        ) : (
-          <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
-        )}
+        <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
       </p>
-    </div>
-  );
-}
-
-function Next({ enabled }: { enabled: boolean }) {
-  const router = useRouter();
-  return (
-    <div className="flow-next" style={{ justifyContent: "space-between", alignItems: "center" }}>
-      <span className="flow-hint">{enabled ? "" : "결과가 나와야 최종 확인으로 갈 수 있어요."}</span>
-      <button className="primary" onClick={() => router.push("/confirm")} disabled={!enabled}>
-        다음 — 최종 확인
-      </button>
     </div>
   );
 }
@@ -216,105 +192,31 @@ function clock(sec: number): string {
   return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 }
 
-// 관점 출처 배지. real 은 실제 모델, mock 은 고정 가짜 점수, neutral 은 항상 중립.
-const SOURCE_BADGE: Record<string, { label: string; tone: string }> = {
-  real: { label: "실모델", tone: "ok" },
-  mock: { label: "목업", tone: "warn" },
-  neutral: { label: "중립", tone: "muted" },
-};
-const VIEW_LABEL: Record<string, string> = { market: "시장분석", sentiment: "뉴스 감성", regime: "시장온도" };
-
 function Result({ run }: { run: BacktestRun }) {
   return (
     <>
       <h2>결과 (실행 번호 {run.run_id})</h2>
-      {/* 목업 관점이 하나라도 섞였으면 경고한다. 출처 기록이 없는 옛 실행은 전부 목업이었다. */}
-      {(!run.scorer_sources || Object.values(run.scorer_sources).includes("mock")) && (
-        <p className="flow-msg warn" style={{ marginTop: 0, marginBottom: 16 }}>
-          목업 신호가 섞인 실행입니다(관점 출처 참고). 결과를 실력으로 읽으면 안 됩니다.
-        </p>
-      )}
-      {run.summary && (
-        <>
-          <SeriesTable totals={run.summary} />
-          <Edge totals={run.summary} />
-        </>
-      )}
+      {run.summary && <SeriesTable totals={run.summary} />}
       <dl className="flow-kv" style={{ marginTop: 16 }}>
         <dt>기간</dt>
         <dd>
           {run.period_start} ~ {run.period_end} (실제로 쓴 마지막 거래일 {run.data_snapshot_asof})
         </dd>
-        <dt>관점 출처</dt>
-        <dd>
-          {run.scorer_sources ? (
-            <span className="flow-actions" style={{ gap: 8 }}>
-              {Object.entries(run.scorer_sources).map(([view, source]) => {
-                const b = SOURCE_BADGE[source] ?? { label: source, tone: "muted" };
-                return (
-                  <span key={view} style={{ fontFamily: "var(--f-sans)" }}>
-                    {VIEW_LABEL[view] ?? view} <span className={`flow-badge ${b.tone}`}>{b.label}</span>
-                  </span>
-                );
-              })}
-            </span>
-          ) : (
-            "기록 없음"
-          )}
-        </dd>
         <dt>리밸런싱 일정</dt>
         <dd className="prose">{run.schedule?.note}</dd>
-        <dt>비중 범위</dt>
-        <dd>
-          <ValidationUsed v={run.validation} />
-        </dd>
-        <dt>비중 계산</dt>
-        <dd>{run.weight_path}</dd>
         <dt>서버 지표</dt>
         <dd>
           <ServerMetrics m={run.metrics} />
         </dd>
       </dl>
-      {/* 리포트는 이 실행 번호로 같은 결과를 받아 그린다. 예전에는 /report 가 늘 데모 결과를
-          보여 줘서 "이번 전략서 결과가 아닙니다" 라고 적어 둬야 했다. */}
       {run.status === "done" && (
         <nav className="flow-menu" style={{ marginTop: 20 }} aria-label="결과 자세히 보기">
           <Link href={`/report?run_id=${run.run_id}`}>
             <b>이 실행의 자세한 리포트 보기</b>
-            <span>차트, 종목별 비중, 그룹캡 적용, 전략서 내용</span>
-          </Link>
-          <Link href={`/views?run_id=${run.run_id}`}>
-            <b>관점 브리핑 보기</b>
-            <span>세 관점의 가중치가 리밸런싱마다 어떻게 바뀌었는지, 종목별 확률</span>
+            <span>수익 곡선, 핵심 지표, 리밸런싱 기록</span>
           </Link>
         </nav>
       )}
-    </>
-  );
-}
-
-function Stored() {
-  return (
-    <>
-      <p className="flow-msg" style={{ marginTop: 0 }}>
-        이번 탭에서 완료한 전략서가 없어, 미리 저장된 백테스트 결과를 보여 줍니다.
-      </p>
-      <dl className="flow-kv" style={{ margin: "16px 0" }}>
-        <dt>출처</dt>
-        <dd>
-          data/backtest-result.json ({DATA_SOURCE} 실제 종가, 성향 {PROFILE_LABEL} 기준, 데모 Spec)
-        </dd>
-        <dt>기간</dt>
-        <dd>
-          {PERIOD_START} ~ {PERIOD_END}
-        </dd>
-      </dl>
-      <SeriesTable totals={{ strategy, control, market }} />
-      <Edge totals={{ strategy, control, market }} />
-      <p style={{ marginTop: 16 }}>
-        <Link href="/report">데모 리포트 보기</Link> <span className="flow-hint">위와 같은 데모 결과입니다</span>
-      </p>
-      <Next enabled />
     </>
   );
 }
@@ -363,50 +265,3 @@ function ServerMetrics({ m }: { m: BacktestRun["metrics"] }) {
     </span>
   );
 }
-
-// 같은 제약에서 3관점 신호만 뺀 게 대조군이다. 둘의 차이가 신호가 낸 몫.
-function Edge({ totals }: { totals: SeriesTotals }) {
-  const edge = totals.strategy.total - totals.control.total;
-  return (
-    <p className="flow-edge">
-      신호를 쓴 효과 <span className="flow-hint">전략 − 대조군</span>
-      <strong className={edge >= 0 ? "up" : "down"}>{signedPp(edge)}</strong>
-    </p>
-  );
-}
-
-// 이 실행이 검증 확정값(범위 보정 · 하드캡 · 현금 목표)으로 돌았는지(backend/app/backtest/m2_chain.py
-// 머리 주석). 2026-10-21 부터 막힌 전략서는 백테스트가 실패하므로, "AI 원래 범위" 표시는 그 전 실행에만 나온다.
-const VALIDATION_SOURCE: Record<string, string> = {
-  stored: "승인 때 저장된 값",
-  recorded: "하드캡 확인 때 기록된 값",
-  revalidated: "검사 기록이 없어 이번 실행에서 같은 검사를 다시 돌린 값(기록은 안 남김)",
-};
-
-function ValidationUsed({ v }: { v: BacktestRun["validation"] }) {
-  if (!v) return <span className="flow-hint">기록 없음 (예전 실행 — AI 원래 범위로 돌았어요)</span>;
-  if (v.status === "passed") {
-    return (
-      <>
-        <span className="flow-badge ok">검증 확정값</span>{" "}
-        <span className="flow-hint">
-          범위 보정 · 하드캡을 반영한 범위로 돌았어요
-          {v.source && VALIDATION_SOURCE[v.source] && ` · ${VALIDATION_SOURCE[v.source]}`}
-          {v.cash_target !== undefined && ` · 현금 목표 ${(v.cash_target * 100).toFixed(1)}%`}
-          {v.min_interval_days !== undefined && ` · 리밸런싱 최소 ${v.min_interval_days}일`}
-        </span>
-      </>
-    );
-  }
-  return (
-    <>
-      <span className="flow-badge warn">AI 원래 범위</span>{" "}
-      <span className="flow-hint">
-        {v.status === "failed"
-          ? `검증 ${v.blocked_at ?? "?"}단계에서 막힌 전략서라 확정값이 없어요`
-          : "하드캡 확인(검증)을 거치지 않아 AI가 낸 범위로 돌았어요"}
-      </span>
-    </>
-  );
-}
-

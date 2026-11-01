@@ -2,27 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# Spec — 국내 ETF 모의운용 졸업작품
+# 한국어 투자 전략 명세화 · 백테스트 서비스 — 졸업작품
 
-자연어 → Strategy Spec(JSON) 컴파일 → 결정론적 집행. 공통 인프라 + 3관점 판단 계층.
+- 자동매매를 원하지만 코딩을 못 하는 한국인 일반 투자자가 한국어로 전략을 말하면, 전략 요소 사전에 있는 요소만 쓰는 전략서(JSON)로 바꾸고 백테스트 결과를 보여 준다
+- 지금은 주제 변경 기반 정리 중이다(2026-11-01 시작). 계획과 결정 사항은 `docs/pivot-plan.md`
+  - 옛 주제(국내 ETF 모의운용, 투자 성향, 3개 신호원)의 코드는 1단계에서 지웠다(2026-11-01). DB 테이블 정리와 가격 스냅샷은 2 · 3단계다
+  - 2단계 전까지는 개발 DB 의 옛 NOT NULL 칸(`users.role`, `strategy_specs.profile_id` 등) 때문에 계정 · 전략서 저장이 실패한다
 
 ## 절대 규칙
 
-- 사용자와의 대화는 한국어로 한다.
-- 기준 문서는 docs/infra-spec.md. 시작 전 반드시 읽는다.
-- B 라인(M2 검증·통제) 구현의 알고리즘 정본은 docs/m2-algorithms.md 다.
-  거기 적힌 수치와 실행 순서를 임의로 바꾸지 않는다.
-- 확정 수치(프리셋 v0.1, 성향별 제약, 2계층 그룹캡)를 임의로 바꾸지 않는다. 2026-09-08 팀 확정본.
-- docs/infra-spec.md 9장 "하지 말 것"은 구현하지 않는다. 인터페이스와 NotImplementedError만.
-- 피처 / 거시지표 / 관점 가중치는 app/repositories/ 밖에서 직접 SELECT 하지 않는다.
-- 스키마 설계 판단이 필요하면 임의 결정하지 말고 선택지를 제시하고 멈춘다.
-- 사용자가 지정한 단계만 수행한다. 다음 단계로 넘어가지 않는다.
+- 사용자와의 대화는 한국어로 한다
+- 기준 문서는 `docs/pivot-plan.md`. 시작 전 반드시 읽는다
+  - `docs/infra-spec.md` 는 옛 주제의 기준 문서다. 두 문서가 다르면 `docs/pivot-plan.md` 를 따른다
+- 사용자가 지정한 단계만 수행한다. 다음 단계로 넘어가지 않는다
+- 스키마 설계 판단이 필요하면 임의 결정하지 말고 선택지를 제시하고 멈춘다
+- 칸이나 테이블을 임의로 추가하지 않는다. 필요하면 먼저 묻는다
+- 가격 같은 시점 데이터는 `app/repositories/` 밖에서 직접 SELECT 하지 않는다
+- `db/init/` 은 빈 DB 부트스트랩 전용이라 고치지 않는다. 예외는 기반 정리 2단계에서 한 번 새로 쓰는 것뿐이다
+- 옛 주제 기능(3개 신호원, 예측 모델, 거시 · 국면 · 뉴스 데이터, 투자 성향, 프리셋, 하드캡, 그룹캡, 모의운용)은 새 작업에서 쓰거나 고치지 않는다. 지우는 대상이다
+- 문서(markdown 파일 형식)
+  - 테이블 구조 금지
+  - 화살표 흐름도 표현 금지
+  - 이모티콘 금지. 동그라미 번호 같은 기호도 쓰지 않고 1 같은 숫자로 쓴다
+  - 개조식 표현
+  - 볼드체 같은 강조 표현 금지
 
 ## 환경
 
-- `.gitattributes`: 전부 LF.
-- LLM 백엔드는 호스트 Ollama(qwen3:8b). Docker Desktop은 host.docker.internal로 접근.
-- GPU 없음. vLLM은 `profiles: ["gpu"]`로 정의만 돼 있다.
+- `.gitattributes`: 전부 LF
+- LLM 은 호스트 Ollama(qwen3:8b) 하나만 쓴다. Docker Desktop 은 host.docker.internal 로 접근한다
+- GPU 없음
 
 ## 명령 — 전부 Docker 안에서 실행
 
@@ -30,53 +39,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 docker compose up -d --build                # 전 스택 기동
 docker compose exec api ruff check .        # lint
 docker compose exec api ruff check /repo/scripts --config /app/pyproject.toml   # scripts/ lint (위 명령 범위 밖)
-docker compose exec api pytest -m "not requires_ollama and not requires_ml and not requires_backfill and not requires_backtest" -q  # 테스트
-docker compose exec api pytest tests/test_hedge.py::test_confirmed_constants -q                           # 단일 테스트
+docker compose exec api pytest -m "not requires_ollama and not requires_backfill and not requires_backtest" -q  # 테스트
+docker compose exec api pytest tests/test_m2_feasibility.py::test_same_input_twice_same_result -q        # 단일 테스트
 docker compose exec api python /repo/scripts/check_asof_guard.py                                          # as_of 가드
+docker compose exec frontend npx tsc --noEmit                                                             # 프론트 타입 검사
 docker compose logs -f                      # 로그
 ```
 
-- 저장소 루트가 `/repo`로, `backend/`가 `/app`으로 마운트된다.
-  앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo`에서 찾는다.
-- DB 스키마는 `db/init/`의 SQL로 postgres 컨테이너 최초 기동 시 자동 생성된다.
-  시드 데이터는 `docker compose exec -T postgres psql -U spec -d spec < db/seeds/01_hardcap_v0_1.sql` 식으로 넣는다.
-- 가격 데이터 순서: `db/seeds/04_etf_master.csv`(종목 정본) → `scripts/merge_universe.py derive`(`data/universe.csv` 파생) → `scripts/fetch_prices.py`(`data/prices.csv`를 쓰는 유일한 곳) → `scripts/ingest_prices.py`(`price_daily` upsert). `build_universe.py`는 `universe.csv`를 덮어쓰므로 돌리지 않는다.
-- 거시·국면 적재: `ingest_macro.py --start 2019-01-01`(FRED 키가 비면 `--public-csv`) → `ingest_index.py` → `build_regime.py`. 기본 시작일이 2023이라 백테스트 구간(2019~)을 쓰려면 `--start`를 준다.
-- 가격을 다시 적재하면 worker를 재시작한다 — 스코어러가 cutoff별 모델·피처를 프로세스 메모리에 캐시한다.
-- `tests/conftest.py`가 `CELERY_TASK_ALWAYS_EAGER=true`를 넣는다.
-  DB 픽스처를 쓰는 테스트는 seed된 상태여야 한다.
-  `test_hedge`·`test_views_base` 등 순수 함수 테스트는 DB 없이 돈다.
-- 마커: `requires_ollama` · `requires_ml` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외.
-  `requires_backtest`(두 러너 대조·백테스트 입력·재현성)는
-  `docker compose exec -w /repo/backend api pytest -m requires_backtest -q` 로 따로 돌린다
-  (`-w` 가 없으면 루트 `data/` 를 못 찾아 CSV 대조가 건너뛰어진다). api·worker 이미지는 `.[dev,ml,backtest]` 이 깔린다.
-- ml extra 에는 torch 가 없다(2026-09-19 경량화). torch 를 되살리면 `--extra-index-url https://download.pytorch.org/whl/cpu` 가 다시 필요하다.
-- 프론트: `frontend/`에서 `npm run dev`. 검사는 `docker compose exec frontend npx tsc --noEmit` (`npm run lint`는 ESLint 미설정이라 대화형으로 멈춘다).
-- 화면 확인: `mcr.microsoft.com/playwright` 컨테이너(`--network host`)에 `localStorage['spec.session']`을 주입해 연다. Recharts 차트는 fullPage 스크린샷에서 선이 빠지므로 요소 스크린샷으로 본다.
-- TS 백테스트는 node 22 이상이 필요하다(`--experimental-strip-types`). frontend 컨테이너는 node 20이라 안 된다. 저장소 루트에서:
-  `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/w -w /w/frontend node:22-slim node --experimental-strip-types scripts/run-backtest.ts`
-  (루트 `data/`를 읽고 `frontend/data/backtest-result.json`에 쓴다. `--user`가 없으면 결과 파일이 root 소유가 된다.)
+- 저장소 루트가 `/repo` 로, `backend/` 가 `/app` 으로 마운트된다. 앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo` 에서 찾는다
+- DB
+  - 스키마는 `db/init/` 의 SQL 로 postgres 컨테이너 최초 기동 시 자동 생성된다
+  - 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후 `docker compose exec api python /repo/scripts/apply_migrations.py`. 멱등이고 `schema_migrations` 에 이력이 남는다. Alembic 은 쓰지 않는다
+  - 시드는 `docker compose exec api python /repo/scripts/seed_all.py`
+  - 기반 정리 2 · 3단계에서 빌드 명령 하나(볼륨 삭제, 스키마 생성, 공용 데이터 적재)로 바뀐다
+- 가격
+  - 3단계 전까지는 ETF 71종목 가격 파일 `data/prices.csv` 를 `scripts/ingest_prices.py` 로 `price_daily` 에 적재한다. `build_universe.py` 는 `data/universe.csv` 를 덮어쓰므로 돌리지 않는다
+  - 3단계에서 국내 상장 개별주와 ETF 의 3년치 가격 스냅샷 파일로 바뀐다. 한 사람이 받아 공유하고, 각자 빌드 때 적재한다
+- 테스트
+  - `tests/conftest.py` 가 `CELERY_TASK_ALWAYS_EAGER=true` 를 넣는다
+  - DB 픽스처를 쓰는 테스트는 seed 된 상태여야 한다. 지금은 개발 DB 를 같이 쓴다. 2단계에서 테스트 전용 DB 로 나눈다
+  - 마커: `requires_ollama` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외한다
+  - `requires_backtest` 는 `docker compose exec -w /repo/backend api pytest -m requires_backtest -q` 로 따로 돌린다. `-w` 가 없으면 루트 `data/` 를 못 찾는다
+- 프론트
+  - `frontend/` 에서 `npm run dev`. 검사는 `docker compose exec frontend npx tsc --noEmit`. `npm run lint` 는 ESLint 미설정이라 대화형으로 멈춘다
+  - 화면 확인: `mcr.microsoft.com/playwright` 컨테이너(`--network host`)에 `localStorage['spec.session']` 을 주입해 연다. Recharts 차트는 fullPage 스크린샷에서 선이 빠지므로 요소 스크린샷으로 본다
 
 ## 아키텍처
 
-4계층 = AI 사용 경계: ① 전략 생성(LLM) → ② 검증(AI 없음) → ③ 판단(지도학습/PLM) → ④ 통제(AI 없음).
-보장할 성질: **재현성**(같은 입력 → 같은 주문), **시점 무결성(as_of)**.
-
-- **as_of 규약** (`app/repositories/`): `as_of`는 키워드 필수, 기본값 금지.
-  `get_features`/`get_macro`는 `<=`, `get_view_weights`는 **strict `<`**.
-  `scripts/check_asof_guard.py`가 `app/` 전체 AST에서 가드 테이블 참조를 잡는다 —
-  **docstring도 걸린다.** `app/views/*`는 설명을 `#` 주석으로 쓴다.
-- **계약** (`app/contracts/`, Pydantic v2): ① Spec ② ViewScore ③ view_weights ④ TargetWeights ⑤ IntegratedSignal.
-- **판단 계층** (`app/views/`): `as_of`를 받는 순수 함수. stdlib만 사용(numpy/pandas 금지).
-  `integrator.py`: tanh 스케일 0.5, 데드존 0.10, 연산 순서 고정.
-  `hedge.py`: 롤링 재계산 + water-filling 하한. `app/llm/` import 금지.
-- **라벨** (`views/market/labels.py`): 사건 = 20거래일 선행 수익률 > 0. 라벨·채점·보정이 이 정의 하나를 쓴다.
-  `THETA`는 학습 표본 필터에만 쓴다 — 보정·채점은 전체 표본.
-- **피처셋** `v0.1-ta9` (`views/market/features.py`의 `FEATURE_SETS`가 정본): 워밍업 120행은 정의의 일부. 결측은 None.
-- **스코어러 실물** (`app/scoring/`): DB·LightGBM을 읽는 쪽은 views가 아니라 여기. market(LightGBM)·regime(국면 조건부 빈도)·sentiment(빅카인즈 뉴스 세션 상태 조건부 빈도)가 실물. 감성 기사는 `scripts/score_news.py`(오프라인 컨테이너, KR-FinBert-SC)로 채점 → `scripts/ingest_news.py` → `news_articles`·`news_sentiment`(본문 저장 안 함). 렌즈 정의는 `views/sentiment/lens.py`, 판단일엔 그날 15:30 KST 이하 기사만 본다. 기사가 없으면 감성 실물이 중립(no_data)을 낸다. 빅카인즈 원본·채점 CSV 는 커밋 금지(`data/news/`).
-  재학습은 `scoring/schedule.cutoff_for`의 고정 20거래일 격자 — 같은 as_of는 같은 모델이라 cutoff 캐시가 재현성을 깨지 않는다. 라이브 결선(`daily_judge`·`update_view_weights`)은 `scoring/live.py`.
-- **백테스트 접합**: `backtest/runner.py` → `views/bridge.py` 단방향. 스코어러 교체는 `bridge.SCORERS` 한 곳(실물은 지연 import). DB 없는 테스트는 `bridge.MOCK_SCORERS`로 고정한다.
-- **정책 값 3중 사본**: `db/seeds/` ↔ `backtest/policy.py` ↔ `frontend/lib/policy.ts`. 수치가 같아야 한다.
-- **DB**: `db/init/`은 빈 DB 부트스트랩 전용 — 고치지 않는다. 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후
-  `docker compose exec api python /repo/scripts/apply_migrations.py` (멱등, `schema_migrations`에 이력). Alembic은 쓰지 않는다. 트리거가 view_weights UPDATE와 승인된 Spec의 내용 UPDATE를 막는다(상태만 approved→running→closed, `db/migrate/003`). 스키마 정본은 `docs/db-erd.md`.
-- 알려진 설계 구멍은 `docs/known-issues.md`에 기록. 컬럼을 임의 추가하지 않는다.
+- 흐름: 한국어 문장 입력, 명세화, 판정, 검증, 백테스트, 결과 확인
+  - 명세화만 LLM 을 쓴다. 전략 요소 사전에 있는 값만 고를 수 있게 좁힌 스키마를 LLM 에 준다
+  - 판정은 명세화 가능 / 추가 질문 필요 / 실행 불가 세 가지다. 판정기는 기반 이후에 만든다
+  - 검증과 백테스트는 AI 없이 결정론적으로 돈다
+- 사용자가 말한 대로만 거래한다. 사용자가 말하지 않은 외부 판단(시장 국면, 뉴스 감성, 예측 모델)이나 시스템 상한(성향, 하드캡, 그룹캡)이 거래에 끼어들지 않는다. 계산이 성립하지 않는 것(현금 초과 매수, 상장 기간 밖 거래)만 검증기가 막는다
+- 대상 종목은 국내 상장 개별주와 ETF 다
+- 보장할 성질: 시점 무결성(point-in-time, 룩어헤드 방지)과 재현성(같은 입력이면 같은 결과)
+- 남는 모듈
+  - 명세화 파이프라인: `app/m1/`(의도 파악, 추가 질문, 후보 선정, 스키마 좁히기, 후처리)
+  - 전략 요소 사전: `db/seeds/05_bbl.sql`, `app/repositories/bbl.py`
+  - 전략서 계약: `app/contracts/spec.py`(Pydantic v2)
+  - 검증기: `app/m2/validator.py`, `checks.py`, `stages.py`, `feasibility.py`
+  - 백테스트: `app/backtest/`
+  - 지표 계산: `app/backtest/features.py`. stdlib 순수 함수이고 결측은 None
+- as_of 규약(`app/repositories/`)
+  - `as_of` 는 키워드 필수, 기본값 금지. 가격 조회는 `as_of` 이하만 돌려준다
+  - `scripts/check_asof_guard.py` 가 `app/` 전체 AST 에서 가드 테이블 이름 문자열을 잡는다. docstring 도 걸리므로 해당 파일은 설명을 `#` 주석으로 쓴다
+- 데이터 저장 원칙(`docs/pivot-plan.md` 3.2)
+  - DB 는 빌드할 때 처음부터 만든다. 공용 데이터(기준 시드, 종목 원장, 가격 3년치 스냅샷)는 그때 한 번에 적재한다
+  - 개인 데이터(계정, 전략서, 검증 기록, 백테스트 결과)만 각자 DB 에 쌓인다
+  - dev DB 서버는 두지 않는다
+- 스키마 정본은 `docs/db-erd.md`. 2단계에서 남는 테이블 기준으로 고친다
+- 알려진 설계 구멍은 `docs/known-issues.md` 에 기록한다

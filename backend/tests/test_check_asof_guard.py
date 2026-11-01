@@ -34,22 +34,22 @@ def test_flags_direct_reference_outside_repositories(tmp_path):
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "routers" / "spec.py").write_text(
         'from sqlalchemy import text\n'
-        'q = text("SELECT * FROM feature_store WHERE ticker = %s")\n',
+        'q = text("SELECT * FROM price_daily WHERE ticker = %s")\n',
         encoding="utf-8",
     )
 
     errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
 
     assert len(errors) == 1
-    assert "feature_store" in errors[0]
+    assert "price_daily" in errors[0]
     assert "routers" in errors[0]
 
 
 def test_allows_reference_inside_repositories(tmp_path):
     app_root = tmp_path / "app"
     (app_root / "repositories").mkdir(parents=True)
-    (app_root / "repositories" / "feature_store.py").write_text(
-        'SQL = "SELECT features FROM feature_store WHERE ticker = %s"\n',
+    (app_root / "repositories" / "price_daily.py").write_text(
+        'SQL = "SELECT features FROM price_daily WHERE ticker = %s"\n',
         encoding="utf-8",
     )
 
@@ -63,37 +63,37 @@ def test_flags_fstring_reference(tmp_path):
     (app_root / "workers").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "workers" / "ingest.py").write_text(
-        'code = "cpi"\n'
-        'q = f"SELECT * FROM macro_indicators WHERE indicator_code = {code}"\n',
+        'code = "069500"\n'
+        'q = f"SELECT * FROM price_daily WHERE ticker = {code}"\n',
         encoding="utf-8",
     )
 
     errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
 
-    assert any("macro_indicators" in error for error in errors)
+    assert any("price_daily" in error for error in errors)
 
 
 def test_flags_orm_class_import_and_usage_outside_repositories(tmp_path):
-    """select(FeatureStore) 처럼 테이블명 문자열이 전혀 등장하지 않는 ORM 우회를 잡는다."""
+    """select(PriceDaily) 처럼 테이블명 문자열이 전혀 등장하지 않는 ORM 우회를 잡는다."""
     app_root = tmp_path / "app"
     (app_root / "routers").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "models").mkdir(parents=True)
-    (app_root / "models" / "feature_store.py").write_text(
-        "class FeatureStore:\n    pass\n",
+    (app_root / "models" / "price_daily.py").write_text(
+        "class PriceDaily:\n    pass\n",
         encoding="utf-8",
     )
     (app_root / "routers" / "spec.py").write_text(
         "from sqlalchemy import select\n"
-        "from app.models.feature_store import FeatureStore\n"
-        "q = select(FeatureStore)\n",
+        "from app.models.price_daily import PriceDaily\n"
+        "q = select(PriceDaily)\n",
         encoding="utf-8",
     )
 
     errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
 
     assert len(errors) == 2  # import 1건 + 사용(select) 1건
-    assert all("feature_store" in error and "routers" in error for error in errors)
+    assert all("price_daily" in error and "routers" in error for error in errors)
 
 
 def test_flags_orm_class_import_with_alias(tmp_path):
@@ -102,29 +102,29 @@ def test_flags_orm_class_import_with_alias(tmp_path):
     (app_root / "workers").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "workers" / "ingest.py").write_text(
-        "from app.models.macro_indicators import MacroIndicators as MI\n",
+        "from app.models.price_daily import PriceDaily as MI\n",
         encoding="utf-8",
     )
 
     errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
 
-    assert any("macro_indicators" in error for error in errors)
+    assert any("price_daily" in error for error in errors)
 
 
 def test_flags_orm_class_attribute_reference(tmp_path):
-    """models.ViewWeights 처럼 모듈 경유 속성 접근도 잡는다."""
+    """models.PriceDaily 처럼 모듈 경유 속성 접근도 잡는다."""
     app_root = tmp_path / "app"
     (app_root / "workers").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "workers" / "recalc.py").write_text(
         "from app import models\n"
-        "q = select(models.ViewWeights)\n",
+        "q = select(models.PriceDaily)\n",
         encoding="utf-8",
     )
 
     errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
 
-    assert any("view_weights" in error for error in errors)
+    assert any("price_daily" in error for error in errors)
 
 
 def test_allows_orm_class_definition_in_models(tmp_path):
@@ -132,25 +132,25 @@ def test_allows_orm_class_definition_in_models(tmp_path):
     app_root = tmp_path / "app"
     (app_root / "models").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
-    (app_root / "models" / "feature_store.py").write_text(
-        "class FeatureStore:\n    __tablename__ = 'feature_store'\n",
+    (app_root / "models" / "price_daily.py").write_text(
+        "class PriceDaily:\n    __tablename__ = 'price_daily'\n",
         encoding="utf-8",
     )
 
     errors = check_asof_guard.check(app_root=app_root, allowed_dir=app_root / "repositories")
 
-    # __tablename__ 값 'feature_store' 문자열 리터럴은 여전히 걸린다 — models/는 allowed_dir가 아니므로.
+    # __tablename__ 값 'price_daily' 문자열 리터럴은 여전히 걸린다 — models/는 allowed_dir가 아니므로.
     # 이 테스트는 그 사실을 명시하기 위한 것이지, models/를 허용 대상으로 승격하려는 것이 아니다.
     assert len(errors) == 1
-    assert "feature_store" in errors[0]
+    assert "price_daily" in errors[0]
 
 
 def test_allows_orm_class_reference_inside_repositories(tmp_path):
     app_root = tmp_path / "app"
     (app_root / "repositories").mkdir(parents=True)
-    (app_root / "repositories" / "view_weights.py").write_text(
-        "from app.models.view_weights import ViewWeights\n"
-        "q = select(ViewWeights)\n",
+    (app_root / "repositories" / "price_daily.py").write_text(
+        "from app.models.price_daily import PriceDaily\n"
+        "q = select(PriceDaily)\n",
         encoding="utf-8",
     )
 
@@ -159,8 +159,8 @@ def test_allows_orm_class_reference_inside_repositories(tmp_path):
     assert errors == []
 
 
-@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots", "news_articles", "news_sentiment"])
-def test_flags_new_table_string_outside_repositories(tmp_path, table):
+@pytest.mark.parametrize("table", ["price_daily"])
+def test_flags_table_string_outside_repositories(tmp_path, table):
     app_root = tmp_path / "app"
     (app_root / "views").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
@@ -180,12 +180,9 @@ def test_flags_new_table_string_outside_repositories(tmp_path, table):
     ("cls", "table"),
     [
         ("PriceDaily", "price_daily"),
-        ("RegimeSnapshots", "regime_snapshots"),
-        ("NewsArticles", "news_articles"),
-        ("NewsSentiment", "news_sentiment"),
     ],
 )
-def test_flags_new_orm_class_outside_repositories(tmp_path, cls, table):
+def test_flags_orm_class_outside_repositories(tmp_path, cls, table):
     app_root = tmp_path / "app"
     (app_root / "workers").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
@@ -201,8 +198,8 @@ def test_flags_new_orm_class_outside_repositories(tmp_path, cls, table):
     assert all(table in error for error in errors)
 
 
-@pytest.mark.parametrize("table", ["price_daily", "regime_snapshots", "news_articles", "news_sentiment"])
-def test_allows_new_table_inside_repositories(tmp_path, table):
+@pytest.mark.parametrize("table", ["price_daily"])
+def test_allows_table_inside_repositories(tmp_path, table):
     app_root = tmp_path / "app"
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "repositories" / "repo.py").write_text(
@@ -215,14 +212,13 @@ def test_allows_new_table_inside_repositories(tmp_path, table):
     assert errors == []
 
 
-def test_allows_new_tables_in_comments(tmp_path):
-    """views/bridge.py · views/regime/judge.py 처럼 # 주석에만 나오는 테이블명은 통과한다."""
+def test_allows_tables_in_comments(tmp_path):
+    """# 주석에만 나오는 테이블명은 통과한다."""
     app_root = tmp_path / "app"
     (app_root / "views").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "views" / "bridge.py").write_text(
-        "# 시장분석은 price_daily 대기\n"
-        "# regime_snapshots 에 버전 컬럼이 없어서\n"
+        "# 가격은 price_daily 에서 저장소 함수로 읽는다\n"
         "x = 1\n",
         encoding="utf-8",
     )
@@ -232,14 +228,14 @@ def test_allows_new_tables_in_comments(tmp_path):
     assert errors == []
 
 
-def test_allows_regime_snapshot_dto_outside_repositories(tmp_path):
-    """저장소가 돌려주는 DTO RegimeSnapshot(단수)은 ORM 클래스명 RegimeSnapshots 와 다르다."""
+def test_allows_price_bar_dto_outside_repositories(tmp_path):
+    """가격 한 행을 담는 DTO PriceBar 는 ORM 클래스명 PriceDaily 와 다르다."""
     app_root = tmp_path / "app"
     (app_root / "views").mkdir(parents=True)
     (app_root / "repositories").mkdir(parents=True)
     (app_root / "views" / "judge.py").write_text(
-        "from app.repositories.regime import RegimeSnapshot, get_regime_snapshot\n"
-        "def f(s: RegimeSnapshot) -> None: ...\n",
+        "from app.backtest.features import PriceBar\n"
+        "def f(b: PriceBar) -> None: ...\n",
         encoding="utf-8",
     )
 

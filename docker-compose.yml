@@ -13,14 +13,8 @@ x-backend-common: &backend-common
   environment:
     DATABASE_URL: ${DATABASE_URL}
     REDIS_URL: ${REDIS_URL}
-    MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-    MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    LLM_BACKEND: ${LLM_BACKEND}
     OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
     OLLAMA_MODEL: ${OLLAMA_MODEL}
-    VLLM_BASE_URL: http://vllm:8001
-    VLLM_MODEL: ${VLLM_MODEL}
   volumes:
     - .:/repo
     - ./backend:/app
@@ -29,8 +23,6 @@ x-backend-common: &backend-common
     postgres:
       condition: service_healthy
     redis:
-      condition: service_healthy
-    minio:
       condition: service_healthy
 
 services:
@@ -61,44 +53,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # quay.io/minio 도 익명 pull 을 막아서(2026-10-04, 401) chainguard 빌드로 옮긴다.
-  # 이 이미지엔 curl 이 없다 — healthcheck 는 bash /dev/tcp 로 같은 엔드포인트를 본다(Host 헤더 필수).
-  # mc 도 같은 이미지에 들어 있어 minio-init 이 같은 이미지를 쓴다.
-  minio:
-    image: cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034
-    command: server /data --console-address ":9001"
-    ports:
-      - "${MINIO_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && [[ $$(head -1 <&3) == *' 200 '* ]]"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  minio-init:
-    image: cgr.dev/chainguard/minio@sha256:4cf4831a2bbcf13ddca09c1cbcc9faff716dd3c4247e0babc32864b8ee8e0034
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET_MODELS: ${MINIO_BUCKET_MODELS}
-      MINIO_BUCKET_REPORTS: ${MINIO_BUCKET_REPORTS}
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
-      mc mb --ignore-existing local/$${MINIO_BUCKET_MODELS} &&
-      mc mb --ignore-existing local/$${MINIO_BUCKET_REPORTS}
-      "
-    restart: "no"
-
   api:
     <<: *backend-common
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -113,10 +67,6 @@ services:
   worker:
     <<: *backend-common
     command: celery -A app.workers worker --loglevel=info
-
-  beat:
-    <<: *backend-common
-    command: celery -A app.workers beat --loglevel=info
 
   frontend:
     build:
@@ -141,25 +91,5 @@ services:
       api:
         condition: service_healthy
 
-  vllm:
-    image: vllm/vllm-openai:latest
-    profiles: ["gpu"]
-    command: --model ${VLLM_MODEL} --guided-decoding-backend outlines
-    ports:
-      - "${VLLM_PORT}:8001"
-    environment:
-      HF_TOKEN: ${HF_TOKEN}
-    volumes:
-      - hf_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
 volumes:
   pgdata:
-  miniodata:
-  hf_cache:

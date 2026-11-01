@@ -151,3 +151,23 @@ def search(
 
 def _as_record(row) -> EtfRecord:
     return EtfRecord(**row._mapping)
+
+
+def list_group_ids(group_level: int) -> list[str]:
+    """묶음 이름 목록. 1 이면 자산군, 2 면 업종 · 국가."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT group_id FROM asset_groups WHERE group_level = :lv ORDER BY group_id"),
+            {"lv": group_level},
+        ).all()
+    return [row.group_id for row in rows]
+
+
+def list_group_labels(group_level: int) -> dict[str, str]:
+    """묶음 이름에서 한국어 이름표(asset_groups.label)로. 이름 순."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT group_id, label FROM asset_groups WHERE group_level = :lv ORDER BY group_id"),
+            {"lv": group_level},
+        ).all()
+    return {row.group_id: row.label for row in rows}

@@ -2,17 +2,13 @@
 
 시점 규약 대상이 아니다.
 
-## 승인 전까지만 손댈 수 있다
-
-`status='approved'` 가 되면 트리거가 수정을 물리적으로 막는다. M1 은 `draft` 로만
-저장하고, 승인은 사용자가 별도로 한다.
+M1 은 `draft` 로만 저장한다.
 
 ## 원출력과 확정값을 둘 다 남긴다
 
 `weight_min_raw`/`weight_max_raw` 는 LLM 이 낸 값, `weight_min`/`weight_max` 는
-규칙을 적용한 값이다. M1 단계에서는 **스키마가 이미 허용 범위를 강제**했으므로 둘이
-같고 `was_adjusted` 는 false 다. 하드캡으로 접는 일은 Validator 몫이고(2026-09-20
-팀 결정), 그때 이 칸들이 갈라진다.
+확정값이다. 저장할 때는 둘이 같고 `was_adjusted` 는 false 다. 범위가 실행 불가능할 때
+Validator 의 비중 범위 실현가능성 보정이 확정값을 고치고, 그때 이 칸들이 갈라진다.
 """
 from __future__ import annotations
 
@@ -32,7 +28,6 @@ DRAFT = "draft"
 class SavedSpec:
     spec_id: str
     user_id: int
-    profile_id: int
     status: str
     universe_size: int
 
@@ -45,8 +40,6 @@ def insert_spec(
     *,
     spec_id: str,
     user_id: int,
-    profile_id: int,
-    hardcap_version: str,
     spec_version: str,
     name: str,
     input_prompt: str | None,
@@ -57,7 +50,7 @@ def insert_spec(
 ) -> SavedSpec:
     """전략서 한 건과 종목별 허용범위를 한 트랜잭션으로 넣는다.
 
-    universe 항목은 ticker · preset_id · weight_min · weight_max ·
+    universe 항목은 ticker · weight_min · weight_max ·
     weight_min_raw · weight_max_raw · was_adjusted 를 가진다.
     둘로 나눠 저장하면 종목 없는 전략서가 남을 수 있어 한 번에 넣는다.
     """
@@ -66,10 +59,10 @@ def insert_spec(
             text(
                 """
                 INSERT INTO strategy_specs (
-                    spec_id, user_id, profile_id, hardcap_version, spec_version,
+                    spec_id, user_id, spec_version,
                     name, input_prompt, rebalance, signal_rules, constraint_user, status
                 ) VALUES (
-                    :spec_id, :user_id, :profile_id, :hardcap_version, :spec_version,
+                    :spec_id, :user_id, :spec_version,
                     :name, :input_prompt,
                     CAST(:rebalance AS jsonb), CAST(:signal_rules AS jsonb),
                     CAST(:constraint_user AS jsonb), :status
@@ -79,8 +72,6 @@ def insert_spec(
             {
                 "spec_id": spec_id,
                 "user_id": user_id,
-                "profile_id": profile_id,
-                "hardcap_version": hardcap_version,
                 "spec_version": spec_version,
                 "name": name,
                 "input_prompt": input_prompt,
@@ -94,10 +85,10 @@ def insert_spec(
             text(
                 """
                 INSERT INTO spec_universe (
-                    spec_id, ticker, preset_id,
+                    spec_id, ticker,
                     weight_min, weight_max, weight_min_raw, weight_max_raw, was_adjusted
                 ) VALUES (
-                    :spec_id, :ticker, :preset_id,
+                    :spec_id, :ticker,
                     :weight_min, :weight_max, :weight_min_raw, :weight_max_raw, :was_adjusted
                 )
                 """
@@ -107,7 +98,6 @@ def insert_spec(
     return SavedSpec(
         spec_id=spec_id,
         user_id=user_id,
-        profile_id=profile_id,
         status=DRAFT,
         universe_size=len(universe),
     )
@@ -119,7 +109,7 @@ def get_spec(spec_id: str, *, conn: Connection | None = None) -> dict | None:
         row = conn.execute(
             text(
                 """
-                SELECT spec_id, user_id, profile_id, hardcap_version, spec_version, name,
+                SELECT spec_id, user_id, spec_version, name,
                        input_prompt, rebalance, signal_rules, constraint_user, status, created_at
                   FROM strategy_specs
                  WHERE spec_id = :spec_id
@@ -136,7 +126,7 @@ def get_spec_universe(spec_id: str, *, conn: Connection | None = None) -> list[d
         rows = conn.execute(
             text(
                 """
-                SELECT u.ticker, e.name, u.preset_id, u.weight_min, u.weight_max,
+                SELECT u.ticker, e.name, u.weight_min, u.weight_max,
                        u.weight_min_raw, u.weight_max_raw, u.was_adjusted
                   FROM spec_universe u
                   JOIN etf_master e ON e.ticker = u.ticker
@@ -147,48 +137,6 @@ def get_spec_universe(spec_id: str, *, conn: Connection | None = None) -> list[d
             {"spec_id": spec_id},
         ).all()
     return [dict(row._mapping) for row in rows]
-
-
-def get_spec_risk_level(spec_id: str) -> int | None:
-    """전략서가 만들어질 때 참조한 성향 등급. 사용자의 최신 성향이 아니다.
-
-    재진단하면 risk_profiles 에 새 행이 쌓이지만, 전략서는 생성 당시의
-    profile_id 를 들고 있으므로 그 행을 본다. 없는 전략서면 None.
-    """
-    with get_engine().connect() as conn:
-        row = conn.execute(
-            text(
-                """
-                SELECT p.risk_level
-                  FROM strategy_specs s
-                  JOIN risk_profiles p ON p.profile_id = s.profile_id
-                 WHERE s.spec_id = :spec_id
-                """
-            ),
-            {"spec_id": spec_id},
-        ).one_or_none()
-    return int(row.risk_level) if row is not None else None
-
-
-def get_spec_profile(spec_id: str) -> tuple[int, str] | None:
-    """전략서가 만들어질 때의 (성향 등급, 기준표 버전). 없는 전략서면 None.
-
-    get_spec_risk_level 과 같은 행을 보되 기준표 버전까지 준다 — Validator 는
-    성향 확정 때 박아 둔 기준표로 허용범위를 따져야 한다.
-    """
-    with get_engine().connect() as conn:
-        row = conn.execute(
-            text(
-                """
-                SELECT p.risk_level, p.preset_version
-                  FROM strategy_specs s
-                  JOIN risk_profiles p ON p.profile_id = s.profile_id
-                 WHERE s.spec_id = :spec_id
-                """
-            ),
-            {"spec_id": spec_id},
-        ).one_or_none()
-    return (int(row.risk_level), row.preset_version) if row is not None else None
 
 
 def record_validation(spec_id: str, *, bounds: list[dict] | None, logs: list[dict]) -> None:
@@ -284,7 +232,7 @@ def list_specs(user_id: int) -> list[dict]:
 # draft 전략서가 지워질 때 함께 지우는 하위 기록. 나머지(백테스트·승인·포트폴리오·
 # 판단 기록)가 붙은 전략서는 지우지 않는다 — 실제로 굴러간 흔적이라서다.
 _OWNED_BY_DRAFT = ("spec_universe", "validation_logs")
-_BLOCKS_DELETE = ("backtest_runs", "approvals", "portfolios", "decision_records")
+_BLOCKS_DELETE = ("backtest_runs",)
 
 
 def delete_draft_spec(spec_id: str, user_id: int) -> str:
