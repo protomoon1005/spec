@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""db/seeds/04_etf_master.csv 를 etf_master 테이블에 적재한다.
+"""db/seeds/04_etf_master.csv 를 instruments 테이블(종목 원장)에 적재한다.
 
-db/migrate/001_etf_master_group_axes.sql 이후 etf_master는 자산군/섹터/국가
-세 축을 asset_group_id/sector_group_id/country_group_id 컬럼으로 나눠 받는다
-(README "알려진 설계 구멍" ① 국가 컬럼 부재 — 해소됨). CSV의 group_id 컬럼값
+instruments 는 자산군/섹터/국가 세 축을 asset_group_id/sector_group_id/country_group_id
+컬럼으로 나눠 받는다. CSV의 group_id 컬럼값
 (EQUITY/BOND/COMMODITY)은 그대로 asset_group_id로 쓰고, sector/country 컬럼의
 한글값은 아래 SECTOR_GROUP_MAP/COUNTRY_GROUP_MAP으로 asset_groups.group_id에
 매핑한다. 매핑에 없는 값이나 asset_groups에 실재하지 않는 group_id가 나오면
@@ -12,7 +11,7 @@ db/migrate/001_etf_master_group_axes.sql 이후 etf_master는 자산군/섹터/�
 기존 group_id 컬럼은 당분간 자산군용으로 남아 있어 계속 그대로 적재한다.
 
 ticker 기준 UPSERT다(INSERT ... ON CONFLICT (ticker) DO UPDATE) — TRUNCATE를
-쓰지 않는다. price_daily 등 etf_master를 참조하는 테이블에 데이터가 쌓인
+쓰지 않는다. instruments 를 참조하는 테이블에 데이터가 쌓인
 뒤에는 TRUNCATE ... CASCADE가 그 데이터를 통째로 지운다(사용자 지시,
 2026-09-20). CSV에 없는 기존 행은 upsert 뒤에 지운다(2026-09-27) — 단,
 REFERENCING_TABLES 가 참조하는 행은 남기고 알린다.
@@ -41,7 +40,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CSV = REPO_ROOT / "db" / "seeds" / "04_etf_master.csv"
 
-# etf_master 테이블 컬럼 (asset_group_id/sector_group_id/country_group_id는
+# instruments 테이블 컬럼 (asset_group_id/sector_group_id/country_group_id는
 # CSV에 직접 없다 — group_id/sector/country를 아래 매핑으로 변환해 채운다)
 DB_COLUMNS = [
     "ticker", "name", "sector", "group_id", "risk_tag",
@@ -68,12 +67,12 @@ COUNTRY_GROUP_MAP = {
     "기타": "COUNTRY_OTHER",
 }
 
-# etf_master(ticker) 를 FK 로 참조하는 표 (db/init/02_schema.sql)
-REFERENCING_TABLES = ("spec_universe", "positions", "orders", "view_scores")
+# instruments(ticker) 를 FK 로 참조하는 표 (db/init/02_schema.sql)
+REFERENCING_TABLES = ("strategy_assets",)
 
 # CSV(:tickers)에 없고 어느 표도 참조하지 않는 행만 지운다
 _DELETE_NOT_IN_CSV_SQL = (
-    "DELETE FROM etf_master e WHERE e.ticker <> ALL(:tickers)"
+    "DELETE FROM instruments e WHERE e.ticker <> ALL(:tickers)"
     + "".join(f" AND NOT EXISTS (SELECT 1 FROM {t} x WHERE x.ticker = e.ticker)" for t in REFERENCING_TABLES)
     + " RETURNING ticker"
 )
@@ -208,7 +207,7 @@ def main() -> int:
             for row in loadable:
                 conn.execute(
                     text(
-                        "INSERT INTO etf_master "
+                        "INSERT INTO instruments "
                         "(ticker, name, sector, group_id, risk_tag, mdd_3y, volatility_1y, "
                         " expense_ratio, listed_date, delisted_date, is_leveraged, active, "
                         " asset_group_id, sector_group_id, country_group_id) "
@@ -255,7 +254,7 @@ def main() -> int:
             in_csv = {"tickers": [r["ticker"] for r in rows]}
             deleted = conn.execute(text(_DELETE_NOT_IN_CSV_SQL), in_csv).scalars().all()
             kept = conn.execute(
-                text("SELECT ticker FROM etf_master WHERE ticker <> ALL(:tickers)"), in_csv
+                text("SELECT ticker FROM instruments WHERE ticker <> ALL(:tickers)"), in_csv
             ).scalars().all()
         print(f"load_etf_master: CSV 에 없는 {len(deleted)}행 삭제 {sorted(deleted)}")
         if kept:
@@ -264,7 +263,7 @@ def main() -> int:
     finally:
         engine.dispose()
 
-    print(f"load_etf_master: {len(loadable)}행 upsert 완료 (etf_master)")
+    print(f"load_etf_master: {len(loadable)}행 upsert 완료 (instruments)")
     return 0
 
 

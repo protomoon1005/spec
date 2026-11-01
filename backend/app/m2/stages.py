@@ -132,7 +132,7 @@ class Regeneration:
 
 @dataclass(frozen=True)
 class ValidationResult:
-    spec_id: str
+    strategy_id: str
     as_of: date
     passed: bool
     blocked_at: int | None
@@ -159,7 +159,7 @@ def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
         done = {r.stage for r in results}
         full = results + [StageResult(stage=s, status=NOT_RUN) for s in STAGE_NAMES if s not in done]
         return ValidationResult(
-            spec_id=str(ctx.payload.get("spec_id")),
+            strategy_id=str(ctx.payload.get("strategy_id")),
             as_of=ctx.as_of,
             passed=False,
             blocked_at=blocked_at,
@@ -260,7 +260,7 @@ def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
         return stop(3)
 
     return ValidationResult(
-        spec_id=spec.spec_id,
+        strategy_id=spec.strategy_id,
         as_of=ctx.as_of,
         passed=True,
         blocked_at=None,

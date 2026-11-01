@@ -28,7 +28,7 @@ export default function Report({ run }: { run: BacktestRun }) {
       <main className="max-w-[1100px] mx-auto w-full box-border px-6 py-10 flex flex-col gap-6">
         <header>
           <div style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>
-            백테스트 리포트 · 실행 #{run.run_id} · 전략서 {run.spec_id}
+            백테스트 리포트 · 실행 #{run.run_id} · 전략서 {run.strategy_id}
           </div>
           <h1 style={{ fontFamily: MONO, fontSize: 20, fontWeight: 600, color: C.bright, margin: "8px 0 0" }}>
             {run.period_start} ~ {run.period_end}

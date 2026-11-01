@@ -1,4 +1,4 @@
-"""spec_id → 러너 입력 조립.
+"""strategy_id → 러너 입력 조립.
 
 DB 의 전략서 · 종목 원장 · 가격으로 러너 입력을 만든다. 러너 알고리즘은 건드리지
 않는다 — 여기서는 모양만 맞춘다.
@@ -19,7 +19,7 @@ min_interval_days 는 앞 리밸런싱일과의 간격이 모자란 날짜를 �
 나눠서 주간 규칙은 연말에 3~4일 간격이 생긴다. 15일·분기 규칙은 구간 첫 평가일이 리밸런싱일이
 아닐 수 있다 — 첫 리밸런싱 전까지는 현금으로 있다.
 
-비중 범위는 spec_universe 의 확정값(final_ranges)을 쓴다. 검증 전에는 _raw 와 같다.
+비중 범위는 strategy_assets 의 확정값(final_ranges)을 쓴다. 검증 전에는 _raw 와 같다.
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ class InputError(Exception):
 
 @dataclass(frozen=True)
 class BacktestInputs:
-    spec_id: str
+    strategy_id: str
     holdings: list[dict]
     cash_min: float  # 전략서의 constraint.cash_min
     prices_wide: pd.DataFrame
@@ -88,7 +88,7 @@ class BacktestInputs:
     # threshold 규칙이면 (임계값, 최소 간격 일수) — runner.run(drift=...) 에 그대로 넘긴다.
     # 그때 rebalance_dates 는 리밸런싱일이 아니라 판정 후보일(주간 평가일 전부)이다
     drift: tuple[float, int] | None = None
-    # spec_universe 의 확정 범위 {종목: (하한, 상한)}. 검증 전에는 _raw 와 같다(M1 이 둘을 같이 쓴다)
+    # strategy_assets 의 확정 범위 {종목: (하한, 상한)}. 검증 전에는 _raw 와 같다(M1 이 둘을 같이 쓴다)
     final_ranges: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     @property
@@ -97,18 +97,18 @@ class BacktestInputs:
         return self.valuation_dates[-1]
 
 
-def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> BacktestInputs:
+def build_inputs(strategy_id: str, *, period_start: date, period_end: date) -> BacktestInputs:
     if period_start > period_end:
         raise InputError(f"기간이 거꾸로다: {period_start} ~ {period_end}")
 
-    spec = specs.get_spec(spec_id)
+    spec = specs.get_spec(strategy_id)
     if spec is None:
-        raise InputError(f"전략서가 없다: {spec_id}")
+        raise InputError(f"전략서가 없다: {strategy_id}")
     # 가격을 읽기 전에 거른다 — 지원하지 않는 규칙이면 나머지는 볼 필요가 없다.
     rule = spec["rebalance"]
     _schedule(rule)
 
-    holdings, final_ranges = _holdings(spec_id)
+    holdings, final_ranges = _holdings(strategy_id)
     tickers = [h["ticker"] for h in holdings]
     prices_wide = _prices_wide(sorted({*tickers, MARKET_TICKER}), as_of=period_end)
 
@@ -120,7 +120,7 @@ def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> Backt
     plan = plan_schedule(rule, weekly)
 
     return BacktestInputs(
-        spec_id=spec_id,
+        strategy_id=strategy_id,
         holdings=holdings,
         cash_min=float((spec["constraint_user"] or {}).get("cash_min") or 0.0),
         prices_wide=prices_wide,
@@ -134,17 +134,17 @@ def build_inputs(spec_id: str, *, period_start: date, period_end: date) -> Backt
     )
 
 
-def _holdings(spec_id: str) -> tuple[list[dict], dict[str, tuple[float, float]]]:
+def _holdings(strategy_id: str) -> tuple[list[dict], dict[str, tuple[float, float]]]:
     # 확정 범위는 따로 돌려준다.
-    universe = specs.get_spec_universe(spec_id)
+    universe = specs.get_strategy_assets(strategy_id)
     if not universe:
-        raise InputError(f"전략서에 종목이 없다: {spec_id}")
+        raise InputError(f"전략서에 종목이 없다: {strategy_id}")
     records = etf_master.get_by_tickers([u["ticker"] for u in universe])
 
     holdings = []
     final_ranges: dict[str, tuple[float, float]] = {}
     for u in universe:
-        rec = records[u["ticker"]]  # spec_universe.ticker 는 etf_master FK 라 항상 있다
+        rec = records[u["ticker"]]  # strategy_assets.ticker 는 instruments FK 라 항상 있다
         required = {
             "asset_group_id": rec.asset_group_id,
             "sector_group_id": rec.sector_group_id,

@@ -1,4 +1,4 @@
-"""Validator — DB 왕복과 API (POST /specs/{spec_id}/validate).
+"""Validator — DB 왕복과 API (POST /specs/{strategy_id}/validate).
 
 postgres 와 시드가 적재된 상태여야 한다. 시험용 종목과 합성 일봉은 픽스처가 넣고 지운다
 (실제 백필 데이터에 기대지 않는다). 전략서는 M1 을 거치지 않고 직접 저장한다 —
@@ -74,7 +74,7 @@ def world(engine):
         for role, (tag, lev, active, _, _) in spec_rows.items():
             conn.execute(
                 text(
-                    "INSERT INTO etf_master"
+                    "INSERT INTO instruments"
                     " (ticker, name, sector, group_id, risk_tag, is_leveraged, active, delisted_date)"
                     " VALUES (:t, :n, 'SECTOR_OTHER', 'EQUITY', :tag, :lev, :active, :dl)"
                 ),
@@ -101,7 +101,7 @@ def world(engine):
     with engine.begin() as conn:
         mine = list(tickers.values())
         conn.execute(text("DELETE FROM price_daily WHERE ticker = ANY(:t)"), {"t": mine})
-        conn.execute(text("DELETE FROM etf_master WHERE ticker = ANY(:t)"), {"t": mine})
+        conn.execute(text("DELETE FROM instruments WHERE ticker = ANY(:t)"), {"t": mine})
 
 
 @pytest.fixture
@@ -118,10 +118,10 @@ def make_owner(engine, make_user):
 
     with engine.begin() as conn:
         for user_id in users:
-            mine = "(SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
-            for table in ("spec_universe", "validation_logs"):
-                conn.execute(text(f"DELETE FROM {table} WHERE spec_id IN {mine}"), {"u": user_id})
-            conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
+            mine = "(SELECT strategy_id FROM strategies WHERE user_id = :u)"
+            for table in ("strategy_assets", "validation_logs"):
+                conn.execute(text(f"DELETE FROM {table} WHERE strategy_id IN {mine}"), {"u": user_id})
+            conn.execute(text("DELETE FROM strategies WHERE user_id = :u"), {"u": user_id})
 
 
 def _save(
@@ -141,9 +141,9 @@ def _save(
             }
         )
     return specs.insert_spec(
-        spec_id=specs.new_spec_id(),
+        strategy_id=specs.new_strategy_id(),
         user_id=user_id,
-        spec_version="0.1",
+        strategy_version="0.1",
         name="검증 시험 전략",
         input_prompt="x",
         rebalance={
@@ -159,7 +159,7 @@ def _save(
             "max_drawdown": max_drawdown,
         },
         universe=universe,
-    ).spec_id
+    ).strategy_id
 
 
 def _as_of() -> date:
@@ -170,7 +170,7 @@ def _codes(result, stage: int) -> set[str]:
     return {v.code for v in result.stages[stage - 1].violations}
 
 
-def _universe_rows(spec_id: str) -> list[tuple]:
+def _universe_rows(strategy_id: str) -> list[tuple]:
     return [
         (
             u["ticker"],
@@ -180,14 +180,14 @@ def _universe_rows(spec_id: str) -> list[tuple]:
             float(u["weight_max_raw"]),
             u["was_adjusted"],
         )
-        for u in specs.get_spec_universe(spec_id)
+        for u in specs.get_strategy_assets(strategy_id)
     ]
 
 
-def _log_count(engine, spec_id: str) -> int:
+def _log_count(engine, strategy_id: str) -> int:
     with engine.connect() as conn:
         return conn.execute(
-            text("SELECT count(*) FROM validation_logs WHERE spec_id = :s"), {"s": spec_id}
+            text("SELECT count(*) FROM validation_logs WHERE strategy_id = :s"), {"s": strategy_id}
         ).scalar_one()
 
 
@@ -196,9 +196,9 @@ def _log_count(engine, spec_id: str) -> int:
 
 def test_delisted_blocked_at_reference(world, make_owner):
     _, owner = make_owner()
-    spec_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("delisted", 0.0, 0.30), ("bond", 0.0, 0.30)])
+    strategy_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("delisted", 0.0, 0.30), ("bond", 0.0, 0.30)])
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert not result.passed
     assert result.blocked_at == 2
@@ -210,9 +210,9 @@ def test_delisted_blocked_at_reference(world, make_owner):
 
 def test_stale_prices_blocked_at_reference(world, make_owner):
     _, owner = make_owner()
-    spec_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("stale", 0.0, 0.30), ("bond", 0.0, 0.30)])
+    strategy_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("stale", 0.0, 0.30), ("bond", 0.0, 0.30)])
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert result.blocked_at == 2
     assert _codes(result, 2) == {"NO_PRICE_DATA"}
@@ -224,11 +224,11 @@ def test_stale_prices_blocked_at_reference(world, make_owner):
 def test_leveraged_ticker_passes(world, make_owner):
     """시스템 상한이 없다(주제 변경 결정 3). 레버리지 종목도 통과한다."""
     _, owner = make_owner()
-    spec_id = _save(
+    strategy_id = _save(
         world, owner, [("lev", 0.0, 0.20), ("bond", 0.0, 0.30), ("eq_a", 0.0, 0.30)], max_drawdown=0.50
     )
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert result.passed, [v.as_dict() for s in result.stages for v in s.violations]
     assert [s.status for s in result.stages] == [PASSED, PASSED, PASSED]
@@ -240,9 +240,9 @@ def test_leveraged_ticker_passes(world, make_owner):
 def test_drawdown_target_contradiction(world, make_owner):
     _, owner = make_owner()
     # 가장 덜 빠진 종목도 30% 빠졌다: 0.95 × 0.30 = 0.285 > 목표 0.10
-    spec_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("eq_b", 0.0, 0.30)], max_drawdown=0.10)
+    strategy_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("eq_b", 0.0, 0.30)], max_drawdown=0.10)
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert result.blocked_at == 3
     assert "DRAWDOWN_INFEASIBLE" in _codes(result, 3)
@@ -253,16 +253,16 @@ def test_drawdown_target_contradiction(world, make_owner):
 
 def test_validate_twice_same_result(world, make_owner):
     _, owner = make_owner()
-    spec_id = _save(
+    strategy_id = _save(
         world, owner, [("eq_a", 0.05, 0.40), ("eq_b", 0.0, 0.20), ("bond", 0.10, 0.25)], max_drawdown=0.35
     )
 
-    first = validate(spec_id, as_of=_as_of())
-    rows_first = _universe_rows(spec_id)
-    second = validate(spec_id, as_of=_as_of())
+    first = validate(strategy_id, as_of=_as_of())
+    rows_first = _universe_rows(strategy_id)
+    second = validate(strategy_id, as_of=_as_of())
 
     assert first == second
-    assert _universe_rows(spec_id) == rows_first
+    assert _universe_rows(strategy_id) == rows_first
     assert first.stages[2].adjusted_bounds["case"] == "B"
 
 
@@ -281,8 +281,8 @@ def test_layer_off_lets_violation_through(engine, world, make_owner):
     assert validate(contradiction, as_of=as_of, stages=Stages(logic=False)).passed
 
     # 끈 실행은 기록하지 않는다 — 실험 결과가 검증 이력이나 확정값에 섞이면 안 된다.
-    for spec_id in (delisted, contradiction):
-        assert _log_count(engine, spec_id) == 0
+    for strategy_id in (delisted, contradiction):
+        assert _log_count(engine, strategy_id) == 0
 
     # 같은 전략서를 다 켜고 돌리면 막힌다.
     assert validate(delisted, as_of=as_of).blocked_at == 2
@@ -301,14 +301,14 @@ def test_api_validate(engine, client, world, make_owner):
     email, owner = make_owner()
     _, other = make_owner()
     # 상한 합 0.60 < 투자 가능 0.95 — 범위 보정 case B 로 상한이 늘어난다
-    spec_id = _save(
+    strategy_id = _save(
         world, owner, [("eq_a", 0.0, 0.20), ("eq_b", 0.0, 0.20), ("bond", 0.0, 0.20)], max_drawdown=0.35
     )
     others = _save(world, other, [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)])
     approved = _save(world, owner, [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)])
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE strategy_specs SET status = 'approved' WHERE spec_id = :s"), {"s": approved}
+            text("UPDATE strategies SET status = 'approved' WHERE strategy_id = :s"), {"s": approved}
         )
 
     headers = _auth(client, email)
@@ -316,10 +316,10 @@ def test_api_validate(engine, client, world, make_owner):
     assert client.post(f"/specs/{approved}/validate", headers=headers).status_code == 409
     assert client.post("/specs/STR-없는전략서/validate", headers=headers).status_code == 404
 
-    res = client.post(f"/specs/{spec_id}/validate", headers=headers)
+    res = client.post(f"/specs/{strategy_id}/validate", headers=headers)
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["spec_id"] == spec_id
+    assert body["strategy_id"] == strategy_id
     assert body["passed"] is True
     assert body["blocked_at"] is None
     assert body["regeneration"] == {"required": False, "reasons": []}
@@ -330,4 +330,4 @@ def test_api_validate(engine, client, world, make_owner):
     assert eq_a["weight_max_raw"] == pytest.approx(0.20)
     assert eq_a["weight_max"] > 0.20
     assert eq_a["was_adjusted"] is True
-    assert _log_count(engine, spec_id) == 3
+    assert _log_count(engine, strategy_id) == 3

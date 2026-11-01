@@ -1,6 +1,6 @@
 """spec 라우터. POST /specs/compile (202 + job_id -> GET /jobs/{job_id}/stream),
-GET /specs (내 목록), GET /specs/{spec_id}, DELETE /specs/{spec_id} (draft 만),
-POST /specs/{spec_id}/validate (draft 만) 가 실제로 동작한다. POST /specs 는 501 이다.
+GET /specs (내 목록), GET /specs/{strategy_id}, DELETE /specs/{strategy_id} (draft 만),
+POST /specs/{strategy_id}/validate (draft 만) 가 실제로 동작한다. POST /specs 는 501 이다.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class CompileSpecAccepted(BaseModel):
 
 
 class SpecUniverseItem(BaseModel):
-    """SPEC_UNIVERSE 한 줄 + etf_master 의 종목명.
+    """STRATEGY_ASSETS 한 줄 + instruments 의 종목명.
 
     weight_min_raw · weight_max_raw 는 AI 가 낸 범위, weight_min · weight_max 는 검증기가
     고친 뒤의 확정 범위(검증 전에는 둘이 같다).
@@ -48,18 +48,18 @@ class SpecUniverseItem(BaseModel):
 
 
 class SpecResponse(BaseModel):
-    """STRATEGY_SPECS 확정 컬럼만 담는다 (docs/db-erd.md 4.1)."""
+    """STRATEGIES 확정 컬럼만 담는다 (docs/db-erd.md 4.1)."""
 
-    spec_id: str
+    strategy_id: str
     user_id: int
-    spec_version: str
+    strategy_version: str
     name: str
     status: str
     created_at: datetime
 
 
 class SpecListItem(BaseModel):
-    spec_id: str
+    strategy_id: str
     name: str
     status: str
     created_at: datetime
@@ -135,7 +135,7 @@ class ValidatedBound(BaseModel):
 
 
 class ValidationResponse(BaseModel):
-    spec_id: str
+    strategy_id: str
     as_of: date
     passed: bool
     blocked_at: int | None
@@ -147,7 +147,7 @@ class ValidationResponse(BaseModel):
     @classmethod
     def from_result(cls, r: ValidationResult) -> ValidationResponse:
         return cls(
-            spec_id=r.spec_id,
+            strategy_id=r.strategy_id,
             as_of=r.as_of,
             passed=r.passed,
             blocked_at=r.blocked_at,
@@ -192,7 +192,7 @@ def compile_spec_endpoint(
 
     끝나면 스트림에 결과가 실려 온다. 셋 중 하나다.
 
-    - `completed` — 전략서를 만들어 저장했다. `spec_id` 가 함께 온다
+    - `completed` — 전략서를 만들어 저장했다. `strategy_id` 가 함께 온다
     - `need_answer` — 정보가 모자라 되묻는다. `session_id` · `question` · `choices` 가 온다.
       답을 정해 **이 주소를 다시 부르되 `session_id` 와 `answer` 를 실어 보낸다**
       (`input_prompt` 는 비운다)
@@ -219,7 +219,7 @@ def compile_spec_endpoint(
 
 @router.get("", response_model=list[SpecListItem], summary="내 전략서 목록")
 def list_my_specs(user: AuthUser = Depends(require_user)) -> list[SpecListItem]:
-    """내가 만든 전략서를 최근 것부터 돌려준다. 내용은 `GET /specs/{spec_id}` 로 본다."""
+    """내가 만든 전략서를 최근 것부터 돌려준다. 내용은 `GET /specs/{strategy_id}` 로 본다."""
     return [SpecListItem(**row) for row in specs.list_specs(user.user_id)]
 
 
@@ -233,28 +233,28 @@ def create_spec(user: AuthUser = Depends(require_user)) -> SpecResponse:
     raise_not_implemented()
 
 
-@router.get("/{spec_id}", response_model=SpecDetailResponse, summary="전략서 보기")
-def get_spec(spec_id: str, user: AuthUser = Depends(require_user)) -> SpecDetailResponse:
+@router.get("/{strategy_id}", response_model=SpecDetailResponse, summary="전략서 보기")
+def get_spec(strategy_id: str, user: AuthUser = Depends(require_user)) -> SpecDetailResponse:
     """전략서 하나를 내용까지 본다. 담은 종목과 종목별 비중 범위(0~1)가 `universe` 에 온다.
 
     자기 전략서만 볼 수 있다. 없거나 남의 것이면 404.
     """
-    spec = specs.get_spec(spec_id)
+    spec = specs.get_spec(strategy_id)
     if spec is None or spec["user_id"] != user.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
-    items = [SpecUniverseItem(**row) for row in specs.get_spec_universe(spec_id)]
+    items = [SpecUniverseItem(**row) for row in specs.get_strategy_assets(strategy_id)]
     return SpecDetailResponse(**spec, universe=items)
 
 
-@router.delete("/{spec_id}", status_code=status.HTTP_204_NO_CONTENT, summary="전략서 지우기 (draft 만)")
-def delete_spec(spec_id: str, user: AuthUser = Depends(require_user)) -> None:
+@router.delete("/{strategy_id}", status_code=status.HTTP_204_NO_CONTENT, summary="전략서 지우기 (draft 만)")
+def delete_spec(strategy_id: str, user: AuthUser = Depends(require_user)) -> None:
     """아직 승인하지 않은(draft) 내 전략서를 지운다. 담은 종목과 검증 기록도 함께 지운다.
 
     - 없거나 남의 것이면 404
     - draft 가 아니면 409
     - 백테스트 기록이 붙어 있으면 409
     """
-    result = specs.delete_draft_spec(spec_id, user.user_id)
+    result = specs.delete_draft_spec(strategy_id, user.user_id)
     if result == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
     if result == "not_draft":
@@ -266,8 +266,8 @@ def delete_spec(spec_id: str, user: AuthUser = Depends(require_user)) -> None:
         )
 
 
-@router.post("/{spec_id}/validate", response_model=ValidationResponse, summary="전략서 검증 (draft 만)")
-def validate_spec(spec_id: str, user: AuthUser = Depends(require_user)) -> ValidationResponse:
+@router.post("/{strategy_id}/validate", response_model=ValidationResponse, summary="전략서 검증 (draft 만)")
+def validate_spec(strategy_id: str, user: AuthUser = Depends(require_user)) -> ValidationResponse:
     """전략서를 3단으로 검사한다 — 스키마, 참조, 논리(+범위 보정).
 
     - 한 단계에서 막히면 `blocked_at` 에 그 단계가 오고 뒤 단계는 `not_run` 이다
@@ -279,7 +279,7 @@ def validate_spec(spec_id: str, user: AuthUser = Depends(require_user)) -> Valid
 
     자기 전략서만 된다. 없거나 남의 것이면 404, draft 가 아니면 409.
     """
-    spec = specs.get_spec(spec_id)
+    spec = specs.get_spec(strategy_id)
     if spec is None or spec["user_id"] != user.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
     if spec["status"] != specs.DRAFT:
@@ -287,4 +287,4 @@ def validate_spec(spec_id: str, user: AuthUser = Depends(require_user)) -> Valid
     as_of = validator.period_end()
     if as_of is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="가격 데이터가 없어 검증할 수 없다")
-    return ValidationResponse.from_result(validator.validate(spec_id, as_of=as_of))
+    return ValidationResponse.from_result(validator.validate(strategy_id, as_of=as_of))

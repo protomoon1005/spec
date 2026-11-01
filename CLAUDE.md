@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 자동매매를 원하지만 코딩을 못 하는 한국인 일반 투자자가 한국어로 전략을 말하면, 전략 요소 사전에 있는 요소만 쓰는 전략서(JSON)로 바꾸고 백테스트 결과를 보여 준다
 - 지금은 주제 변경 기반 정리 중이다(2026-11-01 시작). 계획과 결정 사항은 `docs/pivot-plan.md`
-  - 저장소에 옛 주제(국내 ETF 모의운용, 투자 성향, 3개 신호원)의 코드가 아직 남아 있다. 기반 정리 1단계부터 3단계에서 지운다
+  - 옛 주제(국내 ETF 모의운용, 투자 성향, 3개 신호원)의 코드는 1단계에서 지웠다(2026-11-01)
+  - DB 테이블은 2단계에서 남는 11개만 새 이름으로 다시 만들었다(2026-11-02). 공용 데이터 적재와 가격 3년치 스냅샷은 3단계다
 
 ## 절대 규칙
 
@@ -35,22 +36,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 명령 — 전부 Docker 안에서 실행
 
 ```sh
-docker compose up -d --build                # 전 스택 기동                    # 로그
+scripts/build_db.sh                         # DB 새로 빌드 (볼륨 삭제, 기동, 스키마 생성 확인. -y 면 묻지 않음)
+docker compose up -d --build                # 전 스택 기동
+docker compose exec api ruff check .        # lint
+docker compose exec api ruff check /repo/scripts --config /app/pyproject.toml   # scripts/ lint (위 명령 범위 밖)
+docker compose exec api pytest -m "not requires_ollama and not requires_backfill and not requires_backtest" -q  # 테스트
+docker compose exec api pytest tests/test_m2_feasibility.py::test_same_input_twice_same_result -q        # 단일 테스트
+docker compose exec api python /repo/scripts/check_asof_guard.py                                          # as_of 가드
+docker compose exec frontend npx tsc --noEmit                                                             # 프론트 타입 검사
+docker compose logs -f                      # 로그
 ```
 
 - 저장소 루트가 `/repo` 로, `backend/` 가 `/app` 으로 마운트된다. 앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo` 에서 찾는다
 - DB
-  - 스키마는 `db/init/` 의 SQL 로 postgres 컨테이너 최초 기동 시 자동 생성된다
-  - 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후 `docker compose exec api python /repo/scripts/apply_migrations.py`. 멱등이고 `schema_migrations` 에 이력이 남는다. Alembic 은 쓰지 않는다
-  - 시드는 `docker compose exec api python /repo/scripts/seed_all.py`
-  - 기반 정리 2 · 3단계에서 빌드 명령 하나(볼륨 삭제, 스키마 생성, 공용 데이터 적재)로 바뀐다
+  - 스키마는 `db/init/` 이 빈 볼륨에서 postgres 컨테이너 최초 기동 시 만든다. 개발 DB `spec` 과 테스트 전용 DB `spec_test`(`db/init/03_test_db.sh`)가 같은 스키마로 생긴다
+  - `scripts/build_db.sh` 가 이 compose 프로젝트의 볼륨을 지우고 다시 띄운 뒤 두 DB 의 테이블 11개를 확인한다. 프로젝트 이름과 포트는 `.env` 를 따른다
+  - 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후 `docker compose exec api python /repo/scripts/apply_migrations.py`. 멱등이고 `schema_migrations` 에 이력이 남는다. 테스트 DB 에도 `DATABASE_URL` 을 바꿔 한 번 돌린다. Alembic 은 쓰지 않는다
+  - 시드는 `docker compose exec api python /repo/scripts/seed_all.py`. 분류표, 종목 원장, 전략 요소 사전을 넣는다. 03 은 두 번 넣을 수 없어 빈 DB 에 한 번만 돌린다
+  - 3단계에서 빌드 명령에 공용 데이터 적재(기준 시드, 종목 원장, 가격 스냅샷)가 붙는다
 - 가격
   - 3단계 전까지는 ETF 71종목 가격 파일 `data/prices.csv` 를 `scripts/ingest_prices.py` 로 `price_daily` 에 적재한다. `build_universe.py` 는 `data/universe.csv` 를 덮어쓰므로 돌리지 않는다
   - 3단계에서 국내 상장 개별주와 ETF 의 3년치 가격 스냅샷 파일로 바뀐다. 한 사람이 받아 공유하고, 각자 빌드 때 적재한다
 - 테스트
   - `tests/conftest.py` 가 `CELERY_TASK_ALWAYS_EAGER=true` 를 넣는다
-  - DB 픽스처를 쓰는 테스트는 seed 된 상태여야 한다. 지금은 개발 DB 를 같이 쓴다. 2단계에서 테스트 전용 DB 로 나눈다
-  - 마커: `requires_ollama` · `requires_ml` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외한다. `requires_ml` 과 `requires_backfill` 은 1단계에서 관련 테스트와 함께 없어진다
+  - 테스트는 테스트 전용 DB 만 쓴다. `tests/conftest.py` 가 `DATABASE_URL` 의 DB 이름을 `<이름>_test` 로 바꿔 강제로 넣는다(`TEST_DATABASE_URL` 로 따로 줄 수 있다). 개발 DB 는 테스트로 바뀌지 않는다
+  - 테스트 DB 에 기준 시드가 없으면 conftest 가 세션 시작 때 `seed_all.py` 로 한 번 넣는다. 가격은 넣지 않는다
+  - `requires_backfill` 테스트용 가격은 테스트 DB 에 따로 적재한다: `docker compose exec -e DATABASE_URL=postgresql+psycopg://spec:spec_dev_password@postgres:5432/spec_test api python /repo/scripts/ingest_prices.py`
+  - 마커: `requires_ollama` · `requires_backfill` · `requires_backtest`. 로컬 테스트 시 제외한다
   - `requires_backtest` 는 `docker compose exec -w /repo/backend api pytest -m requires_backtest -q` 로 따로 돌린다. `-w` 가 없으면 루트 `data/` 를 못 찾는다
 - 프론트
   - `frontend/` 에서 `npm run dev`. 검사는 `docker compose exec frontend npx tsc --noEmit`. `npm run lint` 는 ESLint 미설정이라 대화형으로 멈춘다
@@ -67,11 +79,11 @@ docker compose up -d --build                # 전 스택 기동                 
 - 보장할 성질: 시점 무결성(point-in-time, 룩어헤드 방지)과 재현성(같은 입력이면 같은 결과)
 - 남는 모듈
   - 명세화 파이프라인: `app/m1/`(의도 파악, 추가 질문, 후보 선정, 스키마 좁히기, 후처리)
-  - 전략 요소 사전: `db/seeds/05_bbl.sql`, `app/repositories/bbl.py`
+  - 전략 요소 사전: `db/seeds/05_bbl.sql`, `app/repositories/bbl.py`(테이블 `strategy_elements`, `strategy_element_tags`)
   - 전략서 계약: `app/contracts/spec.py`(Pydantic v2)
   - 검증기: `app/m2/validator.py`, `checks.py`, `stages.py`, `feasibility.py`
   - 백테스트: `app/backtest/`
-  - 지표 계산: `app/views/market/features.py`. stdlib 순수 함수이고 결측은 None. `views/` 가 지워지면서 1단계에서 자리를 옮긴다
+  - 지표 계산: `app/backtest/features.py`. stdlib 순수 함수이고 결측은 None
 - as_of 규약(`app/repositories/`)
   - `as_of` 는 키워드 필수, 기본값 금지. 가격 조회는 `as_of` 이하만 돌려준다
   - `scripts/check_asof_guard.py` 가 `app/` 전체 AST 에서 가드 테이블 이름 문자열을 잡는다. docstring 도 걸리므로 해당 파일은 설명을 `#` 주석으로 쓴다
@@ -79,5 +91,6 @@ docker compose up -d --build                # 전 스택 기동                 
   - DB 는 빌드할 때 처음부터 만든다. 공용 데이터(기준 시드, 종목 원장, 가격 3년치 스냅샷)는 그때 한 번에 적재한다
   - 개인 데이터(계정, 전략서, 검증 기록, 백테스트 결과)만 각자 DB 에 쌓인다
   - dev DB 서버는 두지 않는다
-- 스키마 정본은 `docs/db-erd.md`. 2단계에서 남는 테이블 기준으로 고친다
+- 스키마 정본은 `docs/db-erd.md`. 테이블 11개: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags
+  - 2단계에서 테이블 · 칸 이름을 바꿨다(`docs/pivot-plan.md` 3.2). 모듈 · 파일 이름(`repositories/etf_master.py`, `bbl.py`, `specs.py`, `scripts/load_etf_master.py`, `db/seeds/04_etf_master.csv`)은 그대로다
 - 알려진 설계 구멍은 `docs/known-issues.md` 에 기록한다

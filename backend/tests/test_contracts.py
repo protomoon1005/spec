@@ -30,8 +30,8 @@ AS_OF = date(2026, 9, 9)
 
 def _sample_spec() -> SpecV0_1:
     return SpecV0_1(
-        spec_id="spec-1",
-        spec_version="v0.1",
+        strategy_id="spec-1",
+        strategy_version="v0.1",
         user_id=1,
         name="테스트 전략",
         created_at=datetime(2026, 9, 9, 12, 0, 0),

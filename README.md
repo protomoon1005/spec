@@ -29,23 +29,21 @@ docker compose up -d --build
 ### 데이터 넣기
 
 ```sh
-docker compose exec api python /repo/scripts/apply_migrations.py   # 스키마 변경분 적용
-docker compose exec api python /repo/scripts/seed_all.py           # 기준표 + 종목 원장 + 전략 요소 사전
+docker compose exec api python /repo/scripts/seed_all.py           # 분류표 + 종목 원장 + 전략 요소 사전
 docker compose exec -w /repo api python scripts/ingest_prices.py   # ETF 가격(data/prices.csv)
 ```
 
-- `seed_all` 의 `01` 부터 `03` 은 한 번만 넣는다. 두 번 넣으면 중복으로 쌓인다
-- 기반 정리 2 · 3단계에서 위 세 줄이 빌드 명령 하나로 바뀌고, 가격은 국내 상장 개별주와 ETF 의 3년치 스냅샷으로 바뀐다
+- `seed_all` 은 빈 DB 에 한 번만 넣는다. 분류표(`03`)를 두 번 넣으면 기본키 충돌로 실패한다
+- 테스트는 테스트 전용 DB(`spec_test`)를 쓰고, 시드는 테스트가 처음 돌 때 알아서 넣는다
+- 기반 정리 3단계에서 위 두 줄이 빌드 명령에 붙고, 가격은 국내 상장 개별주와 ETF 의 3년치 스냅샷으로 바뀐다
 
 ### 표 구조가 바뀌었을 때
 
 - `db/migrate/` 에 새 파일이 들어왔다면 `apply_migrations.py` 만 돌리면 된다
-- `db/init/` 이 바뀌었다면 볼륨을 지우고 다시 띄운다. 계정과 전략서는 같이 사라진다(시험용이라 다시 만들면 된다)
+- `db/init/` 이 바뀌었다면 DB 를 새로 빌드한다. 계정과 전략서는 같이 사라진다(시험용이라 다시 만들면 된다)
 
 ```sh
-docker compose down
-docker volume rm spec_pgdata
-docker compose up -d
+scripts/build_db.sh      # 볼륨 삭제, 기동, 스키마 생성 확인
 ```
 
 - 그 뒤 위 "데이터 넣기" 를 다시 한다
@@ -103,7 +101,7 @@ curl -N -H "Authorization: Bearer <토큰>" http://localhost:8000/jobs/<작업�
 ```
 
 - 결과는 셋 중 하나
-  - `completed` — 전략서를 만들어 저장했다. `spec_id` 가 함께 온다
+  - `completed` — 전략서를 만들어 저장했다. `strategy_id` 가 함께 온다
   - `need_answer` — 추가 질문 중. `session_id` · `question` · `choices` 가 온다. 같은 주소에 `{"session_id": "...", "answer": "채권으로"}` 를 보낸다
   - `failed` — 만들 수 없다. `reason` 에 이유가 담긴다
 - 한 번에 몇 분씩 걸린다. `.env` 의 `LLM_REQUEST_TIMEOUT_SECONDS` 가 300초로 맞춰져 있다

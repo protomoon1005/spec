@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import ScaffoldShell from "@/components/scaffold-shell";
 import { api, ApiError, isExpired, loadRememberedToken, loadSession, saveSession } from "@/lib/api";
 
-type MeResponse = { user_id: number; username: string; role: string };
+type MeResponse = { user_id: number; username: string };
 type TokenResponse = { access_token: string; refresh_token: string };
 
 export default function LoginPage() {

@@ -2,7 +2,7 @@
 
 // 전략 완료.
 //
-// 컴파일 결과로는 spec_id 와 종목 수, 담지 못한 종목(excluded)이 온다. 내용은 GET /specs/{spec_id} 로 따로 받는다.
+// 컴파일 결과로는 strategy_id 와 종목 수, 담지 못한 종목(excluded)이 온다. 내용은 GET /specs/{strategy_id} 로 따로 받는다.
 // 결과는 진행 화면이 completed 이벤트를 받아 탭 저장소에 통째로 둔 것을 읽는다(lib/api.ts saveCompileResult).
 
 import Link from "next/link";
@@ -16,7 +16,7 @@ import SpecContents from "@/components/spec-contents";
 import { loadCompileResult } from "@/lib/api";
 import { readExcluded, type ExcludedItem } from "@/lib/excluded";
 
-type Done = { spec_id: string; universe_size: number; excluded: ExcludedItem[] };
+type Done = { strategy_id: string; universe_size: number; excluded: ExcludedItem[] };
 
 export default function DonePage() {
   return (
@@ -55,7 +55,7 @@ function Result() {
         전략서를 만들었어요. 초안(draft)으로 저장됐어요. 다음은 백테스트입니다.
       </p>
       {/* 번호 · 종목 수는 SpecContents 가 보여 준다. */}
-      <SpecContents specId={done.spec_id} />
+      <SpecContents specId={done.strategy_id} />
 
       {done.excluded.length > 0 && (
         <>

@@ -1,6 +1,6 @@
 "use client";
 
-// 전략 삭제 — DELETE /specs/{spec_id}.
+// 전략 삭제 — DELETE /specs/{strategy_id}.
 //
 // 승인 전(draft) 전략서만 지울 수 있다. 승인한 전략서는 고칠 수도 지울 수도 없고,
 // 백테스트·승인 기록이 붙은 것도 서버가 409 로 거부한다 — 그 응답을 그대로 보여 준다.
@@ -45,8 +45,8 @@ function DeleteList() {
     setBusy(true);
     setMessage(null);
     try {
-      await api(`/specs/${encodeURIComponent(spec.spec_id)}`, { method: "DELETE" });
-      setMessage(`'${spec.name}' (${spec.spec_id}) 을 지웠습니다.`);
+      await api(`/specs/${encodeURIComponent(spec.strategy_id)}`, { method: "DELETE" });
+      setMessage(`'${spec.name}' (${spec.strategy_id}) 을 지웠습니다.`);
       reload();
     } catch (err) {
       setMessage(`삭제 실패: ${err instanceof Error ? err.message : String(err)}`);
@@ -96,7 +96,7 @@ function DeleteList() {
             </thead>
             <tbody>
               {list.map((s) => (
-                <tr key={s.spec_id} style={pending === s.spec_id ? { background: "#f2647a0d" } : undefined}>
+                <tr key={s.strategy_id} style={pending === s.strategy_id ? { background: "#f2647a0d" } : undefined}>
                   <td>{s.name}</td>
                   <td>
                     <StatusBadge status={s.status} />
@@ -105,12 +105,12 @@ function DeleteList() {
                     {formatDate(s.created_at)}
                   </td>
                   <td className="mono" style={{ color: "var(--c-muted)" }}>
-                    {s.spec_id}
+                    {s.strategy_id}
                   </td>
                   <td className="num" style={{ whiteSpace: "nowrap" }}>
                     {s.status !== "draft" ? (
                       <span className="flow-hint">승인 후라 지울 수 없음</span>
-                    ) : pending === s.spec_id ? (
+                    ) : pending === s.strategy_id ? (
                       <span className="flow-actions" style={{ justifyContent: "flex-end" }}>
                         <button className="ghost" onClick={() => setPending(null)} disabled={busy}>
                           취소
@@ -120,7 +120,7 @@ function DeleteList() {
                         </button>
                       </span>
                     ) : (
-                      <button onClick={() => setPending(s.spec_id)} disabled={busy}>
+                      <button onClick={() => setPending(s.strategy_id)} disabled={busy}>
                         삭제
                       </button>
                     )}

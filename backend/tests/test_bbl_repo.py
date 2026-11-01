@@ -22,20 +22,15 @@ MAX_TAGS_PER_BLOCK = 4
 # --- 시드 -------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("block_type", "expected"), sorted(EXPECTED_COUNTS.items()))
-def test_seed_counts(engine, block_type, expected):
-    assert len(bbl.list_blocks(block_type)) == expected
-
-
-def test_lens_blocks_are_intentionally_empty(engine):
-    """감성 렌즈는 목록 정의 자체가 아직 없다. M3 조율 전까지 비워 둔다."""
-    assert bbl.list_blocks("lens") == []
+@pytest.mark.parametrize(("element_type", "expected"), sorted(EXPECTED_COUNTS.items()))
+def test_seed_counts(engine, element_type, expected):
+    assert len(bbl.list_blocks(element_type)) == expected
 
 
 def test_every_block_has_params_schema(engine):
     """params_schema 가 '이 블록을 고르면 무엇이 되는가' 를 담는다. 비면 쓸 수 없다."""
     for block in bbl.list_blocks():
-        assert block.params_schema, block.block_id
+        assert block.params_schema, block.element_id
 
 
 # --- 다른 모듈과의 대조 -----------------------------------------------------
@@ -48,12 +43,12 @@ def test_price_indicator_blocks_match_feature_set(engine):
     예전 예시 파일에 있던 momentum_20d · volume_ratio_20d 가 그런 경우였다.
     """
     features = set(FEATURE_SETS[CURRENT_FEATURE_SET_VERSION])
-    block_ids = {block.block_id for block in bbl.list_blocks("indicator")}
+    element_ids = {block.element_id for block in bbl.list_blocks("indicator")}
 
-    assert features <= block_ids
+    assert features <= element_ids
     # 피처가 아닌 지표 블록은 시장 국면용 지수 둘뿐이다. 전략서 계약의 signal_rules 를 정리할 때
     # (기반 이후, docs/pivot-plan.md 8장) 같이 지운다.
-    assert block_ids - features == MARKET_TEMPERATURE_BLOCKS
+    assert element_ids - features == MARKET_TEMPERATURE_BLOCKS
 
 
 def test_market_temperature_blocks_point_at_the_right_slot(engine):
@@ -77,7 +72,7 @@ def test_filter_blocks_reference_real_columns(engine):
     usable = {"ticker", "name", "sector", "group_id", "risk_tag", "is_leveraged", "active"}
 
     for block in bbl.list_blocks("filter"):
-        assert block.params_schema["column"] in usable, block.block_id
+        assert block.params_schema["column"] in usable, block.element_id
 
 
 # --- 태그 규약 --------------------------------------------------------------
@@ -86,7 +81,7 @@ def test_filter_blocks_reference_real_columns(engine):
 def test_every_tag_uses_an_allowed_prefix(engine):
     for block in bbl.list_blocks():
         for tag in block.tags:
-            assert tag.startswith(bbl.TAG_PREFIXES), f"{block.block_id}: {tag}"
+            assert tag.startswith(bbl.TAG_PREFIXES), f"{block.element_id}: {tag}"
 
 
 def test_group_tags_match_real_asset_groups(engine):
@@ -122,14 +117,14 @@ def test_risk_tags_use_three_levels(engine):
 def test_no_block_is_overtagged(engine):
     """태그를 다 달면 검색이 전부 걸려 쓸모가 없어진다."""
     for block in bbl.list_blocks():
-        assert len(block.tags) <= MAX_TAGS_PER_BLOCK, f"{block.block_id}: {block.tags}"
+        assert len(block.tags) <= MAX_TAGS_PER_BLOCK, f"{block.element_id}: {block.tags}"
 
 
 # --- 검색 -------------------------------------------------------------------
 
 
 def test_search_matches_by_tag(engine):
-    found = {block.block_id for block in bbl.search_blocks(["kw:배당"])}
+    found = {block.element_id for block in bbl.search_blocks(["kw:배당"])}
 
     assert "ET_DIVIDEND" in found
     assert "ET_COVERED_CALL" in found
@@ -148,21 +143,21 @@ def test_search_is_deterministic(engine):
     """같은 질의에 순서가 흔들리면 같은 입력에 다른 전략서가 나온다."""
     tags = ["kw:안전하게", "kw:채권", "risk:low"]
 
-    first = [block.block_id for block in bbl.search_blocks(tags)]
-    second = [block.block_id for block in bbl.search_blocks(tags)]
+    first = [block.element_id for block in bbl.search_blocks(tags)]
+    second = [block.element_id for block in bbl.search_blocks(tags)]
 
     assert first == second
     # 동점일 때 식별자 순으로 묶여 있어야 한다.
     for score in {block.matched_tags for block in bbl.search_blocks(tags)}:
-        tied = [b.block_id for b in bbl.search_blocks(tags) if b.matched_tags == score]
+        tied = [b.element_id for b in bbl.search_blocks(tags) if b.matched_tags == score]
         assert tied == sorted(tied)
 
 
 def test_search_can_narrow_by_type(engine):
-    results = bbl.search_blocks(["risk:low"], block_type="rebalance")
+    results = bbl.search_blocks(["risk:low"], element_type="rebalance")
 
     assert results
-    assert {block.block_type for block in results} == {"rebalance"}
+    assert {block.element_type for block in results} == {"rebalance"}
 
 
 def test_search_without_tags_returns_nothing(engine):

@@ -101,13 +101,13 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
 
     blocks = bbl.search_blocks(list(resolved.tag_queries), limit=MAX_BLOCKS_IN_PROMPT)
     schema = schema_builder.build_compile_schema(
-        candidate_set, rebalance_block_ids=resolved.rebalance_block_ids
+        candidate_set, rebalance_element_ids=resolved.rebalance_element_ids
     )
     text = prompt.build_compile_prompt(
         user_text=user_text,
         candidate_set=candidate_set,
         blocks=blocks,
-        rebalance_blocks=schema_builder.rebalance_blocks(resolved.rebalance_block_ids),
+        rebalance_blocks=schema_builder.rebalance_blocks(resolved.rebalance_element_ids),
         loss_limit=loss_limit.applied if loss_limit else None,
     )
 
@@ -115,7 +115,7 @@ def _run(state: session.CompileSession, llm_client) -> NeedAnswer | Completed:
     # 숫자로 말한 손실 한도는 LLM 출력보다 우선한다.
     raw = constraints.apply_loss_limit(raw, loss_limit)
     compiled = postprocess.parse(
-        raw, candidate_set, spec_id=specs.new_spec_id(), user_id=state.user_id
+        raw, candidate_set, strategy_id=specs.new_strategy_id(), user_id=state.user_id
     )
     saved = postprocess.save(
         compiled,

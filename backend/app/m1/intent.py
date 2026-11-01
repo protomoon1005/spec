@@ -52,7 +52,7 @@ class ResolvedIntent:
     # 사용자 말(kw:)에 걸린 ETF 특성 블록의 (이름, 종목명 정규식). 후보를 고를 때 이 종목을 앞에 둔다
     traits: tuple[tuple[str, str], ...] = field(default=())
     # 사용자 말(kw:)에 걸린 리밸런싱 블록. 비어 있으면 전략서 작성이 블록 전부에서 고른다
-    rebalance_block_ids: tuple[str, ...] = field(default=())
+    rebalance_element_ids: tuple[str, ...] = field(default=())
 
 
 def build_intent_schema() -> dict[str, Any]:
@@ -157,7 +157,7 @@ def resolve(intent: Intent) -> ResolvedIntent:
         requested_tickers=tuple(tickers),
         unresolved_names=tuple(unresolved),
         traits=_traits(intent.keywords),
-        rebalance_block_ids=_rebalance_blocks(intent.keywords),
+        rebalance_element_ids=_rebalance_blocks(intent.keywords),
     )
 
 
@@ -181,7 +181,7 @@ def _rebalance_blocks(keywords: tuple[str, ...]) -> tuple[str, ...]:
     # "매달 초에 맞춰줘" 에 블록 6개를 다 주면 비중 이탈 블록을 고르기도 했다(2026-10-21).
     # 사용자 말이 블록 태그(kw:매달 · kw:주간 …)에 걸리면 그 블록들로만 좁힌다.
     said = {f"kw:{value}" for value in keywords}
-    return tuple(block.block_id for block in bbl.list_blocks("rebalance") if said & set(block.tags))
+    return tuple(block.element_id for block in bbl.list_blocks("rebalance") if said & set(block.tags))
 
 
 def _traits(keywords: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
@@ -191,7 +191,7 @@ def _traits(keywords: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
     # asset:bond 같은 태그까지 쓰면 채권 요청마다 국채 블록이 걸린다.
     said = {f"kw:{value}" for value in keywords}
     return tuple(
-        (block.title or block.block_id, block.params_schema["name_pattern"])
+        (block.title or block.element_id, block.params_schema["name_pattern"])
         for block in bbl.list_blocks("etf_trait")
         if said & set(block.tags) and (block.params_schema or {}).get("name_pattern")
     )

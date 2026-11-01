@@ -26,8 +26,8 @@ _COVERED = PriceCoverage(
 def _context(universe: list[tuple[str, float, float]], *, cash_min: float) -> SpecContext:
     """universe: (종목, weight_min_raw, weight_max_raw). 시스템 상한이 없어 종목 상한은 1 이다."""
     payload = {
-        "spec_id": "STR-random",
-        "spec_version": "0.1",
+        "strategy_id": "STR-random",
+        "strategy_version": "0.1",
         "user_id": 1,
         "name": "무작위 전략",
         "created_at": "2026-10-04T09:00:00+09:00",

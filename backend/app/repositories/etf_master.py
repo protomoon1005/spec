@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from app.core.db import get_engine
 
-# 분류는 세 축을 따로 읽는다 (db/migrate/001_etf_master_group_axes.sql).
+# 분류는 세 축을 따로 읽는다 (instruments 의 asset_group_id · sector_group_id · country_group_id).
 # 옛 컬럼 두 개는 일부러 안 읽는다 — `sector` 는 한글 라벨(`반도체`)이고
 # `group_id` 는 자산군만 담던 자리라, 둘을 섞어 쓰면 어느 쪽을 보는지 헷갈린다.
 _COLUMNS = """
@@ -52,7 +52,7 @@ def get_by_tickers(tickers: list[str]) -> dict[str, EtfRecord]:
         return {}
     with get_engine().connect() as conn:
         rows = conn.execute(
-            text(f"SELECT {_COLUMNS} FROM etf_master WHERE ticker = ANY(:tickers) ORDER BY ticker"),
+            text(f"SELECT {_COLUMNS} FROM instruments WHERE ticker = ANY(:tickers) ORDER BY ticker"),
             {"tickers": list(tickers)},
         ).all()
     return {row.ticker: _as_record(row) for row in rows}
@@ -67,7 +67,7 @@ def list_all(*, include_leveraged: bool) -> list[EtfRecord]:
     """
     clause = "" if include_leveraged else " WHERE is_leveraged = false"
     with get_engine().connect() as conn:
-        rows = conn.execute(text(f"SELECT {_COLUMNS} FROM etf_master{clause} ORDER BY ticker")).all()
+        rows = conn.execute(text(f"SELECT {_COLUMNS} FROM instruments{clause} ORDER BY ticker")).all()
     return [_as_record(row) for row in rows]
 
 
@@ -87,7 +87,7 @@ def find_by_name(fragment: str, *, limit: int = 10) -> list[EtfRecord]:
         rows = conn.execute(
             text(
                 f"""
-                SELECT {_COLUMNS} FROM etf_master
+                SELECT {_COLUMNS} FROM instruments
                  WHERE REPLACE(name, ' ', '') ILIKE :pattern
                  ORDER BY ticker
                  LIMIT :limit
@@ -140,7 +140,7 @@ def search(
     with get_engine().connect() as conn:
         rows = conn.execute(
             text(
-                f"SELECT {_COLUMNS} FROM etf_master"
+                f"SELECT {_COLUMNS} FROM instruments"
                 f" WHERE {' AND '.join(clauses)}"
                 " ORDER BY ticker LIMIT :limit"
             ),

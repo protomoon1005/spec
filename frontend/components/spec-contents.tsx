@@ -1,6 +1,6 @@
 "use client";
 
-// 전략서 하나의 내용 — GET /specs/{spec_id}. 전략 완료 화면과 전략 관리 상세 화면이 같이 쓴다.
+// 전략서 하나의 내용 — GET /specs/{strategy_id}. 전략 완료 화면과 전략 관리 상세 화면이 같이 쓴다.
 //
 // 규칙 칸을 JSON 그대로 늘어놓지 않고 사람이 읽는 말로 바꾼다.
 //   리밸런싱  {"type":"calendar","freq":"weekly"} → "매주 (최소 7일 간격)"
@@ -21,7 +21,7 @@ import { api } from "@/lib/api";
 type Rules = Record<string, unknown> | null;
 
 type SpecDetail = {
-  spec_id: string;
+  strategy_id: string;
   name: string;
   status: string;
   input_prompt: string | null;
@@ -69,7 +69,7 @@ export default function SpecContents({ specId }: { specId: string }) {
     <>
       <dl className="flow-kv">
         <dt>번호</dt>
-        <dd className="mono">{spec.spec_id}</dd>
+        <dd className="mono">{spec.strategy_id}</dd>
         <dt>이름</dt>
         <dd className="prose">{spec.name}</dd>
         <dt>상태</dt>
