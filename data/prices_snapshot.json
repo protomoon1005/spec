@@ -1,7 +1,7 @@
 {
   "version": "2026-11-02",
   "file": "prices-2026-11-02.parquet",
-  "url": "",
+  "url": "https://github.com/tukorea-capston-project/spec/releases/download/prices-2026-11-02/prices-2026-11-02.parquet",
   "file_sha256": "cf945c6f1467e11646c4368a9bf27f31c079466979e821fba6e96cb4c2e9b392",
   "content_sha256": "2962fbd9aed5d334c39b367b7374e5ba319c943fe7061f040fb19ff4a509f07a",
   "bytes": 45393400,
