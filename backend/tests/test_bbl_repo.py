@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import pytest
 
+from app.backtest.features import CURRENT_FEATURE_SET_VERSION, FEATURE_SETS
 from app.contracts.spec import RebalanceRule
-from app.macro import codes as macro_codes
 from app.repositories import bbl
-from app.views.market.features import CURRENT_FEATURE_SET_VERSION, FEATURE_SETS
 
-EXPECTED_COUNTS = {"indicator": 11, "rebalance": 6, "filter": 7, "etf_trait": 8}
+MARKET_TEMPERATURE_BLOCKS = {"KOSPI200", "VIX_CLOSE"}
+EXPECTED_COUNTS = {"indicator": 11, "rebalance": 5, "filter": 7, "etf_trait": 8}
 MAX_TAGS_PER_BLOCK = 4
 
 
@@ -42,39 +42,23 @@ def test_every_block_has_params_schema(engine):
 
 
 def test_price_indicator_blocks_match_feature_set(engine):
-    """가격 지표 블록의 식별자 = 판단 계층이 쓰는 피처 이름.
+    """가격 지표 블록의 식별자 = 지표 계산(app/backtest/features.py)의 피처 이름.
 
-    한 글자라도 다르면 전략서에 적힌 지표를 판단 계층이 찾지 못한다.
+    한 글자라도 다르면 전략서에 적힌 지표를 계산 쪽이 찾지 못한다.
     예전 예시 파일에 있던 momentum_20d · volume_ratio_20d 가 그런 경우였다.
     """
     features = set(FEATURE_SETS[CURRENT_FEATURE_SET_VERSION])
     block_ids = {block.block_id for block in bbl.list_blocks("indicator")}
 
     assert features <= block_ids
-    # 피처가 아닌 지표 블록은 거시지표뿐이어야 한다.
-    assert block_ids - features == set(macro_codes.TREND_INDEX_CODES) | set(
-        macro_codes.VOLATILITY_INDEX_CODES
-    )
+    # 피처가 아닌 지표 블록은 시장 국면용 지수 둘뿐이다. 전략서 계약의 signal_rules 를 정리할 때
+    # (기반 이후, docs/pivot-plan.md 8장) 같이 지운다.
+    assert block_ids - features == MARKET_TEMPERATURE_BLOCKS
 
 
-def test_macro_indicator_blocks_point_at_the_right_slot(engine):
-    """거시지표는 전략서에 자리가 둘뿐이다 — 추세 지수와 변동성 지수.
-
-    수집 중인 네 개 중 나머지 둘(환율·신용 스프레드)은 국면 판정이 내부에서 쓰는
-    입력이고 전략서에 자리가 없다. 넣으면 잘못된 자리에 박힐 수 있다.
-    """
-    for code in macro_codes.TREND_INDEX_CODES:
-        block = bbl.get_block(code)
-        assert block is not None, code
-        assert block.params_schema["slot"].endswith("trend_index")
-
-    for code in macro_codes.VOLATILITY_INDEX_CODES:
-        block = bbl.get_block(code)
-        assert block is not None, code
-        assert block.params_schema["slot"].endswith("volatility_index")
-
-    for code in (macro_codes.FX_CODE, macro_codes.CREDIT_SPREAD_CODE):
-        assert bbl.get_block(code) is None, code
+def test_market_temperature_blocks_point_at_the_right_slot(engine):
+    assert bbl.get_block("KOSPI200").params_schema["slot"].endswith("trend_index")
+    assert bbl.get_block("VIX_CLOSE").params_schema["slot"].endswith("volatility_index")
 
 
 def test_rebalance_blocks_fit_the_spec_contract(engine):
@@ -83,16 +67,6 @@ def test_rebalance_blocks_fit_the_spec_contract(engine):
         rule = RebalanceRule(**block.params_schema)
         assert rule.trigger.type
         assert rule.trigger.freq
-
-
-def test_rebalance_blocks_respect_the_hardcap_interval(engine):
-    """하드캡의 최소 간격(5일)보다 짧은 주기는 넣지 않는다 — 넣어도 나중에 접힌다."""
-    from app.repositories import presets
-
-    floor = presets.get_active_hardcap()["min_interval_days"]
-
-    for block in bbl.list_blocks("rebalance"):
-        assert block.params_schema["min_interval_days"] >= floor, block.block_id
 
 
 def test_filter_blocks_reference_real_columns(engine):

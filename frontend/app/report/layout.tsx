@@ -5,7 +5,7 @@ import "./report.css";
 
 export const metadata = {
   title: "백테스트 결과 리포트",
-  description: "전략 Spec 기반 ETF 자동운용 백테스트 리포트 (M4)",
+  description: "전략서 백테스트 리포트",
 };
 
 export default function ReportLayout({ children }: { children: React.ReactNode }) {

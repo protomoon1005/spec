@@ -9,20 +9,13 @@ import { usePathname } from "next/navigation";
 
 const STEPS = [
   { href: "/login", label: "로그인", match: ["/login", "/signup"] },
-  { href: "/survey", label: "투자 성향", match: ["/survey", "/profile", "/bounds"] },
   { href: "/compile", label: "전략서 만들기", match: ["/compile"] },
-  { href: "/hardcap", label: "하드캡", match: ["/hardcap"] },
-  { href: "/backtest", label: "백테스트", match: ["/backtest"] },
-  { href: "/confirm", label: "최종 확인", match: ["/confirm"] },
-  { href: "/views", label: "관점 브리핑", match: ["/views"] },
+  { href: "/backtest", label: "백테스트", match: ["/backtest", "/report"] },
 ];
 
 const LINKS = [
   { href: "/home", label: "홈" },
   { href: "/specs", label: "전략 관리" },
-  { href: "/report", label: "리포트" },
-  { href: "/samples", label: "샘플 결과" },
-  { href: "/repro", label: "재현성" },
 ];
 
 const hit = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
@@ -38,7 +31,7 @@ export default function FlowNav({ wide = false }: { wide?: boolean }) {
           <Link href="/" className="flow-brand">
             <span className="flow-dot" aria-hidden />
             spec
-            <small>국내 ETF 모의운용</small>
+            <small>한국어 전략 명세화 · 백테스트</small>
           </Link>
           <nav className="flow-links" aria-label="바로가기">
             {LINKS.map((l) => (

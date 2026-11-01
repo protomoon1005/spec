@@ -1,16 +1,11 @@
-"""LLMClient 추상화 (docs/infra-spec.md 2·8단계).
+"""LLMClient 인터페이스와 구현체 선택.
 
-api/worker는 LLM_BACKEND 값만 보고 구현체를 고른다 — 자연어 -> Spec 컴파일
-본체(M1, 이번 범위 밖)를 포함해 어느 쪽이든 이 Protocol 하나만 본다. vLLM은
-guided_json(outlines 백엔드)으로, Ollama는 format 필드에 JSON Schema를 그대로
-줘서 구조화 출력을 강제한다 — 제약 디코딩 강도가 서로 다르다는 점은 각 구현체
-모듈 docstring에 적어 뒀다.
+구현체는 Ollama 하나다(docs/pivot-plan.md 결정 5). 테스트는 이 Protocol 모양의 가짜 클라이언트를
+끼운다. Ollama 는 format 필드에 JSON Schema 를 그대로 줘서 구조화 출력을 강제한다.
 """
 from __future__ import annotations
 
 from typing import Protocol
-
-from app.core.config import get_settings
 
 
 class LLMClient(Protocol):
@@ -24,13 +19,6 @@ class LLMClient(Protocol):
 
 
 def get_llm_client() -> LLMClient:
-    settings = get_settings()
-    if settings.llm_backend == "ollama":
-        from app.llm.ollama_client import OllamaClient
+    from app.llm.ollama_client import OllamaClient
 
-        return OllamaClient()
-    if settings.llm_backend == "vllm":
-        from app.llm.vllm_client import VLLMClient
-
-        return VLLMClient()
-    raise ValueError(f"알 수 없는 LLM_BACKEND: {settings.llm_backend!r} (vllm|ollama만 허용)")
+    return OllamaClient()

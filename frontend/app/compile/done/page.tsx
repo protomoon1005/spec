@@ -1,6 +1,6 @@
 "use client";
 
-// 전략 완료 — docs/frontend_milestone.md 4단계, 확정 결정 2번.
+// 전략 완료.
 //
 // 컴파일 결과로는 spec_id 와 종목 수, 담지 못한 종목(excluded)이 온다. 내용은 GET /specs/{spec_id} 로 따로 받는다.
 // 결과는 진행 화면이 completed 이벤트를 받아 탭 저장소에 통째로 둔 것을 읽는다(lib/api.ts saveCompileResult).
@@ -52,7 +52,7 @@ function Result() {
   return (
     <>
       <p className="flow-msg ok" style={{ marginTop: 0, marginBottom: 16 }}>
-        전략서를 만들었어요. 초안으로 저장됐고, 하드캡 확인과 백테스트를 거쳐 승인합니다.
+        전략서를 만들었어요. 초안(draft)으로 저장됐어요. 다음은 백테스트입니다.
       </p>
       {/* 번호 · 종목 수는 SpecContents 가 보여 준다. */}
       <SpecContents specId={done.spec_id} />
@@ -67,8 +67,8 @@ function Result() {
       )}
 
       <div className="flow-next">
-        <button className="primary" onClick={() => router.push("/hardcap")}>
-          다음 — 하드캡 확인
+        <button className="primary" onClick={() => router.push("/backtest")}>
+          다음 — 백테스트
         </button>
       </div>
     </>

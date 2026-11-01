@@ -32,7 +32,7 @@ from app.core.db import get_engine
 
 BLOCK_TYPES = ("indicator", "filter", "rebalance", "lens", "etf_trait")
 
-# 태그 접두어. 늘리지 않는다 — docs/m1_milestone.md 3단계 참고.
+# 태그 접두어. 늘리지 않는다 — docs/archive/m1_milestone.md 3단계 참고.
 TAG_PREFIXES = ("kw:", "asset:", "sector:", "country:", "risk:")
 
 
