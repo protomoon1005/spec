@@ -2,7 +2,7 @@
 
 // 백테스트.
 //
-// 이번 탭에서 완료한 전략서(spec_id)가 있으면 그 전략서로 백테스트를 돌린다.
+// 이번 탭에서 완료한 전략서(strategy_id)가 있으면 그 전략서로 백테스트를 돌린다.
 // POST /backtest/runs 로 접수하고 3초마다 GET 으로 상태를 받아 한 줄씩 쌓는다.
 // 전략서가 없으면 전략 요청 화면으로 안내한다.
 //
@@ -34,7 +34,7 @@ export default function BacktestPage() {
 
   useEffect(() => {
     const r = loadCompileResult();
-    setSpecId(r?.status === "completed" ? r.spec_id : null);
+    setSpecId(r?.status === "completed" ? r.strategy_id : null);
   }, []);
 
   return (
@@ -118,9 +118,9 @@ function LiveRun({ specId }: { specId: string }) {
       }
       try {
         const r = await api<BacktestRun>("/backtest/runs", {
-          body: { spec_id: specId, period_end: REQUEST_PERIOD_END },
+          body: { strategy_id: specId, period_end: REQUEST_PERIOD_END },
         });
-        saveBacktestRun({ spec_id: specId, run_id: r.run_id });
+        saveBacktestRun({ strategy_id: specId, run_id: r.run_id });
         add(`접수됨: 실행 번호 ${r.run_id}, 상태 ${r.status}`);
         await poll(r.run_id);
       } catch (err) {

@@ -185,13 +185,13 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
 
 // --- 4) 화면 사이에 넘기는 전략 만들기 결과 --------------------------------
 //
-// 진행 상황 화면이 받은 결과(되묻기 질문, 완료된 spec_id)를 다음 화면이 읽는다.
+// 진행 상황 화면이 받은 결과(되묻기 질문, 완료된 strategy_id)를 다음 화면이 읽는다.
 // 질문 문장과 선택지는 주소에 싣기엔 길어서 탭 저장소(sessionStorage)에 둔다.
 // 탭을 닫으면 사라지는 게 맞다 — 되묻기 대화도 서버에서 30분이면 만료된다.
 
 export type CompileResult =
   // excluded: 요청했지만 담지 못한 종목 · 자산군과 사유(lib/excluded.ts). 옛 결과에는 없다
-  | { status: "completed"; spec_id: string; universe_size: number; excluded?: unknown }
+  | { status: "completed"; strategy_id: string; universe_size: number; excluded?: unknown }
   | { status: "need_answer"; session_id: string; question: string; choices: string[] }
   | { status: "failed"; reason: string };
 
@@ -235,7 +235,7 @@ export function loadCompileRequest(): string | null {
 // 함께 둔다 — 탭에서 새 전략서를 만들면 옛 실행 결과를 그 전략서 것으로 보이면 안 된다.
 // 새로고침해도 같은 전략서면 새로 돌리지 않고 이 번호를 다시 조회한다.
 
-export type SavedBacktest = { spec_id: string; run_id: number };
+export type SavedBacktest = { strategy_id: string; run_id: number };
 
 const BACKTEST_KEY = "spec.backtest";
 
@@ -247,7 +247,7 @@ export function loadBacktestRun(specId: string): SavedBacktest | null {
   try {
     const raw = window.sessionStorage.getItem(BACKTEST_KEY);
     const saved = raw ? (JSON.parse(raw) as SavedBacktest) : null;
-    return saved?.spec_id === specId ? saved : null;
+    return saved?.strategy_id === specId ? saved : null;
   } catch {
     return null;
   }
@@ -270,7 +270,7 @@ export type RunUniverseItem = {
 
 export type BacktestRun = {
   run_id: number;
-  spec_id: string;
+  strategy_id: string;
   period_start: string | null;
   period_end: string | null;
   status: "queued" | "running" | "done" | "failed" | null;
