@@ -1,0 +1,354 @@
+{
+  "$defs": {
+    "AllOf": {
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Compare"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "All",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "title": "AllOf",
+      "type": "object"
+    },
+    "AnyOf": {
+      "additionalProperties": false,
+      "properties": {
+        "any": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Compare"
+              },
+              {
+                "$ref": "#/$defs/AllOf"
+              },
+              {
+                "$ref": "#/$defs/AnyOf"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Any",
+          "type": "array"
+        }
+      },
+      "required": [
+        "any"
+      ],
+      "title": "AnyOf",
+      "type": "object"
+    },
+    "Asset": {
+      "additionalProperties": false,
+      "properties": {
+        "ticker": {
+          "minLength": 1,
+          "title": "Ticker",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "ticker",
+        "name"
+      ],
+      "title": "Asset",
+      "type": "object"
+    },
+    "BacktestConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "default": "2023-01-01",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "default": "2025-12-31",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "End",
+          "type": "string"
+        },
+        "initial_cash": {
+          "default": 10000000,
+          "exclusiveMinimum": 0,
+          "title": "Initial Cash",
+          "type": "number"
+        },
+        "commission_rate": {
+          "default": 0.00015,
+          "exclusiveMaximum": 0.1,
+          "minimum": 0,
+          "title": "Commission Rate",
+          "type": "number"
+        },
+        "slippage_rate": {
+          "default": 0.0005,
+          "exclusiveMaximum": 0.1,
+          "minimum": 0,
+          "title": "Slippage Rate",
+          "type": "number"
+        }
+      },
+      "title": "BacktestConfig",
+      "type": "object"
+    },
+    "Compare": {
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "$ref": "#/$defs/Operand"
+        },
+        "op": {
+          "enum": [
+            "<=",
+            "<",
+            ">=",
+            ">",
+            "cross_above",
+            "cross_below"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "right": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Operand"
+            },
+            {
+              "$ref": "#/$defs/Value"
+            }
+          ],
+          "title": "Right"
+        }
+      },
+      "required": [
+        "left",
+        "op",
+        "right"
+      ],
+      "title": "Compare",
+      "type": "object"
+    },
+    "Operand": {
+      "additionalProperties": false,
+      "properties": {
+        "indicator": {
+          "enum": [
+            "close",
+            "ma",
+            "rsi",
+            "ret",
+            "vol",
+            "volume_ratio",
+            "vix",
+            "entry_return",
+            "holding_days"
+          ],
+          "title": "Indicator",
+          "type": "string"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        },
+        "of": {
+          "default": "self",
+          "minLength": 1,
+          "title": "Of",
+          "type": "string"
+        }
+      },
+      "required": [
+        "indicator"
+      ],
+      "title": "Operand",
+      "type": "object"
+    },
+    "Rules": {
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "const": "each",
+          "default": "each",
+          "title": "Target",
+          "type": "string"
+        },
+        "entry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Compare"
+            },
+            {
+              "$ref": "#/$defs/AllOf"
+            },
+            {
+              "$ref": "#/$defs/AnyOf"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entry"
+        },
+        "exit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Compare"
+            },
+            {
+              "$ref": "#/$defs/AllOf"
+            },
+            {
+              "$ref": "#/$defs/AnyOf"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit"
+        }
+      },
+      "title": "Rules",
+      "type": "object"
+    },
+    "Value": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "Value",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "0.2",
+      "default": "0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "assets": {
+      "items": {
+        "$ref": "#/$defs/Asset"
+      },
+      "minItems": 1,
+      "title": "Assets",
+      "type": "array"
+    },
+    "max_weight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Weight"
+    },
+    "rebalance": {
+      "anyOf": [
+        {
+          "enum": [
+            "monthly_first",
+            "monthly_mid",
+            "quarterly",
+            "weekly",
+            "drift_5pp"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rebalance"
+    },
+    "rules": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Rules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "backtest": {
+      "$ref": "#/$defs/BacktestConfig"
+    },
+    "defaults_applied": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Defaults Applied",
+      "type": "array"
+    }
+  },
+  "required": [
+    "assets"
+  ],
+  "title": "Strategy",
+  "type": "object",
+  "$comment": "generated by `python -m core.schema` — 직접 수정 금지. 지표·연산자·리밸런싱 주기는 전략 요소 사전(core/dictionary.py) 값만 허용."
+}

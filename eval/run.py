@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.specify import MODEL, OllamaUnavailable, _ollama_chat, ollama_status, specify  # noqa: E402
+from legacy.specify import MODEL, OllamaUnavailable, _ollama_chat, ollama_status, specify  # noqa: E402
 
 SENTENCES = ROOT / "eval" / "dev_sentences.jsonl"
 OUT = ROOT / "eval" / "out" / "verdict_run.jsonl"

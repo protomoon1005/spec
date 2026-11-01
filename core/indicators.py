@@ -1,23 +1,25 @@
-"""B3 지표 계산. 모든 지표는 T일 종가(및 그 이전)까지의 데이터만 사용한다.
+"""v0.2 지표 계산. 모든 지표는 t일 종가(및 그 이전)까지의 데이터만 사용한다.
 
-- 롤링/재귀 계산만 사용하고 shift(-k)·center=True·전체기간 통계는 쓰지 않는다.
-- HIGH_N_20 / LOW_N_20 은 당일을 제외한 직전 20일 (shift(1) 후 rolling).
-- 워밍업 구간은 NaN. NaN 이 낀 조건은 거짓으로 처리된다 (backtest.compute_signals).
+- 롤링/재귀 계산만 쓰고 shift(-k)·center=True·전체 기간 통계는 쓰지 않는다.
+- 워밍업 구간은 NaN. NaN 이 낀 비교는 거짓이다 (core.backtest).
+- 다른 대상(of)의 값은 그 대상의 이력으로 계산한 뒤 판단 달력에 '과거 방향으로만' 맞춘다.
+- VIX 는 미국 날짜 기준이라 국내 t일에는 t보다 앞선 마지막 미국 거래일(= 미국 t-1일) 종가를 쓴다.
+
+단위
+- ret: % (10 = 10%). (오늘 종가 - n일 전 종가) / n일 전 종가 × 100
+- vol: 일간 수익률(%)의 20일 모표준편차. 연율화하지 않는다 (v0.2 에 정의가 없어 데모에서 정함)
+- volume_ratio: 오늘 거래량 / 직전 20일(오늘 제외) 평균 거래량
 """
 from __future__ import annotations
+
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-INDICATOR_IDS: list[str] = [
-    "CLOSE", "OPEN", "HIGH", "LOW", "VOLUME",
-    "SMA_5", "SMA_10", "SMA_20", "SMA_60", "SMA_120",
-    "EMA_12", "EMA_26",
-    "RSI_14",
-    "BB_UPPER_20", "BB_LOWER_20",
-    "VOL_SMA_20",
-    "HIGH_N_20", "LOW_N_20",
-]
+from core.dictionary import INDICATORS
+
+COMPUTABLE = ("close", "ma", "rsi", "ret", "vol", "volume_ratio")
 
 
 def rsi_wilder(close: pd.Series, n: int = 14) -> pd.Series:
@@ -49,33 +51,43 @@ def rsi_wilder(close: pd.Series, n: int = 14) -> pd.Series:
     return pd.Series(out, index=close.index)
 
 
-def ema(close: pd.Series, n: int) -> pd.Series:
-    """EMA, α=2/(n+1), 첫 값부터 재귀(adjust=False). n개 미만 구간은 NaN.
-
-    주의: TA-Lib 은 첫 n일 SMA 로 시드한다. 초기 구간 값이 조금 다를 수 있다 (수렴 후 동일).
-    """
-    return close.astype(float).ewm(span=n, adjust=False, min_periods=n).mean()
-
-
-def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """OHLCV(Open/High/Low/Close/Volume) → 지표 id 를 열로 갖는 DataFrame."""
+def indicator_series(df: pd.DataFrame, name: str, window: Optional[int]) -> pd.Series:
+    """OHLCV → 지표 하나. 사전에 없는 지표·기간이면 ValueError."""
+    if name not in COMPUTABLE:
+        raise ValueError(f"가격 데이터로 계산하는 지표가 아닙니다: {name}")
+    if window not in INDICATORS[name]["windows"]:
+        raise ValueError(f"{name} 의 기간은 {INDICATORS[name]['windows']} 중 하나여야 합니다: {window}")
     c = df["Close"].astype(float)
-    out = pd.DataFrame(index=df.index)
-    out["CLOSE"] = c
-    out["OPEN"] = df["Open"].astype(float)
-    out["HIGH"] = df["High"].astype(float)
-    out["LOW"] = df["Low"].astype(float)
-    out["VOLUME"] = df["Volume"].astype(float)
-    for n in (5, 10, 20, 60, 120):
-        out[f"SMA_{n}"] = c.rolling(n, min_periods=n).mean()
-    for n in (12, 26):
-        out[f"EMA_{n}"] = ema(c, n)
-    out["RSI_14"] = rsi_wilder(c, 14)
-    mid = c.rolling(20, min_periods=20).mean()
-    std = c.rolling(20, min_periods=20).std(ddof=0)  # 모표준편차 (TA-Lib 과 동일)
-    out["BB_UPPER_20"] = mid + 2 * std
-    out["BB_LOWER_20"] = mid - 2 * std
-    out["VOL_SMA_20"] = out["VOLUME"].rolling(20, min_periods=20).mean()
-    out["HIGH_N_20"] = out["HIGH"].shift(1).rolling(20, min_periods=20).max()
-    out["LOW_N_20"] = out["LOW"].shift(1).rolling(20, min_periods=20).min()
-    return out[INDICATOR_IDS]
+    if name == "close":
+        out = c
+    elif name == "ma":
+        out = c.rolling(window, min_periods=window).mean()
+    elif name == "rsi":
+        out = rsi_wilder(c, window)
+    elif name == "ret":
+        prev = c.shift(window)
+        out = (c - prev) / prev * 100.0
+    elif name == "vol":
+        r = (c - c.shift(1)) / c.shift(1) * 100.0
+        out = r.rolling(window, min_periods=window).std(ddof=0)
+    else:  # volume_ratio
+        v = df["Volume"].astype(float)
+        base = v.shift(1).rolling(window, min_periods=window).mean()
+        out = (v / base).replace([np.inf, -np.inf], np.nan)
+    return out.rename(f"{name}_{window}" if window else name)
+
+
+def align_to_calendar(s: pd.Series, calendar: pd.DatetimeIndex) -> pd.Series:
+    """다른 대상의 값을 판단 달력에 맞춘다. 그날 값이 없으면 직전 값(과거 방향 ffill)만 쓴다."""
+    full = s.reindex(s.index.union(calendar)).ffill()
+    return full.reindex(calendar)
+
+
+def align_us_to_kr(us: pd.Series, kr_calendar: pd.DatetimeIndex) -> pd.Series:
+    """미국 날짜 시계열 → 국내 달력. 국내 d일 값 = 날짜가 d보다 앞선 마지막 미국 거래일의 값.
+    같은 날짜의 미국 값은 국내 장 마감 시점에 아직 없으므로 절대 쓰지 않는다."""
+    us = us.sort_index()
+    pos = us.index.searchsorted(kr_calendar, side="left") - 1
+    vals = np.where(pos >= 0, us.to_numpy()[np.clip(pos, 0, None)], np.nan) if len(us) else \
+        np.full(len(kr_calendar), np.nan)
+    return pd.Series(vals.astype(float), index=kr_calendar, name=us.name)

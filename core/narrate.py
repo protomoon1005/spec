@@ -1,10 +1,7 @@
-"""명세 → 한국어 재서술 (docs/demo-spec.md §B6). 템플릿만 사용, LLM 금지.
+"""전략서 v0.2 → 한국어 재서술. 문장 틀에 값을 끼운다 (LLM 금지).
 
-재서술은 "명세가 실제로 무엇을 하는지"를 보여줘야 하므로 엔진(core/backtest.py)의 동작을 그대로 쓴다.
-- 신호는 T일 종가까지로 판정, T+1 시가 체결
-- 손절·익절은 종가 기준 판정 (장중 가격 미사용)
-- 기간 종료 시 미청산 포지션은 마지막 날 종가로 평가만 함 (강제 청산·매도 비용 없음)
-- 기본값이 적용된 부분은 '(기본값)' 표시 + 마지막 줄 안내
+재서술은 "전략서가 실제로 무엇을 하는지"를 보여줘야 하므로 엔진(core/backtest.py)의 동작을 그대로 쓴다.
+기본값으로 채운 칸(defaults_applied)은 '(기본값)' 표시.
 """
 from __future__ import annotations
 
@@ -12,26 +9,24 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from core.backtest import load_costs
-from core.dictionary import INDICATORS, load_tickers
-from core.schema import Condition, DemoSpec, RefMul
+from core.backtest import slot_weights
+from core.dictionary import (INDICATORS, OF_LABELS, REBALANCE, TAX_CATEGORY_LABELS, UNIT_SUFFIX, indicator_label,
+                             load_tickers, of_kind, tax_category)
+from core.schema import AllOf, AnyOf, Compare, Cond, Operand, Strategy, Value
+from core.tax import rate_history
 
 DEFAULT_TAG = "(기본값)"
 
-# op → (어간, 연결 'and', 연결 'or', 관형형)
-_OP_FORMS = {
-    "lt": ("아래", "이고", "이거나", "인"),
-    "gt": ("위", "이고", "이거나", "인"),
-    "cross_below": ("아래로 내려가", "고", "거나", "는"),
-    "cross_above": ("위로 올라가", "고", "거나", "는"),
+# op → 관형형 ("~인" / "~는")
+_OP_ADN = {
+    "<=": "이하인", "<": "아래인", ">=": "이상인", ">": "위인",
+    "cross_below": "아래로 내려가는", "cross_above": "위로 올라가는",
 }
-
-_DEFAULT_LABELS = {"universe": "대상 종목", "backtest": "기간·초기 자금", "costs": "수수료·세율"}
 
 
 @dataclass
 class NarrationPart:
-    field: str          # 이 문장이 설명하는 명세 필드 (UI 하이라이트용)
+    field: str
     text: str
     is_default: bool = False
 
@@ -39,19 +34,16 @@ class NarrationPart:
 @dataclass
 class Narration:
     parts: list[NarrationPart]
-    default_note: Optional[str] = None
     notes: list[str] = field(default_factory=list)
 
     @property
     def text(self) -> str:
-        body = " ".join(p.text for p in self.parts)
-        return body + (f"\n\n{self.default_note}" if self.default_note else "")
+        return " ".join(p.text for p in self.parts)
 
 
 # ---------------------------------------------------------------- 한국어 헬퍼
 
 def _has_batchim(word: str) -> bool:
-    """괄호 설명을 뺀 마지막 글자 기준. 한글이 아니면(RSI 등) 받침 없음으로 본다."""
     w = re.sub(r"\([^)]*\)", "", word).strip()
     ch = w[-1] if w else ""
     if "가" <= ch <= "힣":
@@ -76,166 +68,148 @@ def _won(amount: float) -> str:
     if a != amount or a % 10_000:
         return f"{_num(amount)}원"
     eok, man = divmod(a // 10_000, 10_000)
-    parts = ([f"{eok:,}억"] if eok else []) + ([f"{man:,}만"] if man else [])
-    return " ".join(parts) + " 원"
+    return " ".join(([f"{eok:,}억"] if eok else []) + ([f"{man:,}만"] if man else [])) + " 원"
 
 
 # ---------------------------------------------------------------- 조건 문장
 
-def _operand(left: str, x) -> str:
-    if isinstance(x, RefMul):
-        return f"{INDICATORS[x.ref]['label']}의 {x.mul:g}배"
-    if isinstance(x, str):
-        return INDICATORS[x]["label"]
-    unit = {"price": "원", "volume": "주"}.get(INDICATORS[left]["family"], "")
-    return _num(x) + unit
+def _who(of: str) -> str:
+    kind = of_kind(of)
+    if kind == "self":
+        return ""
+    if kind == "index":
+        return (OF_LABELS[of] + " ") if OF_LABELS[of] else ""
+    info = load_tickers().get(of)
+    return f"{info.name if info else of} "
 
 
-def _clause(c: Condition, form: int) -> str:
-    """form: 1=and 연결형, 2=or 연결형, 3=관형형('~인'/'~는')."""
-    stem = _OP_FORMS[c.op]
-    return f"{_josa(INDICATORS[c.left]['label'], '이', '가')} {_operand(c.left, c.right)} {stem[0]}{stem[form]}"
+def _operand(op, left: Operand) -> str:
+    if isinstance(op, Value):
+        unit = UNIT_SUFFIX[INDICATORS[left.indicator]["unit"]]
+        if unit == "원" and of_kind(left.of) == "index":
+            unit = ""
+        return _num(op.value) + unit
+    return _who(op.of) + indicator_label(op.indicator, op.window)
 
 
-def _day_phrase(conds: list[Condition], logic: str) -> str:
-    """조건 목록 → '…인 날' / '…이고 …는 날'."""
-    link = 1 if logic == "all" else 2
-    clauses = [_clause(c, link) for c in conds[:-1]] + [_clause(conds[-1], 3)]
-    return " ".join(clauses) + " 날"
+def _clause(c: Compare) -> str:
+    subject = _operand(c.left, c.left)
+    return f"{_josa(subject, '이', '가')} {_operand(c.right, c.left)} {_OP_ADN[c.op]}"
+
+
+def _cond(cond: Cond, top: bool = True) -> str:
+    if isinstance(cond, Compare):
+        return _clause(cond)
+    items, word = (cond.all, "그리고") if isinstance(cond, AllOf) else (cond.any, "또는")
+    body = f" {word} ".join(_cond(c, top=False) for c in items)
+    return body if top else f"({body})"
+
+
+def _day(cond: Cond) -> str:
+    if isinstance(cond, Compare):
+        return f"**{_cond(cond)} 날**"
+    head = "다음이 모두 맞는 날" if isinstance(cond, AllOf) else "다음 중 하나라도 맞는 날"
+    return f"**{head}: {_cond(cond)}**"
 
 
 # ---------------------------------------------------------------- 본문
 
-def _defaults(spec: DemoSpec) -> list[str]:
-    return list(spec.provenance.defaults_applied) if spec.provenance else []
+def _is_default(spec: Strategy, prefix: str) -> bool:
+    return any(d == prefix or d.startswith(prefix + ".") or d.startswith(prefix + "[") for d in spec.defaults_applied)
 
 
-def _is_default(defaults: list[str], prefix: str) -> bool:
-    return any(d == prefix or d.startswith(prefix + ".") or d.startswith(prefix + "[") for d in defaults)
+def _tag(spec: Strategy, prefix: str) -> str:
+    return DEFAULT_TAG if _is_default(spec, prefix) else ""
 
 
-def _cond_defaults(defaults: list[str], side: str, n: int) -> bool:
-    return any(_is_default(defaults, f"{side}.conditions[{i}]") for i in range(n))
-
-
-def _universe_part(spec: DemoSpec, defaults: list[str]) -> NarrationPart:
-    tag = DEFAULT_TAG if _is_default(defaults, "universe") else ""
-    u = spec.universe
-    if len(u) == 1 and abs(u[0].weight - 1) < 1e-9:
-        text = f"**{u[0].name}** 한 종목에 초기 자금 전액을 배정합니다{tag}."
+def _assets_part(spec: Strategy) -> NarrationPart:
+    names = ", ".join(f"**{a.name}**" for a in spec.assets)
+    ws = slot_weights(spec)
+    tag = _tag(spec, "assets")
+    if spec.rules is None:
+        alloc = ", ".join(f"**{a.name}** {_pct(w)}" for a, w in zip(spec.assets, ws))
+        text = f"{alloc}로 나눠 담습니다{tag}."
+    elif all(a.weight is None for a in spec.assets):
+        n = len(spec.assets)
+        text = f"대상 종목은 {names}입니다{tag}. 종목마다 총자산의 1/{n}씩 자리를 정해 두고, 조건이 맞은 종목만 자기 자리만큼 삽니다."
     else:
-        alloc = ", ".join(f"**{x.name}**에 {_pct(x.weight)}" for x in u)
-        text = f"초기 자금을 {alloc} 배정합니다{tag}."
-        rest = 1 - sum(x.weight for x in u)
-        if rest > 1e-9:
-            text += f" 나머지 {_pct(rest)}는 현금으로 둡니다."
-        if len(u) > 1:
-            text += " 아래 규칙은 종목마다 따로 적용하며, 종목 사이에 자금을 옮기지 않습니다."
-    return NarrationPart("universe", text, bool(tag))
+        alloc = ", ".join(f"**{a.name}** {_pct(w)}" for a, w in zip(spec.assets, ws))
+        text = f"대상 종목과 자리는 {alloc}입니다{tag}. 조건이 맞은 종목만 자기 자리만큼 삽니다."
+    if spec.max_weight is not None:
+        text += f" 종목당 최대 {_pct(spec.max_weight)}까지만 담습니다."
+    rest = 1 - sum(ws)
+    if rest > 1e-9 or spec.rules is not None:
+        text += " 빈 자리는 현금으로 둡니다(이자 없음)." if spec.rules is not None else f" 나머지 {_pct(rest)}는 현금으로 둡니다."
+    return NarrationPart("assets", text, bool(tag))
 
 
-def _entry_part(spec: DemoSpec, defaults: list[str]) -> NarrationPart:
-    e = spec.entry
-    tag = DEFAULT_TAG if _cond_defaults(defaults, "entry", len(e.conditions)) else ""
-    text = (f"**{_day_phrase(e.conditions, e.logic)}**{tag} "
-            f"다음 거래일 시가에 배정 자금 전액으로 매수합니다(정수 주 단위, 남는 돈은 현금). "
-            f"이미 보유 중이면 추가로 사지 않습니다.")
-    return NarrationPart("entry", text, bool(tag))
+def _rules_parts(spec: Strategy) -> list[NarrationPart]:
+    r = spec.rules
+    parts: list[NarrationPart] = []
+    if r.entry is not None:
+        parts.append(NarrationPart("rules.entry",
+                                   f"{_day(r.entry)}{_tag(spec, 'rules.entry')} 다음 거래일 시가에 그 종목을 삽니다 "
+                                   f"(1주 단위, 새 종목을 살 때 갖고 있는 종목은 팔지 않습니다)."))
+    if r.exit is not None:
+        parts.append(NarrationPart("rules.exit",
+                                   f"{_day(r.exit)}{_tag(spec, 'rules.exit')} 다음 거래일 시가에 그 종목을 모두 팝니다."))
+    parts.append(NarrationPart("rules",
+                               "조건은 종목마다 따로 봅니다. 같은 날 사는 조건과 파는 조건이 함께 맞으면 팔기를 우선합니다"
+                               "(갖고 있으면 팔고, 없으면 사지 않습니다)."))
+    if spec.rebalance is not None:
+        parts.append(NarrationPart("rebalance",
+                                   f"{REBALANCE[spec.rebalance]} 종가를 보고, 갖고 있는 종목을 다음 거래일 시가에 "
+                                   f"자기 자리 비중으로 다시 맞춥니다{_tag(spec, 'rebalance')}."))
+    return parts
 
 
-def _exit_part(spec: DemoSpec, defaults: list[str]) -> NarrationPart:
-    x = spec.exit
-    items: list[str] = []
-    if x.conditions:
-        tag = DEFAULT_TAG if _cond_defaults(defaults, "exit", len(x.conditions)) else ""
-        items.append(f"**{_day_phrase(x.conditions, x.logic)}**{tag}")
-    if x.stop_loss is not None:
-        items.append(f"**종가가 매수가보다 {_pct(x.stop_loss)} 이상 낮은 날**(손절)")
-    if x.take_profit is not None:
-        items.append(f"**종가가 매수가보다 {_pct(x.take_profit)} 이상 높은 날**(익절)")
-    if x.max_hold_days is not None:
-        items.append(f"**매수 체결일을 1일째로 세어 {x.max_hold_days}거래일째 되는 날**(보유기간)")
-    if len(items) == 1:
-        text = f"{items[0]} 다음 거래일 시가에 전량 매도합니다."
-    else:
-        text = f"다음 중 하나라도 해당하는 날, 다음 거래일 시가에 전량 매도합니다: {', '.join(items)}."
-    basis = [n for n, v in (("손절", x.stop_loss), ("익절", x.take_profit)) if v is not None]
-    if basis:
-        text += f" {'·'.join(basis)}은 장중 가격이 아니라 그날 종가로 판단합니다."
-    return NarrationPart("exit", text)
+def _allocation_part(spec: Strategy) -> NarrationPart:
+    return NarrationPart("rebalance",
+                         f"기간 첫 거래일 시가에 위 비중대로 사고, {REBALANCE[spec.rebalance]} 종가를 보고 "
+                         f"다음 거래일 시가에 비중을 다시 맞춥니다{_tag(spec, 'rebalance')}.")
 
 
 def _settle_part() -> NarrationPart:
-    return NarrationPart(
-        "backtest",
-        "매수·매도 신호는 모두 그날 종가까지의 데이터로 판단합니다. "
-        "기간 마지막 날까지 팔리지 않은 보유분은 강제로 팔지 않고 마지막 날 종가로 평가만 합니다"
-        "(매도 수수료·세금 미반영). 마지막 날 나온 신호는 체결할 다음 날이 없어 실행하지 않습니다.",
-    )
+    return NarrationPart("backtest",
+                         "판단은 모두 그날 종가까지의 데이터로 하고, 체결은 다음 거래일 시가에 합니다. "
+                         "기간 마지막 날까지 남은 보유분은 팔지 않고 마지막 날 종가로 평가만 합니다(매도 비용·세금 미반영).")
 
 
-def _backtest_part(spec: DemoSpec, defaults: list[str]) -> NarrationPart:
+def _backtest_part(spec: Strategy) -> NarrationPart:
     b = spec.backtest
-    tag = DEFAULT_TAG if _is_default(defaults, "backtest") else ""
-    return NarrationPart("backtest", f"기간 {b.start} ~ {b.end}, 초기 자금 {_won(b.initial_cash)}{tag}.", bool(tag))
+    tag = _tag(spec, "backtest")
+    return NarrationPart("backtest",
+                         f"기간 {b.start} ~ {b.end}, 시작 금액 {_won(b.initial_cash)}{tag}. "
+                         f"비용: 수수료 {_pct(b.commission_rate)}(살 때·팔 때 각각), 체결 오차 {_pct(b.slippage_rate)}.",
+                         bool(tag))
 
 
-def _costs_part(spec: DemoSpec, defaults: list[str], costs_config: Optional[dict]) -> tuple[NarrationPart, list[str]]:
-    cfg = costs_config or load_costs()
-    profile = cfg["tax_profiles"][spec.costs.tax_profile]
-    default_type = cfg.get("default_asset_type", "stock")
-    tickers = load_tickers()
-    notes: list[str] = []
-    taxes: list[tuple[str, float, str]] = []
-    for u in spec.universe:
-        info = tickers.get(u.ticker)
-        atype = info.asset_type if info else default_type
-        if info is None:
-            notes.append(f"{u.name}({u.ticker})은 종목 사전에 없어 {default_type} 세율을 적용합니다.")
-        taxes.append((u.name, float(profile[atype]), atype))
-
-    tag = DEFAULT_TAG if _is_default(defaults, "costs") else ""
-
-    def tax_str(rate: float, atype: str) -> str:
-        return f"{rate * 100:.2f}%" if rate > 0 else ("없음(ETF)" if atype == "etf" else "없음")
-
-    if len(taxes) == 1:
-        tax = tax_str(taxes[0][1], taxes[0][2])
-    else:
-        tax = " / ".join(f"{n} {tax_str(r, a)}" for n, r, a in taxes)
-    text = (f"비용{tag}: 수수료 매수·매도 각 {_pct(spec.costs.commission_bps / 10_000)}, "
-            f"매도 시 거래세 {tax}. 슬리피지는 반영하지 않습니다.")
-    return NarrationPart("costs", text, bool(tag)), notes
-
-
-def _default_note(defaults: list[str]) -> Optional[str]:
-    if not defaults:
-        return None
-    labels: list[str] = []
-    for d in defaults:
-        m = re.match(r"(entry|exit)\.conditions\[(\d+)\]", d)
-        if m:
-            label = f"{'매수' if m.group(1) == 'entry' else '매도'} 조건 {int(m.group(2)) + 1}의 기간·기준값"
+def _tax_part(spec: Strategy) -> NarrationPart:
+    cats: list[str] = []
+    for a in spec.assets:
+        c = tax_category(a.ticker)
+        if c and c not in cats:
+            cats.append(c)
+    bits: list[str] = []
+    for c in cats:
+        label = TAX_CATEGORY_LABELS[c]
+        if c.endswith("_STOCK"):
+            hist = "·".join(f"{_pct(rate)}({s.year}{'' if e is not None else '~'})" for s, e, rate in rate_history(c))
+            bits.append(f"{label}은 팔 때 판 금액의 {hist}")
+        elif c == "ETF_DOMESTIC_EQUITY":
+            bits.append(f"{label}는 세금 없음")
         else:
-            label = _DEFAULT_LABELS.get(d.split(".")[0].split("[")[0], d)
-        if label not in labels:
-            labels.append(label)
-    joined = ", ".join(labels)
-    return f"※ {_josa(joined, '은', '는')} 문장에 언급이 없어 기본값을 적용했습니다."
+            bits.append(f"{label}는 팔아서 남은 차익의 15.4%(손해 본 거래는 없음)")
+    body = ", ".join(bits) if bits else "종목 목록에 없는 종목이라 세율을 정할 수 없음"
+    return NarrationPart("tax", f"세금은 거래한 날짜의 세율을 씁니다: {body}. 배당 수익은 반영하지 않습니다(데모).")
 
 
-def narrate(spec: DemoSpec, costs_config: Optional[dict] = None) -> Narration:
-    """검증기를 통과한(verdict=ok) 명세를 한국어로 재서술한다."""
-    if spec.verdict != "ok" or spec.entry is None or spec.exit is None or not spec.universe:
-        raise ValueError("실행 가능한 명세(verdict=ok, universe·entry·exit 존재)만 재서술합니다.")
-    d = _defaults(spec)
-    costs, notes = _costs_part(spec, d, costs_config)
-    parts = [
-        _universe_part(spec, d),
-        _entry_part(spec, d),
-        _exit_part(spec, d),
-        _settle_part(),
-        _backtest_part(spec, d),
-        costs,
-    ]
-    return Narration(parts=parts, default_note=_default_note(d), notes=notes)
+def narrate(spec: Strategy) -> Narration:
+    """검사를 통과한 전략서를 한국어로 다시 씁니다."""
+    parts = [_assets_part(spec)]
+    if spec.rules is not None:
+        parts += _rules_parts(spec)
+    elif spec.rebalance is not None:
+        parts.append(_allocation_part(spec))
+    parts += [_settle_part(), _backtest_part(spec), _tax_part(spec)]
+    return Narration(parts=parts)

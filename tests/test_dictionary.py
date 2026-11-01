@@ -1,92 +1,103 @@
-"""스키마 export · 사전 일관성 · 종목 유형 → 세율 연결."""
+"""v0.2 전략서 형식 · 사전 · 종목 목록 일관성."""
 import json
-import re
 from typing import get_args
 
 import pytest
+from pydantic import ValidationError
 
-from conftest import base_spec_dict, make_ohlcv
-from core.backtest import run_backtest
-from core.dictionary import INDICATORS, OPERATORS, asset_types, load_expressions, load_tickers
-from core.indicators import INDICATOR_IDS
-from core.schema import SCHEMA_PATH, Condition, DemoSpec, IndicatorId, Operator, build_json_schema, dump_json_schema
+from conftest import strategy_dict
+from core.dictionary import INDEX_SYMBOLS, INDICATORS, OPERATORS, REBALANCE, load_expressions, load_tickers, tax_category
+from core.indicators import COMPUTABLE
+from core.schema import SCHEMA_PATH, IndicatorName, Op, Strategy, build_json_schema, dump_json_schema
 
 
 def test_exported_schema_is_up_to_date():
-    """schema/demospec.json 은 생성물. 다르면 `python -m core.schema` 로 다시 만든다."""
+    """schema/strategy-v0.2.json 은 생성물. 다르면 `python -m core.schema` 로 다시 만든다."""
     assert SCHEMA_PATH.read_text(encoding="utf-8") == dump_json_schema(build_json_schema())
 
 
-def test_schema_enums_are_the_dictionary():
-    s = build_json_schema()
-    cond = s["$defs"]["Condition"]["properties"]
-    assert cond["left"]["enum"] == INDICATOR_IDS + ["UNSUPPORTED"]      # 탈출구
-    assert cond["op"]["enum"] == list(OPERATORS)
-    uni = s["$defs"]["UniverseItem"]["properties"]
-    assert uni["ticker"]["enum"] == list(load_tickers()) + ["UNKNOWN"]
-    assert uni["name"]["enum"] == [t.name for t in load_tickers().values()] + ["UNKNOWN"]
-    assert s["properties"]["unmapped_phrases"]["items"]["type"] == "string"
-    assert "unmapped_phrases" in s["required"]
-    assert list(get_args(IndicatorId)) == INDICATOR_IDS == list(INDICATORS)
-    assert list(get_args(Operator)) == list(OPERATORS)
+def test_dictionary_is_v02():
+    assert list(INDICATORS) == ["close", "ma", "rsi", "ret", "vol", "volume_ratio", "vix",
+                                "entry_return", "holding_days"]
+    assert list(get_args(IndicatorName)) == list(INDICATORS)
+    assert INDICATORS["ma"]["windows"] == [5, 10, 20, 60, 120]
+    assert INDICATORS["rsi"]["windows"] == [14]
+    assert INDICATORS["ret"]["windows"] == [1, 5, 20, 60]
+    assert INDICATORS["vol"]["windows"] == [20]
+    assert INDICATORS["volume_ratio"]["windows"] == [20]
+    for name in ("close", "vix", "entry_return", "holding_days"):
+        assert INDICATORS[name]["windows"] == [None]
+    assert list(OPERATORS) == ["<=", "<", ">=", ">", "cross_above", "cross_below"]
+    assert list(get_args(Op)) == list(OPERATORS)
+    # 시장 데이터 지표는 모두 계산 함수가 있고, 포지션 지표는 엔진이 계산한다
+    assert {n for n, m in INDICATORS.items() if not m.get("position") and n != "vix"} == set(COMPUTABLE)
 
 
-def test_tickers_seed():
-    t = load_tickers()
-    assert len(t) == 20
-    types = [x.asset_type for x in t.values()]
-    assert types.count("stock") == 10 and types.count("etf") == 10
-    assert all(re.fullmatch(r"\d{6}", k) for k in t)
+@pytest.mark.parametrize("removed", ["EMA_12", "ema", "bb_upper", "BB_UPPER_20", "HIGH_N_20", "high_n", "open",
+                                     "OPEN", "high", "low", "volume", "sma"])
+def test_removed_indicators_are_not_accepted(removed):
+    d = strategy_dict()
+    d["rules"]["entry"]["left"] = {"indicator": removed, "window": 20, "of": "self"}
+    with pytest.raises(ValidationError):
+        Strategy.model_validate(d)
 
 
-def _expand(obj, n):
-    return json.loads(json.dumps(obj).replace("{n}", str(n)))
+def test_of_targets():
+    assert INDEX_SYMBOLS == {"KOSPI200": "KS200", "KOSDAQ": "KQ11", "VIX": "VIX"}
+    assert INDICATORS["volume_ratio"]["of"] == ["self", "ticker"]          # 지수에는 거래량 없음
+    assert "KOSDAQ" in INDICATORS["close"]["of"] and "KOSDAQ" in INDICATORS["vol"]["of"]
+    assert INDICATORS["vix"]["of"] == ["VIX"]
+    assert INDICATORS["entry_return"]["of"] == ["self"] and INDICATORS["entry_return"]["exit_only"]
+    assert INDICATORS["holding_days"]["of"] == ["self"] and INDICATORS["holding_days"]["exit_only"]
 
 
-def test_expression_mappings_use_only_dictionary_values():
+def test_rebalance_options():
+    assert list(REBALANCE) == ["monthly_first", "monthly_mid", "quarterly", "weekly", "drift_5pp"]
+
+
+def test_tickers_have_market_kind_tax_type():
+    tickers = load_tickers()
+    assert tickers, "종목 목록이 비어 있다"
+    for t in tickers.values():
+        assert t.market in ("KOSPI", "KOSDAQ")
+        assert t.kind in ("STOCK", "ETF")
+        if t.kind == "ETF":
+            assert t.tax_type in ("DOMESTIC_EQUITY", "OTHER")
+        else:
+            assert t.tax_type is None
+    assert tax_category("005930") == "KOSPI_STOCK"
+    assert tax_category("069500") == "ETF_DOMESTIC_EQUITY"   # KODEX 200
+    assert tax_category("153130") == "ETF_OTHER"             # KODEX 단기채권 (채권형)
+    assert tax_category("122630") == "ETF_OTHER"             # KODEX 레버리지 (v0.2: 레버리지는 그 밖의 ETF)
+    assert tax_category("NOPE") is None
+
+
+def test_expressions_map_only_to_dictionary_values():
     ex = load_expressions()
-    for r in ex["direction_rules"]["rules"]:
-        assert r["op"] in OPERATORS
-        Condition.model_validate(r["example"]["condition"])
+    for rule in ex["direction_rules"]["rules"]:
+        assert rule["op"] in OPERATORS
     for a in ex["indicator_aliases"]:
-        assert a["id"] in INDICATORS
+        assert a["indicator"] in INDICATORS
+        assert a.get("window") in INDICATORS[a["indicator"]]["windows"]
     for p in ex["phrases"]:
         if "condition" in p:
-            ns = (5, 10, 20, 60, 120) if "{n}" in json.dumps(p["condition"]) else (None,)
-            for n in ns:
-                Condition.model_validate(_expand(p["condition"], n))
-        if p["verdict"] == "reject":
-            assert p["reject_code"] in ("FUTURE_REF", "UNSUPPORTED_CONCEPT", "UNSUPPORTED_ACTION", "NO_EXIT_RULE")
+            # {n} 자리는 대표값으로 채워 형식 검사
+            raw = json.dumps(p["condition"]).replace('"{n}"', "20").replace("{n}", "20").replace('"{p}"', "10")
+            raw = raw.replace('"-{p}"', "-10")
+            d = strategy_dict()
+            d["rules"]["entry"] = json.loads(raw)
+            Strategy.model_validate(d)
 
 
-def test_direction_rule_event_vs_state():
-    rules = {r["op"]: r["patterns"] for r in load_expressions()["direction_rules"]["rules"]}
-    assert "아래로 떨어지면" in rules["cross_below"] and "아래로 내려가면" in rules["cross_below"]
-    assert "아래면" in rules["lt"] and "아래일 때" in rules["lt"]
-    assert "올라가면" in rules["cross_above"] and "돌파하면" in rules["cross_above"]
-    assert "위면" in rules["gt"] and "위일 때" in rules["gt"]
-    assert "이하면" in rules["lt"] and "이상이면" in rules["gt"]     # 이하=lt, 이상=gt (clarify 안 함)
-
-
-@pytest.mark.parametrize("ticker,expected_tax", [("005930", 0.0020), ("069500", 0.0)])
-def test_backtest_tax_follows_tickers_json(ticker, expected_tax):
-    """asset_types 를 넘기지 않으면 tickers.json 의 asset_type 으로 세율을 고른다."""
-    assert asset_types()[ticker] == ("stock" if expected_tax else "etf")
-    d = base_spec_dict(
-        universe=[{"ticker": ticker, "name": "x", "weight": 1.0}],
-        entry={"logic": "all", "conditions": [{"left": "CLOSE", "op": "cross_below", "right": 100}]},
-        exit={"logic": "any", "conditions": [{"left": "CLOSE", "op": "cross_above", "right": 120}],
-              "stop_loss": None, "take_profit": None, "max_hold_days": None},
-        backtest={"start": "2000-01-01", "end": "2100-12-31", "initial_cash": 1_000_000},
-    )
-    df = make_ohlcv([110, 105, 99, 101, 108, 115, 121, 118], opens=[110, 109, 104, 97, 102, 107, 116, 125])
-    res = run_backtest(DemoSpec.model_validate(d), data={ticker: df})
-    tr = res.trades[0]
-    assert tr["exit_tax"] == pytest.approx(tr["shares"] * 125.0 * expected_tax)
-    assert res.notes == []
-
-
-def test_backtest_unknown_ticker_falls_back_with_note():
-    d = base_spec_dict()  # TEST01 은 사전에 없음
-    res = run_backtest(DemoSpec.model_validate(d), data={"TEST01": make_ohlcv([100] * 30)})
-    assert res.notes == ["TEST01: 종목 유형 미지정 → 'stock' 세율 적용"]
+def test_v02_sample_round_trip():
+    """v0.2 문서의 예시 그대로."""
+    rules = {
+        "target": "each",
+        "entry": {"left": {"indicator": "rsi", "window": 14, "of": "self"}, "op": "cross_below",
+                  "right": {"value": 30}},
+        "exit": {"left": {"indicator": "close", "of": "self"}, "op": "cross_below",
+                 "right": {"indicator": "ma", "window": 5, "of": "self"}},
+    }
+    s = Strategy.model_validate(strategy_dict(rules=rules))
+    out = s.model_dump(mode="json", exclude_none=True)["rules"]
+    assert out == rules

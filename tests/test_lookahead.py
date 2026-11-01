@@ -1,18 +1,19 @@
-"""1. 미래 참조: T+1 이후 가격을 바꿔도 T일까지의 지표·신호·체결이 그대로여야 한다."""
+"""미래 참조: T+1 이후 데이터(종목·코스피200·VIX)를 바꿔도 T일까지의 지표·신호·체결이 그대로여야 한다."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from conftest import base_spec_dict, wavy_ohlcv
-from core.backtest import compute_signals, run_backtest
-from core.indicators import INDICATOR_IDS, compute_indicators
-from core.schema import DemoSpec
+from conftest import STOCK, cmp, ind, make_ohlcv, strategy_dict, wavy_ohlcv
+from core.backtest import condition_series, run_backtest
+from core.dictionary import INDICATORS
+from core.indicators import align_us_to_kr, indicator_series
+from core.schema import Strategy
 
 
 def _perturb_after(df: pd.DataFrame, t: int) -> pd.DataFrame:
     """t 이후(t+1~) 행을 결정론적으로 크게 바꾼다."""
     out = df.copy()
-    tail = out.index[t + 1 :]
+    tail = out.index[t + 1:]
     k = np.arange(len(tail))
     for col in ["Open", "High", "Low", "Close"]:
         out.loc[tail, col] = out.loc[tail, col] * (2.5 + 0.7 * np.sin(k))
@@ -22,86 +23,88 @@ def _perturb_after(df: pd.DataFrame, t: int) -> pd.DataFrame:
     return out
 
 
-CUTS = [30, 75, 140, 220]
-TRADE_CUTS = [70, 120, 180, 240]   # 워밍업 이후라 거래가 존재하는 시점
+def _data(n=300):
+    asset = wavy_ohlcv(n)
+    ks200 = wavy_ohlcv(n, phase=1.3, base=300.0)
+    vix = make_ohlcv([18 + 8 * np.sin(i / 11.0) for i in range(n)], volume=[0] * n)  # 미국 날짜로 취급
+    return {"TEST01": asset, "KS200": ks200, "VIX": vix}
 
-RICH_SPEC = base_spec_dict(
-    entry={
-        "logic": "any",
-        "conditions": [
-            {"left": "RSI_14", "op": "cross_below", "right": 30},
-            {"left": "CLOSE", "op": "cross_above", "right": "HIGH_N_20"},
-            {"left": "VOLUME", "op": "gt", "right": {"ref": "VOL_SMA_20", "mul": 2}},
-            {"left": "EMA_12", "op": "cross_above", "right": "EMA_26"},
-        ],
-    },
-    exit={
-        "logic": "any",
-        "conditions": [
-            {"left": "CLOSE", "op": "cross_below", "right": "SMA_5"},
-            {"left": "CLOSE", "op": "lt", "right": "LOW_N_20"},
-            {"left": "CLOSE", "op": "gt", "right": "BB_UPPER_20"},
-        ],
-        "stop_loss": 0.05,
-        "take_profit": 0.1,
-        "max_hold_days": 15,
-    },
-)
+
+def _perturb_all(data, t):
+    return {k: _perturb_after(v, t) for k, v in data.items()}
+
+
+CUTS = [30, 75, 140, 220]
+TRADE_CUTS = [130, 180, 240, 280]   # 워밍업(120일) 이후라 거래가 존재하는 시점
+
+RICH = strategy_dict(rules={
+    "target": "each",
+    "entry": {"any": [
+        cmp(ind("rsi", 14), "cross_below", 35),
+        {"all": [cmp(ind("close"), "cross_above", ind("ma", 20)),
+                 cmp(ind("close", of="KOSPI200"), ">", ind("ma", 60, of="KOSPI200"))]},
+        cmp(ind("volume_ratio", 20), ">=", 2),
+        {"all": [cmp(ind("ret", 5), "<", -3), cmp(ind("vix", of="VIX"), "<", 22)]},
+        cmp(ind("ma", 5), "cross_above", ind("ma", 120)),
+    ]},
+    "exit": {"any": [
+        cmp(ind("close"), "cross_below", ind("ma", 10)),
+        cmp(ind("vol", 20), ">", 3),
+        cmp(ind("ret", 60, of="KOSPI200"), "<=", -5),
+        cmp(ind("entry_return"), "<=", -5),
+        cmp(ind("entry_return"), ">=", 10),
+        cmp(ind("holding_days"), ">=", 15),
+    ]},
+})
+
+
+WINDOWED = [(name, w) for name, meta in INDICATORS.items() if not meta.get("position")
+            and name != "vix" for w in meta["windows"]]
 
 
 @pytest.mark.parametrize("t", CUTS)
-def test_indicators_unchanged_up_to_t(t):
+@pytest.mark.parametrize("name,window", WINDOWED)
+def test_indicators_unchanged_up_to_t(t, name, window):
     df = wavy_ohlcv()
-    a = compute_indicators(df)
-    b = compute_indicators(_perturb_after(df, t))
-    assert set(INDICATOR_IDS) <= set(a.columns)
-    pd.testing.assert_frame_equal(a.iloc[: t + 1], b.iloc[: t + 1])
-    # 변경이 실제로 반영됐는지 (테스트가 공허하지 않음을 확인)
-    assert not a["SMA_5"].iloc[t + 5 :].equals(b["SMA_5"].iloc[t + 5 :])
+    a = indicator_series(df, name, window)
+    b = indicator_series(_perturb_after(df, t), name, window)
+    pd.testing.assert_series_equal(a.iloc[: t + 1], b.iloc[: t + 1])
+    assert not a.iloc[t + 2:].equals(b.iloc[t + 2:]), "섭동이 반영되지 않으면 테스트가 공허하다"
+
+
+@pytest.mark.parametrize("t", CUTS)
+def test_vix_alignment_unchanged_up_to_t(t):
+    vix = _data()["VIX"]
+    kr = vix.index
+    a = align_us_to_kr(vix["Close"], kr)
+    b = align_us_to_kr(_perturb_after(vix, t)["Close"], kr)
+    # 미국 t일 값은 국내 t+1일부터 쓰인다 → 국내 t+1일까지 같아야 한다
+    pd.testing.assert_series_equal(a.iloc[: t + 2], b.iloc[: t + 2])
+    assert a.iloc[t + 2] != b.iloc[t + 2]
 
 
 @pytest.mark.parametrize("t", CUTS)
 def test_signals_unchanged_up_to_t(t):
-    spec = DemoSpec.model_validate(RICH_SPEC)
-    df = wavy_ohlcv()
-    for rule in (spec.entry, spec.exit):
-        a = compute_signals(compute_indicators(df), rule)
-        b = compute_signals(compute_indicators(_perturb_after(df, t)), rule)
-        pd.testing.assert_series_equal(a.iloc[: t + 1], b.iloc[: t + 1])
+    spec = Strategy.model_validate(RICH)
+    data = _data()
+    cal = data["TEST01"].index
+    a = condition_series(spec.rules.entry, "TEST01", data, cal)
+    b = condition_series(spec.rules.entry, "TEST01", _perturb_all(data, t), cal)
+    pd.testing.assert_series_equal(a.iloc[: t + 1], b.iloc[: t + 1])
 
 
 @pytest.mark.parametrize("t", TRADE_CUTS)
-def test_trades_and_equity_unchanged_up_to_t(t):
-    spec = DemoSpec.model_validate(RICH_SPEC)
-    df = wavy_ohlcv()
-    ra = run_backtest(spec, data={"TEST01": df})
-    rb = run_backtest(spec, data={"TEST01": _perturb_after(df, t)})
-    cut = df.index[t]
-    # 체결일이 T 이하인 거래 행위(매수/매도)는 동일해야 한다
-    def events(res):
-        ev = []
-        for tr in res.trades:
-            if tr["entry_date"] <= cut.strftime("%Y-%m-%d"):
-                ev.append(("B", tr["entry_date"], tr["entry_price"], tr["shares"]))
-            if tr["exit_date"] and tr["exit_date"] <= cut.strftime("%Y-%m-%d"):
-                ev.append(("S", tr["exit_date"], tr["exit_price"], tr["exit_reason"]))
-        return ev
-    assert events(ra) == events(rb)
-    assert len(events(ra)) > 0, "검증할 거래가 없으면 테스트가 공허하다"
+def test_fills_and_equity_unchanged_up_to_t(t):
+    spec = Strategy.model_validate(RICH)
+    data = _data()
+    ra = run_backtest(spec, data=data, instruments={"TEST01": STOCK})
+    rb = run_backtest(spec, data=_perturb_all(data, t), instruments={"TEST01": STOCK})
+    cut = data["TEST01"].index[t].strftime("%Y-%m-%d")
+    fa = [f for f in ra.fills if f["date"] <= cut]
+    fb = [f for f in rb.fills if f["date"] <= cut]
+    assert fa == fb
+    assert len(fa) > 0, "검증할 체결이 없으면 테스트가 공허하다"
     pd.testing.assert_series_equal(ra.equity.loc[:cut], rb.equity.loc[:cut])
-
-
-def test_high_low_n_20_exclude_today():
-    df = wavy_ohlcv(60)
-    ind = compute_indicators(df)
-    i = 40
-    assert ind["HIGH_N_20"].iloc[i] == df["High"].iloc[i - 20 : i].max()
-    assert ind["LOW_N_20"].iloc[i] == df["Low"].iloc[i - 20 : i].min()
-    # 당일 고가를 아주 크게 바꿔도 당일 HIGH_N_20 은 불변
-    df2 = df.copy()
-    df2.iloc[i, df2.columns.get_loc("High")] = 1e9
-    assert compute_indicators(df2)["HIGH_N_20"].iloc[i] == ind["HIGH_N_20"].iloc[i]
-    assert pd.isna(ind["HIGH_N_20"].iloc[19]) and not pd.isna(ind["HIGH_N_20"].iloc[20])
 
 
 def test_harness_detects_a_leaky_indicator():
@@ -111,3 +114,12 @@ def test_harness_detects_a_leaky_indicator():
     leaky = lambda d: d["Close"].shift(-1).rolling(5).mean()  # noqa: E731 — 미래 참조
     a, b = leaky(df), leaky(_perturb_after(df, t))
     assert not a.iloc[: t + 1].equals(b.iloc[: t + 1])
+
+
+def test_harness_detects_same_day_vix():
+    """음성 대조군: VIX 를 같은 날짜로 붙이면(미국 t일 → 국내 t일) 섭동 검사에서 잡혀야 한다."""
+    vix = _data()["VIX"]
+    t = 140
+    same_day = lambda d: d["Close"].reindex(vix.index)  # noqa: E731 — 미국 t일 종가를 국내 t일에 사용
+    a, b = same_day(vix), same_day(_perturb_after(vix, t))
+    assert not a.iloc[: t + 2].equals(b.iloc[: t + 2])

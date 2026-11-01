@@ -1,74 +1,61 @@
-"""재서술 스냅샷 테스트 3개.
-
-기대 문장은 tests/snapshots/narrate_*.txt 에 있다. 템플릿을 의도적으로 바꿨다면
-  python -m tests.test_narrate --update
-로 다시 쓰고, diff 를 사람이 읽고 확인한 뒤 커밋한다.
-"""
-import sys
-from pathlib import Path
-
-import pytest
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from core.narrate import narrate  # noqa: E402
-from core.validate import validate  # noqa: E402
-
-SNAP_DIR = Path(__file__).parent / "snapshots"
-
-CASES = {
-    # B2/B6 예시 그대로: 교차(cross_below) 조건, 종목·기간·비용 전부 기본값
-    "single_cross_defaults": {
-        "universe": [{"ticker": "005930", "name": "삼성전자", "weight": 1.0}],
-        "entry": {"logic": "all", "conditions": [{"left": "RSI_14", "op": "cross_below", "right": 30}]},
-        "exit": {"logic": "any", "conditions": [{"left": "CLOSE", "op": "cross_below", "right": "SMA_5"}]},
-        "provenance": {"input_text": "삼성전자 RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔아줘",
-                       "defaults_applied": ["backtest", "costs"]},   # 종목은 기본값 없음 (B4 판정 원칙)
-    },
-    # 반반(주식+ETF 세율 차이), 상태(lt) 조건, 손절·익절·보유기간
-    "half_stock_etf_stops": {
-        "universe": [{"ticker": "005930", "name": "삼성전자", "weight": 0.5},
-                     {"ticker": "069500", "name": "KODEX 200", "weight": 0.5}],
-        "entry": {"logic": "all", "conditions": [{"left": "RSI_14", "op": "lt", "right": 30}]},
-        "exit": {"logic": "any", "conditions": [], "stop_loss": 0.05, "take_profit": 0.1, "max_hold_days": 20},
-        "backtest": {"start": "2022-01-01", "end": "2024-12-31", "initial_cash": 50_000_000},
-        "provenance": {"input_text": "삼성전자랑 KODEX 200 반반, RSI 30 아래면 사고 5% 떨어지면 손절, "
-                                     "10% 오르면 익절, 20일 지나면 팔아",
-                       "defaults_applied": ["costs"]},
-    },
-    # 골든크로스 기본 기간 표시, 조건 여러 개(all/any), 거래량 배수, 비중 일부 현금
-    "multi_conditions_partial_weight": {
-        "universe": [{"ticker": "000660", "name": "SK하이닉스", "weight": 0.7}],
-        "entry": {"logic": "all", "conditions": [
-            {"left": "SMA_5", "op": "cross_above", "right": "SMA_20"},
-            {"left": "VOLUME", "op": "gt", "right": {"ref": "VOL_SMA_20", "mul": 2}}]},
-        "exit": {"logic": "any", "conditions": [
-            {"left": "CLOSE", "op": "cross_below", "right": "SMA_20"},
-            {"left": "RSI_14", "op": "gt", "right": 70}], "take_profit": 0.15},
-        "backtest": {"start": "2021-01-01", "end": "2025-12-31", "initial_cash": 30_000_000},
-        "provenance": {"input_text": "하이닉스에 70%만, 골든크로스에 거래량 터지면 사고 "
-                                     "20일선 깨지거나 RSI 70 위면 팔아, 15% 오르면 익절",
-                       "defaults_applied": ["entry.conditions[0]", "backtest"]},
-    },
-}
+"""v0.2 재서술: 문장 틀에 값을 끼운다 (LLM 미사용)."""
+from conftest import cmp, ind, strategy_dict
+from core.narrate import narrate
+from core.schema import Strategy
 
 
-def render(name: str) -> str:
-    report = validate(CASES[name])
-    assert report.ok, [str(i) for i in report.issues]
-    return narrate(report.spec).text + "\n"
+def _samsung(**kw):
+    kw.setdefault("assets", [{"ticker": "005930", "name": "삼성전자", "weight": None}])
+    d = strategy_dict(**kw)
+    d["backtest"] = {"start": "2023-01-01", "end": "2025-12-31", "initial_cash": 10_000_000,
+                     "commission_rate": 0.00015, "slippage_rate": 0.0005}
+    return Strategy.model_validate(d)
 
 
-@pytest.mark.parametrize("name", list(CASES))
-def test_narration_snapshot(name):
-    expected = (SNAP_DIR / f"narrate_{name}.txt").read_text(encoding="utf-8")
-    assert render(name) == expected
+def test_v02_sample_sentence():
+    text = narrate(_samsung()).text
+    assert "**삼성전자**" in text
+    assert "RSI(14일)가 30 아래로 내려가는 날" in text
+    assert "종가가 5일 이동평균 아래로 내려가는 날" in text
+    assert "다음 거래일 시가" in text
+    assert "팔기를 우선" in text
+    assert "2023-01-01 ~ 2025-12-31" in text and "1,000만 원" in text
+    assert "수수료 0.015%" in text and "체결 오차 0.05%" in text
+    assert "거래한 날짜의 세율" in text and "코스피 주식" in text
+    assert "배당" in text   # 배당 미반영 안내
 
 
-if __name__ == "__main__" and "--update" in sys.argv:
-    SNAP_DIR.mkdir(exist_ok=True)
-    for n in CASES:
-        (SNAP_DIR / f"narrate_{n}.txt").write_text(render(n), encoding="utf-8", newline="\n")
-        print(f"updated narrate_{n}.txt")
+def test_slots_and_other_targets():
+    s = _samsung(
+        assets=[{"ticker": "005930", "name": "삼성전자", "weight": None},
+                {"ticker": "000660", "name": "SK하이닉스", "weight": None}],
+        max_weight=0.4,
+        rules={"target": "each",
+               "entry": {"all": [cmp(ind("close", of="KOSPI200"), ">", ind("ma", 20, of="KOSPI200")),
+                                 cmp(ind("ret", 20), "<=", -10)]},
+               "exit": {"any": [cmp(ind("entry_return"), "<=", -10), cmp(ind("holding_days"), ">=", 5)]}},
+    )
+    text = narrate(s).text
+    assert "1/2" in text and "40%" in text
+    assert "코스피200 종가가 코스피200 20일 이동평균 위인" in text
+    assert "20일 수익률이 -10% 이하" in text
+    assert "산 가격 대비 수익률이 -10% 이하" in text
+    assert "보유 일수가 5거래일 이상" in text
+    assert "그리고" in text and "또는" in text
+
+
+def test_allocation_only_sentence():
+    s = _samsung(rules=None, rebalance="quarterly",
+                 assets=[{"ticker": "069500", "name": "KODEX 200", "weight": 0.7},
+                         {"ticker": "153130", "name": "KODEX 단기채권", "weight": 0.3}])
+    text = narrate(s).text
+    assert "**KODEX 200** 70%" in text and "**KODEX 단기채권** 30%" in text
+    assert "분기마다" in text
+    assert "차익의 15.4%" in text            # 그 밖의 ETF
+
+
+def test_default_tag():
+    d = _samsung().model_dump(mode="json")
+    d["defaults_applied"] = ["backtest"]
+    text = narrate(Strategy.model_validate(d)).text
+    assert "(기본값)" in text

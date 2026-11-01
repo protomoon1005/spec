@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from core.specify import (EXAMPLES, build_system_prompt, compose_refined_input, refine, specify)
-from core.dictionary import INDICATORS, load_tickers
+from legacy.specify import (EXAMPLES, build_system_prompt, compose_refined_input, refine, specify)
+from legacy.dictionary import INDICATORS, load_tickers
 
-EVAL_PATH = Path(__file__).resolve().parents[1] / "eval" / "dev_sentences.jsonl"
+EVAL_PATH = Path(__file__).resolve().parents[2] / "eval" / "dev_sentences.jsonl"
 EVAL = [json.loads(l) for l in EVAL_PATH.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
