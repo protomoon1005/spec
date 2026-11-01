@@ -38,8 +38,8 @@ def _payload(candidate_set, rebalance, **overrides) -> dict:
         for c in candidate_set.candidates
     ]
     payload = {
-        "spec_id": "무시됨",
-        "spec_version": "0.1",
+        "strategy_id": "무시됨",
+        "strategy_version": "0.1",
         "user_id": 999,
         "name": "테스트 전략",
         "created_at": "2026-09-20T09:00:00+09:00",
@@ -59,7 +59,7 @@ def _payload(candidate_set, rebalance, **overrides) -> dict:
 
 
 def _parse(payload, candidate_set):
-    return postprocess.parse(payload, candidate_set, spec_id="STR-TEST", user_id=7)
+    return postprocess.parse(payload, candidate_set, strategy_id="STR-TEST", user_id=7)
 
 
 # --- 파싱 -------------------------------------------------------------------
@@ -69,7 +69,7 @@ def test_identity_is_not_taken_from_the_model(engine, candidate_set, rebalance):
     """사용자 번호를 지어내면 남의 전략서가 되고, 전략서 번호가 겹치면 저장이 깨진다."""
     compiled = _parse(_payload(candidate_set, rebalance), candidate_set)
 
-    assert compiled.spec.spec_id == "STR-TEST"
+    assert compiled.spec.strategy_id == "STR-TEST"
     assert compiled.spec.user_id == 7
 
 
@@ -127,19 +127,19 @@ def owner(engine, make_user):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "DELETE FROM spec_universe WHERE spec_id IN"
-                " (SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
+                "DELETE FROM strategy_assets WHERE strategy_id IN"
+                " (SELECT strategy_id FROM strategies WHERE user_id = :u)"
             ),
             {"u": user_id},
         )
-        conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
+        conn.execute(text("DELETE FROM strategies WHERE user_id = :u"), {"u": user_id})
 
 
 def test_save_writes_spec_and_universe_together(engine, candidate_set, rebalance, owner):
     compiled = postprocess.parse(
         _payload(candidate_set, rebalance),
         candidate_set,
-        spec_id=specs.new_spec_id(),
+        strategy_id=specs.new_strategy_id(),
         user_id=owner,
     )
 
@@ -147,7 +147,7 @@ def test_save_writes_spec_and_universe_together(engine, candidate_set, rebalance
 
     assert saved.status == "draft"
     assert saved.universe_size == len(candidate_set.candidates)
-    rows = specs.get_spec_universe(saved.spec_id)
+    rows = specs.get_strategy_assets(saved.strategy_id)
     assert {row["ticker"] for row in rows} == set(candidate_set.tickers)
 
 
@@ -157,12 +157,12 @@ def test_saved_rows_keep_raw_and_final_weights(engine, candidate_set, rebalance,
     compiled = postprocess.parse(
         _payload(candidate_set, rebalance),
         candidate_set,
-        spec_id=specs.new_spec_id(),
+        strategy_id=specs.new_strategy_id(),
         user_id=owner,
     )
     saved = postprocess.save(compiled, user_id=owner)
 
-    for row in specs.get_spec_universe(saved.spec_id):
+    for row in specs.get_strategy_assets(saved.strategy_id):
         assert row["weight_min"] == row["weight_min_raw"]
         assert row["weight_max"] == row["weight_max_raw"]
         assert row["was_adjusted"] is False
@@ -172,15 +172,15 @@ def test_saved_spec_is_a_draft_with_the_request(engine, candidate_set, rebalance
     compiled = postprocess.parse(
         _payload(candidate_set, rebalance),
         candidate_set,
-        spec_id=specs.new_spec_id(),
+        strategy_id=specs.new_strategy_id(),
         user_id=owner,
     )
     saved = postprocess.save(compiled, user_id=owner, input_prompt=USER_TEXT)
 
     with engine.connect() as conn:
         row = conn.execute(
-            text("SELECT status, input_prompt FROM strategy_specs WHERE spec_id = :s"),
-            {"s": saved.spec_id},
+            text("SELECT status, input_prompt FROM strategies WHERE strategy_id = :s"),
+            {"s": saved.strategy_id},
         ).one()
     assert row.status == "draft"
     assert row.input_prompt == USER_TEXT
@@ -214,8 +214,8 @@ class _FakeLLM:
         tickers = option["properties"]["ticker"]["enum"][:2]
         self.picked = list(tickers)
         return {
-            "spec_id": "무시됨",
-            "spec_version": "0.1",
+            "strategy_id": "무시됨",
+            "strategy_version": "0.1",
             "user_id": 0,
             "name": "보수적 채권 전략",
             "created_at": "2026-09-20T09:00:00+09:00",
@@ -249,7 +249,7 @@ def test_compile_end_to_end_with_a_fake_model(engine, rebalance, owner):
     assert result.status == pipeline.STATUS_COMPLETED
     assert result.saved.status == "draft"
     assert result.saved.universe_size == len(fake.picked)
-    assert {row["ticker"] for row in specs.get_spec_universe(result.saved.spec_id)} == set(fake.picked)
+    assert {row["ticker"] for row in specs.get_strategy_assets(result.saved.strategy_id)} == set(fake.picked)
 
 
 # --- 실제 모델 ---------------------------------------------------------------
@@ -270,7 +270,7 @@ def test_compile_with_the_real_model(engine, owner):
     )
 
     assert result.status == pipeline.STATUS_COMPLETED
-    rows = specs.get_spec_universe(result.saved.spec_id)
+    rows = specs.get_strategy_assets(result.saved.strategy_id)
     assert rows
     known = set(C.select(target=300).tickers)
     for row in rows:

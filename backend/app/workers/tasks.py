@@ -54,7 +54,7 @@ def compile_spec(job_payload: dict) -> dict:
         }
     return {
         "status": result.status,
-        "spec_id": result.saved.spec_id,
+        "strategy_id": result.saved.strategy_id,
         "universe_size": result.saved.universe_size,
         # 사용자가 원했지만 못 담은 것 [{"ticker", "name", "reason_code", "reason"}] (app/m1/excluded.py)
         "excluded": list(result.excluded),
@@ -80,7 +80,7 @@ def run_backtest(run_id: int) -> dict:
     try:
         backtests.mark_running(run_id, **service.run_conditions())
         result = service.run_spec_backtest(
-            run["spec_id"],
+            run["strategy_id"],
             period_start=run["period_start"],
             period_end=run["period_end"],
             seed_money=run["seed_money"],

@@ -35,12 +35,12 @@ def make_owner(engine, make_user):
         for user_id in created:
             conn.execute(
                 text(
-                    "DELETE FROM spec_universe WHERE spec_id IN"
-                    " (SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
+                    "DELETE FROM strategy_assets WHERE strategy_id IN"
+                    " (SELECT strategy_id FROM strategies WHERE user_id = :u)"
                 ),
                 {"u": user_id},
             )
-            conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
+            conn.execute(text("DELETE FROM strategies WHERE user_id = :u"), {"u": user_id})
 
 
 @pytest.fixture
@@ -67,8 +67,8 @@ class _Fake:
             key=lambda o: len(o["properties"]["ticker"]["enum"]),
         )
         return {
-            "spec_id": "무시됨",
-            "spec_version": "0.1",
+            "strategy_id": "무시됨",
+            "strategy_version": "0.1",
             "user_id": 0,
             "name": "테스트 전략",
             "created_at": "2026-09-20T09:00:00+09:00",
@@ -107,7 +107,7 @@ def test_clear_request_goes_straight_through(engine, owner, rebalance):
     result = pipeline.start(owner, "채권으로", fake)
 
     assert result.status == pipeline.STATUS_COMPLETED
-    assert result.saved.spec_id
+    assert result.saved.strategy_id
 
 
 def test_session_is_dropped_when_it_completes(engine, owner, rebalance):
@@ -241,8 +241,8 @@ def test_spoken_loss_limit_overrides_the_model(engine, make_owner, rebalance):
     assert result.loss_limit is not None and result.loss_limit.applied == pytest.approx(0.05)
     with engine.connect() as conn:
         stored = conn.execute(
-            text("SELECT constraint_user FROM strategy_specs WHERE spec_id = :s"),
-            {"s": result.saved.spec_id},
+            text("SELECT constraint_user FROM strategies WHERE strategy_id = :s"),
+            {"s": result.saved.strategy_id},
         ).scalar_one()
     assert stored["max_drawdown"] == pytest.approx(0.05)
 

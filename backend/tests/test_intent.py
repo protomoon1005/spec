@@ -185,8 +185,8 @@ def test_keywords_spoken_in_the_sentence_are_kept_even_if_the_llm_drops_them(eng
 
 
 def test_rebalance_words_narrow_the_rebalance_blocks(engine):
-    monthly = I.resolve(I.Intent(keywords=("매달",))).rebalance_block_ids
+    monthly = I.resolve(I.Intent(keywords=("매달",))).rebalance_element_ids
     assert monthly == ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
-    assert I.resolve(I.Intent(keywords=("주간",))).rebalance_block_ids == ("RB_WEEKLY",)
+    assert I.resolve(I.Intent(keywords=("주간",))).rebalance_element_ids == ("RB_WEEKLY",)
     # 말이 없으면 좁히지 않는다 — 전략서 작성이 블록 전부에서 고르고 기본값 안내를 따른다
-    assert I.resolve(I.Intent(keywords=("배당",))).rebalance_block_ids == ()
+    assert I.resolve(I.Intent(keywords=("배당",))).rebalance_element_ids == ()

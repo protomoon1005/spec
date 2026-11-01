@@ -1,4 +1,4 @@
-"""spec_id → 러너 입력 조립(app/backtest/inputs.py).
+"""strategy_id → 러너 입력 조립(app/backtest/inputs.py).
 
 조립 결과의 모양과 값을 본다. pandas 가 필요해 requires_backtest 다.
 데모 비교는 DB 에 적재된 실종가를 읽으므로 requires_backfill 도 붙는다. 로컬에서는
@@ -44,13 +44,13 @@ PERIOD_START = date(2023, 1, 1)
 PERIOD_END = date(2025, 12, 31)
 
 
-def _build(spec_id: str):
-    return bi.build_inputs(spec_id, period_start=PERIOD_START, period_end=PERIOD_END)
+def _build(strategy_id: str):
+    return bi.build_inputs(strategy_id, period_start=PERIOD_START, period_end=PERIOD_END)
 
 
 @pytest.fixture
 def make_spec(make_draft_spec):
-    """(universe, rebalance) -> spec_id. draft 전략서를 만든다."""
+    """(universe, rebalance) -> strategy_id. draft 전략서를 만든다."""
     def _make(universe, rebalance) -> str:
         return make_draft_spec(universe, rebalance=rebalance, name="백테스트 입력 테스트",
                                signal_rules={}, constraint={})
@@ -65,7 +65,7 @@ def unpriced_etf(engine):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO etf_master (ticker, name, group_id, risk_tag,"
+                "INSERT INTO instruments (ticker, name, group_id, risk_tag,"
                 " asset_group_id, sector_group_id, country_group_id)"
                 " VALUES (:t, :t, 'EQUITY', 'G3', 'EQUITY', 'SECTOR_OTHER', 'COUNTRY_KR')"
             ),
@@ -73,8 +73,8 @@ def unpriced_etf(engine):
         )
     yield ticker
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM spec_universe WHERE ticker = :t"), {"t": ticker})
-        conn.execute(text("DELETE FROM etf_master WHERE ticker = :t"), {"t": ticker})
+        conn.execute(text("DELETE FROM strategy_assets WHERE ticker = :t"), {"t": ticker})
+        conn.execute(text("DELETE FROM instruments WHERE ticker = :t"), {"t": ticker})
 
 
 # ── 데모 7종목과 같은 형태 ───────────────────────────────────────────
@@ -153,17 +153,17 @@ def test_weekly_rule_skips_dates_closer_than_min_interval(make_spec):
     ],
 )
 def test_unsupported_rebalance_rule_stops_without_guessing(make_spec, rebalance):
-    spec_id = make_spec(DEMO_UNIVERSE[:1], rebalance)
+    strategy_id = make_spec(DEMO_UNIVERSE[:1], rebalance)
 
     with pytest.raises(bi.InputError, match="지원하지 않는 리밸런싱 규칙"):
-        _build(spec_id)
+        _build(strategy_id)
 
 
 def test_ticker_without_any_price_stops_and_is_named(make_spec, unpriced_etf):
-    spec_id = make_spec([(unpriced_etf, 0.0, 0.3)], MONTHLY_FIRST)
+    strategy_id = make_spec([(unpriced_etf, 0.0, 0.3)], MONTHLY_FIRST)
 
     with pytest.raises(bi.InputError, match=unpriced_etf):
-        _build(spec_id)
+        _build(strategy_id)
 
 
 def test_unknown_spec_and_reversed_period_stop():
@@ -209,8 +209,8 @@ def test_bbl_seed_rebalance_blocks_match_the_rules_here():
         for m in re.finditer(r"\('(RB_[A-Z_0-9]+)', 'rebalance',.*?'(\{.*?\})'\)", seed, re.S)
     }
     assert set(found) == set(BBL_RULES)
-    for block_id, rule in BBL_RULES.items():
-        assert found[block_id] == rule, block_id
+    for element_id, rule in BBL_RULES.items():
+        assert found[element_id] == rule, element_id
 
 
 def test_monthly_mid_takes_the_first_week_on_or_after_the_15th():
@@ -274,11 +274,12 @@ def _logs(*, cash_target: float = 0.12) -> list[dict]:
 
 
 def test_final_ranges_read_the_confirmed_columns_and_holdings_keep_raw(make_spec):
-    spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
-    assert _build(spec_id).final_ranges == {"069500": (0.05, 0.20), "273130": (0.10, 0.25)}  # 검증 전 = _raw
+    strategy_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
+    # 검증 전 = _raw
+    assert _build(strategy_id).final_ranges == {"069500": (0.05, 0.20), "273130": (0.10, 0.25)}
 
-    specs.record_validation(spec_id, bounds=CONFIRMED, logs=_logs())
-    inp = _build(spec_id)
+    specs.record_validation(strategy_id, bounds=CONFIRMED, logs=_logs())
+    inp = _build(strategy_id)
 
     assert inp.final_ranges == {"069500": (0.05, 0.30), "273130": (0.10, 0.25)}
     # 원래 범위는 그대로 남는다(실행 기록의 weight_*_raw)
@@ -291,8 +292,8 @@ def test_runner_holds_targets_inside_the_ranges_and_cash(make_spec):
     """러너는 확정 범위 안에서, 현금 하한을 남기고 비중을 낸다."""
     from app.backtest.runner import run
 
-    spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
-    inp = _build(spec_id)
+    strategy_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
+    inp = _build(strategy_id)
     bounds = {"069500": (0.02, 0.08), "273130": (0.03, 0.09)}
     tickers = [h["ticker"] for h in inp.holdings]
 
@@ -309,7 +310,7 @@ def test_spec_backtest_repeats_through_the_service(make_draft_spec):
     """같은 전략서를 두 번 돌리면 결과가 같다."""
     from app.backtest import service
 
-    spec_id = make_draft_spec(
+    strategy_id = make_draft_spec(
         [("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], rebalance=WEEKLY,
         name="재현성 픽스처", signal_rules={},
         constraint={"max_weight_per_asset": 0.30, "min_weight_per_asset": 0.0, "cash_min": 0.05,
@@ -317,7 +318,7 @@ def test_spec_backtest_repeats_through_the_service(make_draft_spec):
     )
 
     def once():
-        return service.run_spec_backtest(spec_id, period_start=PERIOD_START, period_end=PERIOD_END,
+        return service.run_spec_backtest(strategy_id, period_start=PERIOD_START, period_end=PERIOD_END,
                                          seed_money=10_000_000)
 
     first, second = once(), once()

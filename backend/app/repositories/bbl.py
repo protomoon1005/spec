@@ -30,7 +30,8 @@ from sqlalchemy import text
 
 from app.core.db import get_engine
 
-BLOCK_TYPES = ("indicator", "filter", "rebalance", "lens", "etf_trait")
+# strategy_elements.element_type 의 CHECK 와 같다(db/init/02_schema.sql)
+BLOCK_TYPES = ("indicator", "filter", "rebalance", "etf_trait")
 
 # 태그 접두어. 늘리지 않는다 — docs/archive/m1_milestone.md 3단계 참고.
 TAG_PREFIXES = ("kw:", "asset:", "sector:", "country:", "risk:")
@@ -38,8 +39,8 @@ TAG_PREFIXES = ("kw:", "asset:", "sector:", "country:", "risk:")
 
 @dataclass(frozen=True)
 class Block:
-    block_id: str
-    block_type: str
+    element_id: str
+    element_type: str
     title: str | None
     description: str | None
     params_schema: dict | None
@@ -50,31 +51,31 @@ class Block:
 # 맞은 태그 수(matched)를 질의에서 같이 센다. 파이썬에서 또 세면 세는 규칙이 두 곳이
 # 되고, 한쪽만 고치면 정렬과 표시가 어긋난다. :tags 를 안 넘기는 호출에서는 0 이다.
 _SELECT = """
-    SELECT b.block_id, b.block_type, b.title, b.description, b.params_schema,
+    SELECT b.element_id, b.element_type, b.title, b.description, b.params_schema,
            COALESCE(ARRAY_AGG(t.tag ORDER BY t.tag) FILTER (WHERE t.tag IS NOT NULL), '{}') AS tags,
            COUNT(*) FILTER (WHERE t.tag = ANY(COALESCE(:tags, ARRAY[]::varchar[]))) AS matched
-      FROM bbl_blocks b
-      LEFT JOIN bbl_tags t ON t.block_id = b.block_id
+      FROM strategy_elements b
+      LEFT JOIN strategy_element_tags t ON t.element_id = b.element_id
      WHERE b.active = true
 """
 
 
-def get_block(block_id: str) -> Block | None:
+def get_block(element_id: str) -> Block | None:
     with get_engine().connect() as conn:
         row = conn.execute(
-            text(_SELECT + " AND b.block_id = :block_id GROUP BY b.block_id"),
-            {"block_id": block_id, "tags": None},
+            text(_SELECT + " AND b.element_id = :element_id GROUP BY b.element_id"),
+            {"element_id": element_id, "tags": None},
         ).one_or_none()
     return _as_block(row) if row is not None else None
 
 
-def list_blocks(block_type: str | None = None) -> list[Block]:
+def list_blocks(element_type: str | None = None) -> list[Block]:
     """종류별 전체 목록. 식별자 순으로 나온다."""
-    clause = " AND b.block_type = :block_type" if block_type else ""
+    clause = " AND b.element_type = :element_type" if element_type else ""
     with get_engine().connect() as conn:
         rows = conn.execute(
-            text(_SELECT + clause + " GROUP BY b.block_id ORDER BY b.block_id"),
-            {"block_type": block_type, "tags": None} if block_type else {"tags": None},
+            text(_SELECT + clause + " GROUP BY b.element_id ORDER BY b.element_id"),
+            {"element_type": element_type, "tags": None} if element_type else {"tags": None},
         ).all()
     return [_as_block(row) for row in rows]
 
@@ -89,8 +90,8 @@ def list_tags(prefix: str) -> list[str]:
         rows = conn.execute(
             text(
                 """
-                SELECT DISTINCT t.tag FROM bbl_tags t
-                  JOIN bbl_blocks b ON b.block_id = t.block_id
+                SELECT DISTINCT t.tag FROM strategy_element_tags t
+                  JOIN strategy_elements b ON b.element_id = t.element_id
                  WHERE b.active = true AND t.tag LIKE :prefix
                  ORDER BY t.tag
                 """
@@ -101,7 +102,7 @@ def list_tags(prefix: str) -> list[str]:
 
 
 def search_blocks(
-    tags: list[str], *, block_type: str | None = None, limit: int = 20
+    tags: list[str], *, element_type: str | None = None, limit: int = 20
 ) -> list[Block]:
     """태그가 하나라도 맞는 블록을, 많이 맞은 순으로 돌려준다.
 
@@ -111,10 +112,10 @@ def search_blocks(
     if not tags:
         return []
 
-    clause = " AND b.block_type = :block_type" if block_type else ""
+    clause = " AND b.element_type = :element_type" if element_type else ""
     params: dict = {"tags": list(tags), "limit": limit}
-    if block_type:
-        params["block_type"] = block_type
+    if element_type:
+        params["element_type"] = element_type
 
     with get_engine().connect() as conn:
         rows = conn.execute(
@@ -122,9 +123,9 @@ def search_blocks(
                 _SELECT
                 + clause
                 + """
-                 GROUP BY b.block_id
+                 GROUP BY b.element_id
                 HAVING COUNT(*) FILTER (WHERE t.tag = ANY(:tags)) > 0
-                 ORDER BY COUNT(*) FILTER (WHERE t.tag = ANY(:tags)) DESC, b.block_id
+                 ORDER BY COUNT(*) FILTER (WHERE t.tag = ANY(:tags)) DESC, b.element_id
                  LIMIT :limit
                 """
             ),
@@ -135,8 +136,8 @@ def search_blocks(
 
 def _as_block(row, *, matched_tags: int = 0) -> Block:
     return Block(
-        block_id=row.block_id,
-        block_type=row.block_type,
+        element_id=row.element_id,
+        element_type=row.element_type,
         title=row.title,
         description=row.description,
         params_schema=row.params_schema,

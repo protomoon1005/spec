@@ -87,7 +87,7 @@ def build_compile_prompt(
     ]
 
     if rebalance_blocks:
-        default = next((b for b in rebalance_blocks if b.block_id == DEFAULT_REBALANCE_BLOCK), None)
+        default = next((b for b in rebalance_blocks if b.element_id == DEFAULT_REBALANCE_BLOCK), None)
         lines += ["", "리밸런싱 규칙 (rebalance 는 아래 중 하나를 그대로 쓴다):"]
         lines += [
             f"  - {b.title}: {json.dumps(b.params_schema, ensure_ascii=False, sort_keys=True)}"

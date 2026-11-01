@@ -32,7 +32,7 @@ def run_conditions() -> dict:
     return {"fee_rate": FEE, "tax_rate": TAX, "slippage_bp": round(SLIPPAGE * 10_000, 6)}
 
 
-def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, seed_money: float) -> dict:
+def run_spec_backtest(strategy_id: str, *, period_start: date, period_end: date, seed_money: float) -> dict:
     """전략서 하나를 전략 · 시장 두 계열로 돌린다.
 
     반환: {"data_snapshot_asof", "metrics", "window_results"}.
@@ -42,7 +42,7 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
     from .runner import run, run_buy_and_hold
 
     try:
-        inp = build_inputs(spec_id, period_start=period_start, period_end=period_end)
+        inp = build_inputs(strategy_id, period_start=period_start, period_end=period_end)
     except InputError as exc:
         raise BacktestFailed(str(exc)) from exc
 
@@ -84,7 +84,7 @@ def run_spec_backtest(spec_id: str, *, period_start: date, period_end: date, see
                 "skipped_rebalance_dates": inp.skipped_rebalance_dates + strategy["skipped_rebalance_dates"],
             },
             "summary": summary,
-            # 이 실행이 실제로 쓴 종목과 분류. etf_master 의 분류는 나중에 바뀔 수 있어서
+            # 이 실행이 실제로 쓴 종목과 분류. instruments 의 분류는 나중에 바뀔 수 있어서
             # 실행 기록 안에 그때 쓴 값을 그대로 남긴다.
             "universe": [
                 {

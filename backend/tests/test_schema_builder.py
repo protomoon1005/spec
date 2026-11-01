@@ -194,8 +194,8 @@ def test_an_instance_built_within_the_schema_passes_the_contract(engine):
     rebalance = bbl.get_block("RB_MONTHLY_FIRST").params_schema
 
     spec = SpecV0_1(
-        spec_id="STR-TEST",
-        spec_version="0.1",
+        strategy_id="STR-TEST",
+        strategy_version="0.1",
         user_id=1,
         name="테스트 전략",
         created_at="2026-09-20T09:00:00+09:00",
@@ -241,7 +241,7 @@ def test_rebalance_can_be_narrowed_to_the_spoken_blocks(engine):
     import jsonschema
 
     only = ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
-    schema = S.build_compile_schema(C.select(target=3), rebalance_block_ids=only)
+    schema = S.build_compile_schema(C.select(target=3), rebalance_element_ids=only)
     rebalance = schema["properties"]["rebalance"]
 
     assert len(rebalance["oneOf"]) == 2

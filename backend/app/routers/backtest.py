@@ -19,7 +19,7 @@ router = APIRouter(prefix="/backtest", tags=["backtest"])
 
 
 class BacktestRunRequest(BaseModel):
-    spec_id: str
+    strategy_id: str
     period_start: date = service.DEFAULT_PERIOD_START
     period_end: date
 
@@ -28,7 +28,7 @@ class BacktestRunResponse(BaseModel):
     """BACKTEST_RUNS 확정 컬럼 일부 (docs/db-erd.md 4.1)."""
 
     run_id: int
-    spec_id: str
+    strategy_id: str
     period_start: date | None
     period_end: date | None
     status: str | None
@@ -79,12 +79,12 @@ def create_backtest_run(
     그 조건은 전략서가 아니라 **이 실행 기록에** 남긴다. 나중에 같은 결과를 다시
     만들어 내려면 조건이 남아 있어야 한다.
     """
-    spec = specs.get_spec(payload.spec_id)
+    spec = specs.get_spec(payload.strategy_id)
     if spec is None or spec["user_id"] != user.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="전략서를 찾을 수 없다")
 
     row = backtests.create_run(
-        payload.spec_id,
+        payload.strategy_id,
         period_start=payload.period_start,
         period_end=payload.period_end,
         seed_money=service.SEED_MONEY,

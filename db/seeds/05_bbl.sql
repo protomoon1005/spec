@@ -7,7 +7,7 @@
 -- 설계는 docs/archive/m1_milestone.md 3단계 참고.
 --
 -- ── 식별자 규약 ──────────────────────────────────────────────────────
---   지표 블록은 block_id 가 곧 전략서에 들어갈 값이다. ret_20 블록을 고르면
+--   지표 블록은 element_id 가 곧 전략서에 들어갈 값이다. ret_20 블록을 고르면
 --   indicators 에 "ret_20" 이 그대로 들어간다. 번역표를 한 겹 두면 언젠가 어긋난다.
 --   나머지는 접두어를 붙인다 — RB_(리밸런싱) · FL_(필터) · ET_(ETF 특성).
 --
@@ -25,7 +25,7 @@
 --   한 블록에 태그를 다섯 개 이상 달지 않는다.
 
 -- ── 두 번 돌려도 안전하다 (비우고 다시 채운다) ──────────────────────
--- bbl_tags 에는 (block_id, tag) UNIQUE 제약이 없어서 ON CONFLICT 로는 중복을 막을 수
+-- strategy_element_tags 에는 (element_id, tag) UNIQUE 제약이 없어서 ON CONFLICT 로는 중복을 막을 수
 -- 없다. 두 벌이 되면 검색의 "맞은 태그 수" 가 부풀어 순서가 바뀐다 — 같은 입력에
 -- 다른 전략서가 나온다는 뜻이다.
 -- ON CONFLICT DO NOTHING 도 답이 아니다. 블록이 이미 있으면 건너뛰어서 **설명이나
@@ -35,8 +35,8 @@
 -- ⚠ 나중에 임베딩 생성 스크립트를 돌린 뒤 이 시드를 다시 돌리면 임베딩이 날아간다.
 --   그때는 시드를 돌린 다음 임베딩을 다시 만든다.
 
-DELETE FROM bbl_tags;
-DELETE FROM bbl_blocks;
+DELETE FROM strategy_element_tags;
+DELETE FROM strategy_elements;
 
 -- =====================================================================
 -- 지표 (indicator) — 11개
@@ -48,7 +48,7 @@ DELETE FROM bbl_blocks;
 -- trend_index 와 volatility_index 자리밖에 없어서다. USDKRW 와
 -- CREDIT_SPREAD_BAA10Y 는 국면 판정이 내부에서 쓰는 입력이고 전략서에 자리가 없다.
 
-INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema) VALUES
+INSERT INTO strategy_elements (element_id, element_type, title, description, params_schema) VALUES
 ('ret_1', 'indicator', '1일 수익률',
  '직전 거래일 대비 종가 변화율. 하루 단위의 짧은 움직임을 본다.',
  '{"slot": "signal_rules.market_analysis.indicators", "value": "ret_1"}'),
@@ -89,7 +89,7 @@ INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema)
 -- params_schema 가 전략서의 rebalance 자리에 **통째로** 들어간다.
 -- min_interval_days 는 하드캡(5일)보다 짧게 두지 않는다 — 넣어도 나중에 접힌다.
 
-INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema) VALUES
+INSERT INTO strategy_elements (element_id, element_type, title, description, params_schema) VALUES
 ('RB_MONTHLY_FIRST', 'rebalance', '매달 첫 거래일',
  '매달 첫 거래일에 목표 비중으로 되돌린다. 거래가 잦지 않아 비용이 적고 가장 무난하다.',
  '{"trigger": {"type": "calendar", "freq": "monthly", "day": 1}, "min_interval_days": 20}'),
@@ -114,7 +114,7 @@ INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema)
 -- 레버리지 여부·활성 여부. 보수율·최대낙폭·국가는 비어 있거나 칸이 없어서 못 거른다.
 -- (국가 칸이 없는 것은 README 의 알려진 문제에 기록돼 있다.)
 
-INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema) VALUES
+INSERT INTO strategy_elements (element_id, element_type, title, description, params_schema) VALUES
 ('FL_NO_LEVERAGE', 'filter', '레버리지·인버스 제외',
  '지수 움직임을 몇 배로 따라가거나 거꾸로 가는 상품을 후보에서 뺀다.',
  '{"column": "is_leveraged", "op": "eq", "value": false}'),
@@ -143,7 +143,7 @@ INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema)
 -- 종목 이름에서 읽히는 성격. 전략서에는 들어가지 않고 후보를 고를 때 쓴다.
 -- 판정은 종목명 정규식이다 — 종목 표에 칸을 추가하지 않기 위해서다.
 
-INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema) VALUES
+INSERT INTO strategy_elements (element_id, element_type, title, description, params_schema) VALUES
 ('ET_DIVIDEND', 'etf_trait', '배당',
  '배당을 많이 주는 종목을 모은 ETF. 정기적으로 현금이 나오기를 바랄 때 고른다.',
  '{"name_pattern": "배당"}'),
@@ -182,7 +182,7 @@ INSERT INTO bbl_blocks (block_id, block_type, title, description, params_schema)
 -- =====================================================================
 -- 태그
 -- =====================================================================
-INSERT INTO bbl_tags (block_id, tag) VALUES
+INSERT INTO strategy_element_tags (element_id, tag) VALUES
 -- 지표
 ('ret_1', 'kw:단기'), ('ret_1', 'risk:high'),
 ('ret_5', 'kw:단기'), ('ret_5', 'risk:mid'),

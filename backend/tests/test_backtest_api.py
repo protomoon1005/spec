@@ -58,10 +58,10 @@ def _auth(client, username: str) -> dict:
 
 @pytest.fixture
 def owner(make_draft_spec):
-    """사용자 하나와 그 사람의 draft 전략서 하나. (email, spec_id)."""
-    spec_id = make_draft_spec(DEMO_UNIVERSE, rebalance=MONTHLY_FIRST, name="백테스트 API 테스트",
+    """사용자 하나와 그 사람의 draft 전략서 하나. (email, strategy_id)."""
+    strategy_id = make_draft_spec(DEMO_UNIVERSE, rebalance=MONTHLY_FIRST, name="백테스트 API 테스트",
                               signal_rules=SIGNAL_RULES, constraint=CONSTRAINT)
-    return make_draft_spec.email, spec_id
+    return make_draft_spec.email, strategy_id
 
 
 @pytest.fixture
@@ -69,8 +69,8 @@ def fake_runner(monkeypatch):
     """러너 대신 고정 결과를 돌려준다. 받은 인자를 calls 에 쌓는다."""
     calls: list[dict] = []
 
-    def _fake(spec_id, **kwargs):
-        calls.append({"spec_id": spec_id, **kwargs})
+    def _fake(strategy_id, **kwargs):
+        calls.append({"strategy_id": strategy_id, **kwargs})
         return FAKE_RESULT
 
     conditions = {"fee_rate": 0.00015, "tax_rate": 0.0, "slippage_bp": 5.0}
@@ -79,8 +79,8 @@ def fake_runner(monkeypatch):
     return calls
 
 
-def _post(client, email, spec_id, **extra):
-    return client.post("/backtest/runs", json={"spec_id": spec_id, **BODY, **extra},
+def _post(client, email, strategy_id, **extra):
+    return client.post("/backtest/runs", json={"strategy_id": strategy_id, **BODY, **extra},
                        headers=_auth(client, email))
 
 
@@ -92,14 +92,14 @@ def _get(client, email, run_id):
 
 
 def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, fake_runner):
-    email, spec_id = owner
+    email, strategy_id = owner
 
-    resp = _post(client, email, spec_id)
+    resp = _post(client, email, strategy_id)
 
     assert resp.status_code == 202
     body = resp.json()
-    assert body["status"] == "queued" and body["spec_id"] == spec_id
-    assert fake_runner == [{"spec_id": spec_id, "period_start": date(2023, 1, 1),
+    assert body["status"] == "queued" and body["strategy_id"] == strategy_id
+    assert fake_runner == [{"strategy_id": strategy_id, "period_start": date(2023, 1, 1),
                             "period_end": date(2025, 12, 31), "seed_money": 10_000_000}]
 
     got = _get(client, email, body["run_id"]).json()
@@ -121,8 +121,8 @@ def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, f
 
 
 def test_period_start_defaults_to_demo_plan(client, owner, fake_runner):
-    email, spec_id = owner
-    resp = client.post("/backtest/runs", json={"spec_id": spec_id, "period_end": "2025-12-31"},
+    email, strategy_id = owner
+    resp = client.post("/backtest/runs", json={"strategy_id": strategy_id, "period_end": "2025-12-31"},
                        headers=_auth(client, email))
 
     assert resp.status_code == 202
@@ -133,11 +133,11 @@ def test_period_start_defaults_to_demo_plan(client, owner, fake_runner):
 
 
 def test_cannot_run_or_read_someone_elses(client, owner, make_user, fake_runner):
-    email, spec_id = owner
+    email, strategy_id = owner
     other, _ = make_user()
-    run_id = _post(client, email, spec_id).json()["run_id"]
+    run_id = _post(client, email, strategy_id).json()["run_id"]
 
-    assert _post(client, other, spec_id).status_code == 404
+    assert _post(client, other, strategy_id).status_code == 404
     assert _post(client, email, "STR-없는전략서").status_code == 404
     assert _get(client, other, run_id).status_code == 404
     assert _get(client, email, 999999999).status_code == 404
@@ -147,13 +147,13 @@ def test_cannot_run_or_read_someone_elses(client, owner, make_user, fake_runner)
 
 
 def test_input_failure_ends_failed_with_the_reason(client, owner, fake_runner, monkeypatch):
-    email, spec_id = owner
+    email, strategy_id = owner
 
-    def _raise(spec_id, **kwargs):
+    def _raise(strategy_id, **kwargs):
         raise service.BacktestFailed("러너가 지원하지 않는 리밸런싱 규칙: {...}")
 
     monkeypatch.setattr(service, "run_spec_backtest", _raise)
-    run_id = _post(client, email, spec_id).json()["run_id"]
+    run_id = _post(client, email, strategy_id).json()["run_id"]
 
     got = _get(client, email, run_id).json()
     assert got["status"] == "failed"
@@ -164,13 +164,13 @@ def test_input_failure_ends_failed_with_the_reason(client, owner, fake_runner, m
 
 
 def test_unexpected_error_does_not_leak_the_stack(client, owner, fake_runner, monkeypatch):
-    email, spec_id = owner
+    email, strategy_id = owner
 
-    def _boom(spec_id, **kwargs):
+    def _boom(strategy_id, **kwargs):
         raise ZeroDivisionError("secret internal detail")
 
     monkeypatch.setattr(service, "run_spec_backtest", _boom)
-    run_id = _post(client, email, spec_id).json()["run_id"]
+    run_id = _post(client, email, strategy_id).json()["run_id"]
 
     got = _get(client, email, run_id).json()
     assert got["status"] == "failed"
@@ -201,15 +201,15 @@ def test_metrics_follow_the_definition():
     assert m["final"] == 108.9
 
 
-# ── 재현성: 같은 spec_id 를 두 번 돌리면 지표와 목표 비중이 같다 ────────
+# ── 재현성: 같은 strategy_id 를 두 번 돌리면 지표와 목표 비중이 같다 ────────
 
 
 @pytest.mark.requires_backtest
 @pytest.mark.requires_backfill
 def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
-    _email, spec_id = owner
+    _email, strategy_id = owner
     runs = [
-        service.run_spec_backtest(spec_id, period_start=date(2023, 1, 1), period_end=date(2025, 12, 31),
+        service.run_spec_backtest(strategy_id, period_start=date(2023, 1, 1), period_end=date(2025, 12, 31),
                                   seed_money=service.SEED_MONEY)
         for _ in range(2)
     ]
@@ -224,8 +224,8 @@ def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
 @pytest.mark.requires_backtest
 @pytest.mark.requires_backfill
 def test_task_runs_the_real_runner_to_done(owner):
-    _email, spec_id = owner
-    row = backtests.create_run(spec_id, period_start=date(2023, 1, 1), period_end=date(2025, 12, 31),
+    _email, strategy_id = owner
+    row = backtests.create_run(strategy_id, period_start=date(2023, 1, 1), period_end=date(2025, 12, 31),
                                seed_money=service.SEED_MONEY, feature_set_version=service.FEATURE_SET_VERSION)
 
     assert tasks.run_backtest(row["run_id"])["status"] == "done"
@@ -235,7 +235,7 @@ def test_task_runs_the_real_runner_to_done(owner):
     assert got["win_rate"] is None
     assert len(got["window_results"]["series"]) == 158
 
-    # 실행 기록 안에 그때 쓴 종목·분류가 남는다. etf_master 가 나중에 바뀌어도
+    # 실행 기록 안에 그때 쓴 종목·분류가 남는다. instruments 가 나중에 바뀌어도
     # 리포트가 이 실행의 비중 표를 그대로 다시 그릴 수 있어야 한다.
     results = got["window_results"]
     universe = results["universe"]

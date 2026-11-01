@@ -1,7 +1,7 @@
 """price_daily as_of 질의와 적재. docs/db-erd.md 가 정본이다.
 
-**append-only 가 아니다.** view_weights 와 달리 가격은 거래소 정정·수정주가 반영으로
-같은 (종목, 거래일) 이 다시 채워지는 일이 정상이다. feature_store 와 같은 논리다.
+**append-only 가 아니다.** 가격은 거래소 정정·수정주가 반영으로
+같은 (종목, 거래일) 이 다시 채워지는 일이 정상이다.
 
 **atr_14 컬럼은 이 모듈이 채우지 않는다.** app/backtest/features.py 가
 atr_14_pct 를 Wilder 방식으로 계산하고 워밍업 120행이 v0.1-ta9 정의의 일부다.

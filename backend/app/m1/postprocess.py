@@ -35,13 +35,13 @@ class CompiledSpec:
     candidate_set: CandidateSet
 
 
-def parse(raw: dict, candidate_set: CandidateSet, *, spec_id: str, user_id: int) -> CompiledSpec:
+def parse(raw: dict, candidate_set: CandidateSet, *, strategy_id: str, user_id: int) -> CompiledSpec:
     # 식별 정보는 LLM 이 정하게 두지 않는다. 사용자 번호를 지어내면 남의 전략서가 되고,
     # 전략서 번호가 겹치면 저장이 깨진다.
     payload = dict(raw)
-    payload["spec_id"] = spec_id
+    payload["strategy_id"] = strategy_id
     payload["user_id"] = user_id
-    payload.setdefault("spec_version", SPEC_VERSION)
+    payload.setdefault("strategy_version", SPEC_VERSION)
 
     # 종목명은 모델이 쓴 것을 믿지 않고 우리가 아는 값으로 덮어쓴다. 스키마에서
     # 이름을 고정하지 않은 이유이기도 하다 — 문법을 키우지 않으려고 뺐다.
@@ -111,9 +111,9 @@ def save(
     ]
 
     return specs.insert_spec(
-        spec_id=spec.spec_id,
+        strategy_id=spec.strategy_id,
         user_id=user_id,
-        spec_version=spec.spec_version,
+        strategy_version=spec.strategy_version,
         name=spec.name,
         input_prompt=input_prompt,
         rebalance=spec.rebalance.model_dump(mode="json"),
