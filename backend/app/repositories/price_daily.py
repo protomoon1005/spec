@@ -3,7 +3,7 @@
 **append-only 가 아니다.** view_weights 와 달리 가격은 거래소 정정·수정주가 반영으로
 같은 (종목, 거래일) 이 다시 채워지는 일이 정상이다. feature_store 와 같은 논리다.
 
-**atr_14 컬럼은 이 모듈이 채우지 않는다.** app/backtest/features.py 가
+**atr_14 컬럼은 이 모듈이 채우지 않는다.** app/views/market/features.py 가
 atr_14_pct 를 Wilder 방식으로 계산하고 워밍업 120행이 v0.1-ta9 정의의 일부다.
 DB 에도 넣으면 정의가 두 곳이 되어 반드시 갈라진다 (질의 8-b 답, 2026-09-19).
 """
@@ -23,7 +23,7 @@ _BAR_FIELDS = ("open", "high", "low", "close", "volume")
 def get_price_window(ticker: str, *, as_of: date, lookback_days: int) -> list[dict]:
     """as_of 시점까지의 최근 lookback_days 거래일. 오래된 것부터.
 
-    반환 dict 의 키는 app/backtest/features.py 의 _bar_from_mapping 이 받는
+    반환 dict 의 키는 app/views/market/features.py 의 _bar_from_mapping 이 받는
     이름 그대로다 — compute_features 에 그대로 먹일 수 있어야 한다.
 
     as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (거래일은 장 마감 후 확정되므로
@@ -100,8 +100,8 @@ def get_close_history(tickers: list[str], *, as_of: date) -> dict[str, list[tupl
 def get_bar_history(tickers: list[str], *, as_of: date) -> dict[str, list[dict]]:
     """여러 종목의 as_of 시점까지 일봉 전체. {종목: [행, ...]} 오래된 것부터.
 
-    행의 키는 get_price_window 와 같아서 compute_features 에 그대로 먹일 수 있다.
-    워밍업 절단(직전 120행)은 호출부 몫이다.
+    M2 RiskSizer 가 atr_14_pct 를 계산하려고 쓴다. 행의 키는 get_price_window 와 같아서
+    compute_features 에 그대로 먹일 수 있다. 워밍업 절단(직전 120행)은 호출부 몫이다.
     가격이 한 행도 없는 종목은 결과에 키가 없다.
 
     as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (get_price_window 와 같다).

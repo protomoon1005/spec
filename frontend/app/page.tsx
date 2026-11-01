@@ -1,13 +1,13 @@
 "use client";
 
-// 시작.
+// 시작 — docs/frontend_milestone.md 9단계.
 //
 // 로그인 여부에 따라 보낸다.
 //   보관된 토큰 없음       → /login
 //   토큰 유효(GET /auth/me) → /home
 //   토큰 만료·무효(401)    → /login (로그인 화면에서 재인증)
 // 그 밖의 오류는 이동하지 않고 서버 응답을 그대로 보여 준다.
-// 개발용 링크(/health)는 맨 아래에 남긴다.
+// 개발용 · 데모 링크(/health, /report, /samples, /repro)는 맨 아래에 남긴다.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -51,6 +51,15 @@ export default function HomePage() {
         <ul>
           <li>
             <Link href="/health">/health</Link> <span className="flow-hint">인프라 상태 확인</span>
+          </li>
+          <li>
+            <Link href="/report">/report</Link> <span className="flow-hint">백테스트 결과 리포트 (M4)</span>
+          </li>
+          <li>
+            <Link href="/samples">/samples</Link> <span className="flow-hint">데모 — 샘플 결과 표 (로그인 없이)</span>
+          </li>
+          <li>
+            <Link href="/repro">/repro</Link> <span className="flow-hint">데모 — 재현성 비교 (로그인 없이)</span>
           </li>
         </ul>
       </main>

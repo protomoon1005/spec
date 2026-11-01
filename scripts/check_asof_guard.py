@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""app/ 전체를 AST로 훑어 app/repositories/ 밖에서 price_daily 를 문자열로 참조하거나,
-그에 대응하는 ORM 모델 클래스(PriceDaily)를 import/참조하는 코드를 찾아 실패시킨다.
+"""app/ 전체를 AST로 훑어 app/repositories/ 밖에서 feature_store · macro_indicators ·
+view_weights · price_daily · regime_snapshots · news_articles · news_sentiment 를 문자열로
+참조하거나, 그에 대응하는 ORM 모델 클래스(FeatureStore · MacroIndicators · ViewWeights ·
+PriceDaily · RegimeSnapshots · NewsArticles · NewsSentiment)를
+import/참조하는 코드를 찾아
+실패시킨다 (docs/infra-spec.md 5단계).
 
-가격 같은 시점 데이터는 app/repositories/ 의 단일 함수를 거쳐서만 조회해야 한다는
-규약(CLAUDE.md)을 코드 리뷰가 아니라 CI에서 강제하기 위한 스크립트다. 피처 · 거시지표 ·
-관점 가중치 · 국면 · 뉴스 테이블은 주제 변경으로 쓰지 않게 되어 대상에서 뺐다.
+피처 / 거시지표 / 관점 가중치는 app/repositories/ 의 단일 함수를 거쳐서만
+조회해야 한다는 규약(CLAUDE.md)을 코드 리뷰가 아니라 CI에서 강제하기 위한 스크립트다.
 
-테이블명 문자열만 잡으면 ORM으로 우회할 수 있다 (예: select(PriceDaily)에는
-'price_daily' 문자열이 없다). 그래서 테이블당 관례적 ORM 클래스명도 함께 감시한다.
+테이블명 문자열만 잡으면 ORM으로 우회할 수 있다 (예: select(FeatureStore)에는
+'feature_store' 문자열이 없다). 그래서 테이블당 관례적 ORM 클래스명도 함께 감시한다.
 """
 from __future__ import annotations
 
@@ -16,12 +19,30 @@ import re
 import sys
 from pathlib import Path
 
-GUARDED_TABLES = ("price_daily",)
+GUARDED_TABLES = (
+    "feature_store",
+    "macro_indicators",
+    "view_weights",
+    "price_daily",
+    "regime_snapshots",
+    # 2026-10-27 감성 관점(빅카인즈 뉴스)이 실물이 되며 추가. 기사 발행 시각이 시점 태그다.
+    "news_articles",
+    "news_sentiment",
+)
 _TABLE_PATTERN = re.compile(r"\b(" + "|".join(GUARDED_TABLES) + r")\b")
 
 # 테이블명 -> 관례적 ORM 모델 클래스명 (snake_case -> PascalCase).
 # app/models/ 에 실제 ORM 클래스는 아직 없다 — 생기면 이 관례 이름을 따라야 가드가 잡는다.
-GUARDED_CLASSES: dict[str, str] = {"PriceDaily": "price_daily"}
+# repositories/regime.py 의 RegimeSnapshot(단수)은 저장소가 돌려주는 DTO라 대상이 아니다.
+GUARDED_CLASSES: dict[str, str] = {
+    "FeatureStore": "feature_store",
+    "MacroIndicators": "macro_indicators",
+    "ViewWeights": "view_weights",
+    "PriceDaily": "price_daily",
+    "RegimeSnapshots": "regime_snapshots",
+    "NewsArticles": "news_articles",
+    "NewsSentiment": "news_sentiment",
+}
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_APP_ROOT = REPO_ROOT / "backend" / "app"
@@ -33,7 +54,7 @@ def _violations_in_file(path: Path) -> list[tuple[int, str]]:
 
     - 문자열 리터럴: f-string 조각도 ast.Constant로 노출되므로 ast.walk만으로 잡힌다.
     - ORM 클래스: import(alias) 와 이름 참조(Name/Attribute) 양쪽 다 잡는다.
-      클래스 정의(class PriceDaily(Base): ...) 자체는 ClassDef.name이 문자열
+      클래스 정의(class FeatureStore(Base): ...) 자체는 ClassDef.name이 문자열
       속성일 뿐 Name 노드를 만들지 않으므로, 정의 파일(app/models/)은 오탐되지 않는다.
     """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

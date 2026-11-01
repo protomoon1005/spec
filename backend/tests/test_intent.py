@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from app.m1 import intent as I
-from app.repositories import bbl, etf_master
+from app.repositories import bbl, presets
 
 
 @pytest.fixture
@@ -25,10 +25,10 @@ def test_keyword_choices_come_from_the_tag_vocabulary(engine, schema):
 
 
 def test_sector_and_group_choices_come_from_the_group_table(engine, schema):
-    sectors = {g for g in etf_master.list_group_ids(2) if g.startswith("SECTOR_")}
+    sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
 
     assert set(schema["properties"]["sectors"]["items"]["enum"]) == sectors
-    assert set(schema["properties"]["asset_groups"]["items"]["enum"]) == set(etf_master.list_group_ids(1))
+    assert set(schema["properties"]["asset_groups"]["items"]["enum"]) == set(presets.list_group_ids(1))
 
 
 def test_names_stay_free_text(engine, schema):
@@ -151,7 +151,7 @@ def test_extract_returns_vocabulary_values(engine):
     intent = I.extract("반도체 위주로 공격적으로 굴리고 매달 정리해줘", get_llm_client())
 
     allowed = set(bbl.list_tags("kw:"))
-    sectors = {g for g in etf_master.list_group_ids(2) if g.startswith("SECTOR_")}
+    sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
     assert set(intent.keywords) <= allowed
     assert set(intent.sectors) <= sectors
 

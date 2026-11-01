@@ -15,18 +15,19 @@ class UserRecord:
     user_id: int
     email: str
     password_hash: str
+    role: str
 
 
 def get_user_by_email(email: str) -> UserRecord | None:
     with get_engine().connect() as conn:
         row = conn.execute(
-            text("SELECT user_id, email, password_hash FROM users WHERE email = :email"),
+            text("SELECT user_id, email, password_hash, role FROM users WHERE email = :email"),
             {"email": email},
         ).one_or_none()
     return UserRecord(**row._mapping) if row is not None else None
 
 
-def insert_user(email: str, password_hash: str) -> UserRecord | None:
+def insert_user(email: str, password_hash: str, role: str) -> UserRecord | None:
     """계정을 만든다. 이메일이 이미 있으면 None 을 돌려준다(라우터가 409로 바꾼다).
 
     중복 판정을 "조회 후 INSERT" 로 하지 않는 이유: 두 요청이 동시에 들어오면
@@ -37,13 +38,13 @@ def insert_user(email: str, password_hash: str) -> UserRecord | None:
         row = conn.execute(
             text(
                 """
-                INSERT INTO users (email, password_hash)
-                VALUES (:email, :password_hash)
+                INSERT INTO users (email, password_hash, role)
+                VALUES (:email, :password_hash, :role)
                 ON CONFLICT (email) DO NOTHING
-                RETURNING user_id, email, password_hash
+                RETURNING user_id, email, password_hash, role
                 """
             ),
-            {"email": email, "password_hash": password_hash},
+            {"email": email, "password_hash": password_hash, "role": role},
         ).one_or_none()
     return UserRecord(**row._mapping) if row is not None else None
 
@@ -51,7 +52,7 @@ def insert_user(email: str, password_hash: str) -> UserRecord | None:
 def get_user_by_id(user_id: int) -> UserRecord | None:
     with get_engine().connect() as conn:
         row = conn.execute(
-            text("SELECT user_id, email, password_hash FROM users WHERE user_id = :user_id"),
+            text("SELECT user_id, email, password_hash, role FROM users WHERE user_id = :user_id"),
             {"user_id": user_id},
         ).one_or_none()
     return UserRecord(**row._mapping) if row is not None else None

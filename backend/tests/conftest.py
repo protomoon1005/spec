@@ -1,4 +1,4 @@
-"""테스트 공통 픽스처.
+"""as_of 경계 테스트 공통 픽스처.
 
 DATABASE_URL이 없으면 로컬 docker-compose postgres(localhost:5432)를 기본값으로
 쓴다.
@@ -33,16 +33,19 @@ def engine():
 
 @pytest.fixture
 def make_user(engine):
-    """() -> (email, user_id) 를 만드는 팩토리. 테스트 후 정리한다."""
+    """(role) -> (email, user_id) 를 만드는 팩토리. 테스트 후 정리한다."""
     created_ids: list[int] = []
 
-    def _make() -> tuple[str, int]:
+    def _make(role: str = "retail") -> tuple[str, int]:
         suffix = uuid.uuid4().hex[:8]
         email = f"auth-test-{suffix}@example.com"
         with engine.begin() as conn:
             user_id = conn.execute(
-                text("INSERT INTO users (email, password_hash) VALUES (:email, '') RETURNING user_id"),
-                {"email": email},
+                text(
+                    "INSERT INTO users (email, password_hash, role) "
+                    "VALUES (:email, '', :role) RETURNING user_id"
+                ),
+                {"email": email, "role": role},
             ).scalar_one()
         created_ids.append(user_id)
         return email, user_id
@@ -56,22 +59,35 @@ def make_user(engine):
 
 @pytest.fixture
 def make_draft_spec(engine, make_user):
-    """사용자 하나와 그 사람의 draft 전략서를 만드는 팩토리.
+    """성향 4 사용자 하나와 그 사람의 draft 전략서를 만드는 팩토리.
 
     (universe, *, rebalance, name, signal_rules, constraint) -> spec_id. universe 는
     (ticker, weight_min, weight_max) 목록이고 요청 범위(raw)도 같은 값으로 넣는다.
     사용자 이메일은 make_draft_spec.email 에 있다. 전략서 · 검증 기록 · 실행 기록을 뒤에서 지운다.
     """
-    from app.repositories import specs
+    from app.repositories import presets, profiles, specs
 
-    email, user_id = make_user()
+    email, user_id = make_user("retail")
+    version = presets.active_preset_version()
+    profile = profiles.insert_profile(
+        user_id=user_id, risk_level=4, preset_version=version,
+        defaults=profiles.get_profile_defaults(version, 4), provenance={},
+    )
+    bounds = presets.get_asset_bounds(4)
+    hardcap = presets.get_active_hardcap()["hardcap_version"]
 
     def _make(universe, *, rebalance, name, signal_rules, constraint) -> str:
+        with engine.connect() as conn:
+            tags = dict(conn.execute(
+                text("SELECT ticker, risk_tag FROM etf_master WHERE ticker = ANY(:t)"),
+                {"t": [t for t, _lo, _hi in universe]},
+            ).all())
         return specs.insert_spec(
-            spec_id=specs.new_spec_id(), user_id=user_id, spec_version="0.1", name=name,
-            input_prompt=None, rebalance=rebalance, signal_rules=signal_rules, constraint=constraint,
+            spec_id=specs.new_spec_id(), user_id=user_id, profile_id=profile.profile_id,
+            hardcap_version=hardcap, spec_version="0.1", name=name, input_prompt=None,
+            rebalance=rebalance, signal_rules=signal_rules, constraint=constraint,
             universe=[
-                {"ticker": t, "weight_min": lo, "weight_max": hi,
+                {"ticker": t, "preset_id": bounds[tags[t]].preset_id, "weight_min": lo, "weight_max": hi,
                  "weight_min_raw": lo, "weight_max_raw": hi, "was_adjusted": False}
                 for t, lo, hi in universe
             ],
@@ -87,14 +103,15 @@ def make_draft_spec(engine, make_user):
         for table in ("backtest_runs", "validation_logs", "spec_universe"):
             conn.execute(text(f"DELETE FROM {table} WHERE spec_id IN {mine}"), {"u": user_id})
         conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
+        conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
 
 
 @pytest.fixture
 def blocked_etfs(engine):
-    """후보 선정 규칙을 확인할 종목을 잠깐 넣어 준다 — 레버리지 하나, 상장폐지 하나.
+    """후보 선정이 막아야 하는 종목을 잠깐 넣어 준다 — 레버리지 하나, 상장폐지 하나.
 
-    상장폐지 종목은 막혀야 하고, 레버리지 종목은 지목하면 담겨야 한다(시스템 상한이 없다).
-    시드로 넣어 두지 않는 이유: 테스트 데이터는 테스트 안에 두는 편이 원장이 바뀌어도 안 깨진다.
+    시드로 넣어 두지 않는 이유: 수집 스크립트가 일부러 걸러내는 종목이라
+    종목 표에 상주할 이유가 없다. 막는 규칙이 동작하는지는 여기서만 확인하면 된다.
 
     {"leveraged": 종목코드, "delisted": 종목코드} 를 돌려준다.
     """
@@ -145,3 +162,76 @@ def client():
 
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def portfolio_id(engine):
+    """view_weights.portfolio_id가 요구하는 FK 체인
+    (users -> preset_versions -> hardcap_versions -> risk_profiles
+     -> strategy_specs -> portfolios) 을 최소로 채우고 테스트 후 정리한다."""
+    suffix = uuid.uuid4().hex[:8]
+    preset_version = f"test-{suffix}"
+    hardcap_version = f"test-{suffix}"
+    spec_id = f"test-spec-{suffix}"
+
+    with engine.begin() as conn:
+        user_id = conn.execute(
+            text(
+                "INSERT INTO users (email, password_hash, role) "
+                "VALUES (:email, 'x', 'retail') RETURNING user_id"
+            ),
+            {"email": f"asof-test-{suffix}@example.com"},
+        ).scalar_one()
+        conn.execute(
+            text(
+                "INSERT INTO preset_versions (preset_version, created_by, is_active) "
+                "VALUES (:pv, :uid, false)"
+            ),
+            {"pv": preset_version, "uid": user_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO hardcap_versions "
+                "(hardcap_version, max_weight_per_asset, cash_min, max_loss_per_trade, "
+                " max_drawdown, min_interval_days, leverage_allowed, created_by) "
+                "VALUES (:hv, 1, 0, 1, 1, 1, false, :uid)"
+            ),
+            {"hv": hardcap_version, "uid": user_id},
+        )
+        profile_id = conn.execute(
+            text(
+                "INSERT INTO risk_profiles (user_id, risk_level, preset_version) "
+                "VALUES (:uid, 1, :pv) RETURNING profile_id"
+            ),
+            {"uid": user_id, "pv": preset_version},
+        ).scalar_one()
+        conn.execute(
+            text(
+                "INSERT INTO strategy_specs "
+                "(spec_id, user_id, profile_id, hardcap_version, spec_version, name, status) "
+                "VALUES (:sid, :uid, :pid, :hv, 'v0.1', 'asof guard test', 'draft')"
+            ),
+            {"sid": spec_id, "uid": user_id, "pid": profile_id, "hv": hardcap_version},
+        )
+        pf_id = conn.execute(
+            text(
+                "INSERT INTO portfolios (spec_id, mode, status) "
+                "VALUES (:sid, 'paper', 'active') RETURNING portfolio_id"
+            ),
+            {"sid": spec_id},
+        ).scalar_one()
+
+    yield pf_id
+
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM view_weights WHERE portfolio_id = :pid"), {"pid": pf_id})
+        conn.execute(text("DELETE FROM portfolios WHERE portfolio_id = :pid"), {"pid": pf_id})
+        conn.execute(text("DELETE FROM strategy_specs WHERE spec_id = :sid"), {"sid": spec_id})
+        conn.execute(text("DELETE FROM risk_profiles WHERE profile_id = :pid"), {"pid": profile_id})
+        conn.execute(
+            text("DELETE FROM hardcap_versions WHERE hardcap_version = :hv"), {"hv": hardcap_version}
+        )
+        conn.execute(
+            text("DELETE FROM preset_versions WHERE preset_version = :pv"), {"pv": preset_version}
+        )
+        conn.execute(text("DELETE FROM users WHERE user_id = :uid"), {"uid": user_id})

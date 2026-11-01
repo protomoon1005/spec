@@ -10,14 +10,28 @@
 #   - 한 절(쉼표·마침표·"~는데/~지만/~고" 로 나눈 조각) 안에 손실 낱말(잃·손실·손해·낙폭·
 #     빠지·떨어·하락·MDD …)과 "N%" (퍼센트·프로) 가 함께 있으면 그 N 을 한도로 본다
 #   - 한 절에 숫자가 여럿이면 손실 낱말에 가장 가까운 것
-#   - 숫자가 없는 말("크게 잃지 않게")은 한도를 만들지 않는다
+#   - 숫자가 없는 말("크게 잃지 않게")은 한도를 만들지 않는다 — 지금처럼 LLM 과 성향 기본값
 #
-# 사용자가 말한 값을 그대로 쓴다. 성향 한도나 시스템 상한으로 자르지 않는다(주제 변경 결정 3).
+# ── 성향 한도보다 느슨하면 성향 한도로 자른다 ────────────────────────
+# 말 한마디로 자기 한도를 올릴 수 없다(intent.py 의 "성향은 여기서 안 정한다" 와 같은 뜻).
+# 성향 한도는 risk_profile_defaults.max_drawdown_default 다. 수치는 시드 그대로 쓴다.
+# 시스템 상한(하드캡 0.25)은 여기서 보지 않는다 — Validator 4단 몫이다.
+#
+# ── 손실을 꺼리는가 (채권 보충 판정) ─────────────────────────────────
+# 섹터를 지목하고 손실을 꺼리면 후보에 채권을 보충한다(candidates.guard_bonds). 꺼린다는 판정은
+#   1) 숫자로 말한 손실 한도가 있다
+#   2) BBL 의 저위험 필터 블록(FL_LOW_RISK_ONLY) 의 kw: 낱말(안전하게 · 보수적)이 의도에 있다
+#   3) "잃지 않게 · 안 잃게 · 손실은 줄이고 · 원금은 지키고" 류의 말이 문장에 있다
+# 3) 은 BBL 에 손실 회피 낱말이 없어서 둔다. "크게 잃지는 않게" 를 의도 추출이 kw:비중유지 로만
+# 옮겼다(2026-10-27, qwen3:8b, temperature 0) — LLM 에 기대면 데모 케이스 2 가 흔들린다.
 from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
 
+from app.repositories import bbl
+
+LOW_RISK_FILTER_BLOCK = "FL_LOW_RISK_ONLY"
 MAX_DRAWDOWN_FIELD = "constraint.max_drawdown"
 
 _LOSS_WORD = re.compile(r"잃|손실|손해|낙폭|MDD|mdd|빠지|빠져|빠질|떨어지|떨어져|떨어질|하락|깨지|까먹")
@@ -25,13 +39,24 @@ _PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|％|퍼센트|프로)")
 # 절을 나누는 자리. 문장부호(소수점은 빼고)와 "~고 · ~는데 · ~지만 · ~면서 · ~되" 뒤 띄어쓰기에서 끊는다.
 # "~되" 를 빼면 "반도체 10% 싣되 크게 잃지 않게" 의 비중 10% 가 손실 한도로 읽힌다.
 _CLAUSE_BREAK = re.compile(r"[,!?;\n，。]|\.(?!\d)|(?<=는데)\s|(?<=지만)\s|(?<=면서)\s|(?<=고)\s|(?<=되)\s")
+_LOSS_AVERSE_PHRASE = re.compile(
+    r"잃지\s*(?:는|도|만|를)?\s*않"
+    r"|안\s*잃"
+    r"|손실\s*(?:은|을|이|는)?\s*(?:최소|줄|적|없|피|막)"
+    r"|손해\s*(?:는|를|가)?\s*(?:안|덜|없|피)"
+    r"|원금\s*(?:은|을|만|이)?\s*(?:지키|보전|보장|잃지)"
+)
+
+
 @dataclass(frozen=True)
 class LossLimit:
     # 추출 근거. 작업 결과(completed 이벤트의 loss_limit)에 그대로 싣는다.
     field: str
     matched: str  # 문장에서 읽은 절
     requested: float  # 사용자가 말한 값(비율)
-    applied: float  # 전략서에 넣은 값. 사용자가 말한 값 그대로다
+    applied: float  # 성향 한도로 자른 뒤 전략서에 넣은 값
+    profile_limit: float | None  # 성향 한도(max_drawdown_default)
+    clamped_to_profile: bool
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -52,12 +77,20 @@ def find_loss_limit(text: str) -> tuple[float, str] | None:
     return None
 
 
-def loss_limit_for(text: str) -> LossLimit | None:
+def loss_limit_for(text: str, *, profile_limit: float | None) -> LossLimit | None:
     found = find_loss_limit(text)
     if found is None:
         return None
     requested, clause = found
-    return LossLimit(field=MAX_DRAWDOWN_FIELD, matched=clause, requested=requested, applied=requested)
+    clamped = profile_limit is not None and requested > profile_limit
+    return LossLimit(
+        field=MAX_DRAWDOWN_FIELD,
+        matched=clause,
+        requested=requested,
+        applied=profile_limit if clamped else requested,
+        profile_limit=profile_limit,
+        clamped_to_profile=clamped,
+    )
 
 
 def apply_loss_limit(raw: dict, limit: LossLimit | None) -> dict:
@@ -69,6 +102,22 @@ def apply_loss_limit(raw: dict, limit: LossLimit | None) -> dict:
     constraint["max_drawdown"] = limit.applied
     out["constraint"] = constraint
     return out
+
+
+def loss_averse_keywords() -> frozenset[str]:
+    # BBL 저위험 필터 블록의 kw: 값. 시드가 바뀌면 따라간다.
+    block = bbl.get_block(LOW_RISK_FILTER_BLOCK)
+    if block is None:
+        return frozenset()
+    return frozenset(tag.removeprefix("kw:") for tag in block.tags if tag.startswith("kw:"))
+
+
+def is_loss_averse(text: str, keywords: tuple[str, ...] | list[str], *, has_limit: bool) -> bool:
+    if has_limit:
+        return True
+    if loss_averse_keywords() & set(keywords):
+        return True
+    return _LOSS_AVERSE_PHRASE.search(text or "") is not None
 
 
 def _gap(a: tuple[int, int], b: tuple[int, int]) -> int:

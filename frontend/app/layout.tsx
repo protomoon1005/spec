@@ -1,6 +1,6 @@
 export const metadata = {
   title: "spec",
-  description: "한국어 투자 전략 명세화 · 백테스트 서비스 졸업작품",
+  description: "국내 ETF 모의운용 졸업작품 — 공통 인프라 프론트엔드 스캐폴드",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

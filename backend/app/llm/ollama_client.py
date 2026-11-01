@@ -1,8 +1,9 @@
-"""LLMClient의 Ollama 구현체.
+"""LLMClient의 Ollama 구현체 — GPU 없는 팀원 기본값 (docs/infra-spec.md 2·8단계).
 
 /api/chat의 `format` 필드에 JSON Schema를 그대로 넘겨 구조화 출력을 받는다.
-Ollama의 제약 디코딩은 강도가 약해 스키마를 어긴 출력이 실제로 나온다. 그래서
-M1 후처리(app/m1/postprocess.py)가 다시 확인한다.
+Ollama의 제약 디코딩은 vLLM(guided_json, outlines 백엔드)보다 강도가 약하다
+— 정본이 명시한 대로, M1의 10월 정식 실측은 반드시 vLLM 쪽에서 한다. 이
+클라이언트는 GPU 없는 팀원의 로컬 개발용이다.
 """
 from __future__ import annotations
 

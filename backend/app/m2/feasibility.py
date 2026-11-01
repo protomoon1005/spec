@@ -1,4 +1,4 @@
-# FN-304 비중 범위 실현가능성 보정 (docs/archive/m2-algorithms.md 1장).
+# FN-304 범위 실행가능성 보정 (docs/m2-algorithms.md 1장).
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -13,8 +13,8 @@ class BoundInput:
     ticker: str
     weight_min_raw: float
     weight_max_raw: float
-    ceiling: float  # 종목 상한. 시스템 상한이 없어 1 이다
-    floor: float  # case A 축소의 바닥. 0 이다
+    ceiling: float  # min(allowed_max, 하드캡 종목 상한)
+    floor: float  # allowed_min — case A 축소의 바닥
 
 
 @dataclass(frozen=True)

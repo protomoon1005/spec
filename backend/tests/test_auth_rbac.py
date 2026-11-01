@@ -1,7 +1,10 @@
-"""JWT 발급과 로그인 사용자 의존성 테스트.
+"""JWT 발급 + 3역할(retail/pro/admin) RBAC 테스트 (docs/infra-spec.md 7단계).
 
-  - 토큰 없음이나 잘못된 토큰은 401
-  - 정상 토큰이면 라우터 본체까지 간다
+라우터 본체는 501이어도 되지만, 그 앞의 인증/인가 체인은 실제로 걸려야
+한다는 것이 이번 단계의 요구사항이다:
+  - 토큰 없음 -> 401
+  - 역할 불일치 -> 403
+  - 정상 토큰 + 허용된 역할 -> (본체 미구현이므로) 501
   - refresh 토큰으로 access 토큰을 재발급
 """
 from __future__ import annotations
@@ -22,7 +25,7 @@ def test_login_rejects_unknown_username(client):
 
 
 def test_login_issues_access_and_refresh_tokens(client, make_user):
-    email, _ = make_user()
+    email, _ = make_user("retail")
 
     tokens = _login(client, email)
 
@@ -32,7 +35,7 @@ def test_login_issues_access_and_refresh_tokens(client, make_user):
 
 
 def test_refresh_issues_new_access_token(client, make_user):
-    email, _ = make_user()
+    email, _ = make_user("retail")
     tokens = _login(client, email)
 
     resp = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
@@ -43,7 +46,7 @@ def test_refresh_issues_new_access_token(client, make_user):
 
 def test_refresh_rejects_access_token(client, make_user):
     """refresh 엔드포인트에 access 토큰을 넣으면 거부되어야 한다 (type 혼용 방지)."""
-    email, _ = make_user()
+    email, _ = make_user("retail")
     tokens = _login(client, email)
 
     resp = client.post("/auth/refresh", json={"refresh_token": tokens["access_token"]})
@@ -63,17 +66,47 @@ def test_protected_endpoint_with_garbage_token_is_401(client):
     assert resp.status_code == 401
 
 
-def test_authenticated_user_reaches_the_router_body(client, make_user):
-    """로그인한 사용자는 spec 라우터를 통과해 본체(없는 전략서이면 404)까지 도달해야 한다."""
-    email, _ = make_user()
+def test_any_authenticated_role_reaches_stub_body(client, make_user):
+    """retail/pro/admin 모두 spec 라우터를 통과해 본체(없는 전략서 → 404)까지 도달해야 한다."""
+    for role in ("retail", "pro", "admin"):
+        email, _ = make_user(role)
+        tokens = _login(client, email)
+
+        resp = client.get(
+            "/specs/spec-does-not-exist",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+
+        assert resp.status_code == 404, f"role={role} 는 spec 라우터를 통과해야 한다"
+
+
+def test_admin_router_rejects_retail_role(client, make_user):
+    email, _ = make_user("retail")
     tokens = _login(client, email)
 
     resp = client.get(
-        "/specs/spec-does-not-exist",
+        "/admin/hardcap-versions",
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
 
-    assert resp.status_code == 404
+    assert resp.status_code == 403
+
+
+def test_admin_router_accepts_admin_role(client, make_user):
+    email, _ = make_user("admin")
+    tokens = _login(client, email)
+
+    resp = client.get(
+        "/admin/hardcap-versions",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+
+    assert resp.status_code == 501  # 인가는 통과했고, 본체가 미구현이라 501
+
+
+# --- 회원가입 -------------------------------------------------------------
+# 입력은 형식 제한 없는 username 하나. 보는 것은 "곧바로 쓸 수 있는가",
+# "중복을 막는가", "권한을 요청으로 고를 수 없는가" 셋이다.
 
 
 def _signup_name() -> str:
@@ -94,9 +127,10 @@ def test_signup_creates_usable_account(client, engine):
         resp = client.post("/auth/signup", json={"username": name})
 
         assert resp.status_code == 201, resp.text
+        # 갓 가입한 계정이라 확정된 성향이 없으므로 404 — 401/403 이 아니면 인증은 지나갔다.
         token = resp.json()["access_token"]
-        me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
-        assert me.status_code == 200
+        me = client.get("/profile/me", headers={"Authorization": f"Bearer {token}"})
+        assert me.status_code == 404
 
         assert _login(client, f"  {name}  ")["access_token"]
     finally:
@@ -114,6 +148,22 @@ def test_signup_rejects_duplicate_username(client, engine):
 
 def test_signup_rejects_blank_username(client):
     assert client.post("/auth/signup", json={"username": "   "}).status_code == 422
+
+
+def test_signup_ignores_requested_role(client, engine):
+    """요청에 role 을 실어도 무시하고 retail 로 만든다 — 아무나 관리자가 되면 안 된다."""
+    name = _signup_name()
+    try:
+        resp = client.post("/auth/signup", json={"username": name, "role": "admin"})
+        assert resp.status_code == 201
+
+        token = resp.json()["access_token"]
+        forbidden = client.get(
+            "/admin/hardcap-versions", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert forbidden.status_code == 403
+    finally:
+        _cleanup(engine, name)
 
 
 def test_me_returns_token_owner(client, engine):

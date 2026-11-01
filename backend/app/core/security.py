@@ -1,6 +1,8 @@
-"""JWT 발급/검증과 로그인 사용자 의존성.
+"""JWT 발급/검증 + 3역할(retail/pro/admin) RBAC 의존성.
 
-사용자는 일반 투자자 한 종류뿐이라 역할 구분이 없다. 토큰이 없거나 잘못되면 401 이다.
+docs/infra-spec.md 7단계: "JWT 액세스/리프레시 + retail·pro·admin 3역할 RBAC
+의존성은 실제로 동작하게 만든다 (다른 라인이 여기 붙는다)". 라우터 본체는
+501이어도 이 의존성 체인(토큰 없음 -> 401, 역할 불일치 -> 403)은 실제로 걸린다.
 """
 from __future__ import annotations
 
@@ -15,6 +17,9 @@ from pydantic import BaseModel
 
 from app.core.config import get_settings
 
+Role = Literal["retail", "pro", "admin"]
+ROLES: tuple[Role, ...] = ("retail", "pro", "admin")
+
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -24,16 +29,18 @@ def hash_password(plain_password: str) -> str:
 
 class TokenPayload(BaseModel):
     sub: str  # user_id, 문자열로 인코딩
+    role: Role
     type: Literal["access", "refresh"]
     exp: dt.datetime
     iat: dt.datetime
 
 
-def _encode(user_id: int, token_type: Literal["access", "refresh"], ttl_minutes: int) -> str:
+def _encode(user_id: int, role: Role, token_type: Literal["access", "refresh"], ttl_minutes: int) -> str:
     settings = get_settings()
     now = dt.datetime.now(dt.UTC)
     payload = {
         "sub": str(user_id),
+        "role": role,
         "type": token_type,
         "iat": int(now.timestamp()),
         "exp": int((now + dt.timedelta(minutes=ttl_minutes)).timestamp()),
@@ -41,14 +48,14 @@ def _encode(user_id: int, token_type: Literal["access", "refresh"], ttl_minutes:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, role: Role) -> str:
     settings = get_settings()
-    return _encode(user_id, "access", settings.jwt_access_ttl_minutes)
+    return _encode(user_id, role, "access", settings.jwt_access_ttl_minutes)
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: int, role: Role) -> str:
     settings = get_settings()
-    return _encode(user_id, "refresh", settings.jwt_refresh_ttl_minutes)
+    return _encode(user_id, role, "refresh", settings.jwt_refresh_ttl_minutes)
 
 
 def decode_token(token: str) -> dict:
@@ -64,6 +71,7 @@ def decode_token(token: str) -> dict:
 
 class AuthUser(BaseModel):
     user_id: int
+    role: Role
 
 
 def get_current_user(
@@ -80,8 +88,22 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="access 토큰이 아니다",
         )
-    return AuthUser(user_id=int(payload["sub"]))
+    return AuthUser(user_id=int(payload["sub"]), role=payload["role"])
 
 
-# 로그인한 사용자면 통과한다. 라우터는 이 이름으로 붙는다.
-require_user = get_current_user
+def require_roles(*allowed_roles: Role):
+    """지정한 역할만 통과시키는 FastAPI 의존성 팩토리. 나머지는 403."""
+
+    def _dependency(user: AuthUser = Depends(get_current_user)) -> AuthUser:
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"role '{user.role}' 는 이 엔드포인트에 허용되지 않는다",
+            )
+        return user
+
+    return _dependency
+
+
+require_any_role = require_roles(*ROLES)
+require_admin = require_roles("admin")

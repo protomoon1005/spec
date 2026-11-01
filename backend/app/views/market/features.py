@@ -1,10 +1,10 @@
-# 가격 기반 기술적 지표 계산. DB를 모르는 순수 함수다.
-# 옛 주제에서는 예측 모델의 입력이었고(app/views/market/features.py), 주제 변경 후에는
-# 조건형 전략서의 지표 계산 코어로 쓰려고 백테스트 쪽으로 옮겼다(docs/pivot-plan.md).
+# 시장분석 관점(T4)이 쓸 가격 기반 피처 계산. DB를 모르는 순수 함수다.
 #
 # 설명을 docstring이 아니라 주석에 두는 이유: 이 파일은 as_of 가드 사정권이다.
 # scripts/check_asof_guard.py 가 문자열 리터럴(docstring 포함)에서 가드 대상
 # 테이블명을 찾으면 CI가 실패한다. 주석은 AST 에 안 잡힌다.
+# 계산 결과 dict 를 저장하는 것은 app/repositories/ 의 적재 함수 몫이고,
+# 가격 조회 함수는 T3 에서 리포지토리에 붙인다 (지금 만들지 않는다).
 #
 # ── 왜 pandas-ta 가 아니라 stdlib 인가 ───────────────────────────────
 # 이 모듈의 가장 중요한 산출물은 지표값이 아니라 "미래를 보지 않는다"는 보장이다.
@@ -75,7 +75,7 @@ CURRENT_FEATURE_SET_VERSION = "v0.1-ta9"
 #   같은 v0.1-ta9 로 다른 값이 나오고, 재현성의 축인 버전 문자열이 거짓말을 한다.
 #   적재 배치와 백테스트 러너는 **as_of 마다 직전 FEATURE_WARMUP_ROWS 행**을 입력으로
 #   준다 — 이건 계약이다. 120행이면 전체 이력 값과 소수 둘째 자리까지 일치한다
-#   (tests/test_backtest_features.py 가 고정한다).
+#   (tests/test_market_features.py 가 고정한다).
 FEATURE_WARMUP_ROWS = 120
 
 # 버전 -> 피처 이름 목록. 데모 계획이 "소규모 구간과 적은 피처로 먼저 돌아가게

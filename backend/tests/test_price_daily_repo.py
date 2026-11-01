@@ -15,8 +15,8 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import text
 
-from app.backtest.features import PriceBar, _bar_from_mapping, compute_features
 from app.repositories.price_daily import get_close_history, get_price_window, upsert_price_bars
+from app.views.market.features import PriceBar, _bar_from_mapping, compute_features
 
 START = date(2024, 1, 2)
 ROW_KEYS = {"trade_date", "open", "high", "low", "close", "volume"}

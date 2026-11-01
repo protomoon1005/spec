@@ -1,4 +1,5 @@
-// 흐름 화면(가입, 로그인, 전략 만들기 …)이 공통으로 쓰는 바닥.
+// 흐름 화면(가입 → 로그인 → 설문 → 전략 만들기 …)이 공통으로 쓰는 바닥.
+// docs/frontend_milestone.md 0단계.
 //
 // 네 가지만 한다.
 //   1) 토큰 보관       브라우저 저장소에 access · refresh · username
@@ -253,20 +254,33 @@ export function loadBacktestRun(specId: string): SavedBacktest | null {
   }
 }
 
-// GET /backtest/runs/{run_id} 응답 (backend/app/routers/backtest.py BacktestRunDetail).
-export type SeriesSummary = { total: number; cagr: number; vol: number; mdd: number; sharpe: number; sortino: number; final: number };
+// 하드캡 화면의 검사 결과. 최종 확인 화면이 체크리스트에 쓴다. 검사 API 는 전략서를
+// 저장하는 요청이라 확인 화면에서 다시 부르지 않고 이것만 읽는다.
 
-export type RunUniverseItem = {
-  ticker: string;
-  name: string;
-  asset_group: string;
-  sector_group: string;
-  country_group: string;
-  weight_min_raw: number;
-  weight_max_raw: number;
-  weight_min: number;
-  weight_max: number;
-};
+export type SavedValidation = { spec_id: string; passed: boolean; blocked_at: number | null };
+
+const VALIDATION_KEY = "spec.validation";
+
+export function saveValidation(saved: SavedValidation): void {
+  try {
+    window.sessionStorage.setItem(VALIDATION_KEY, JSON.stringify(saved));
+  } catch {
+    // 저장소가 막힌 브라우저 — 확인 화면에 "아직 확인 안 함" 으로 나올 뿐이다.
+  }
+}
+
+export function loadValidation(specId: string): SavedValidation | null {
+  try {
+    const raw = window.sessionStorage.getItem(VALIDATION_KEY);
+    const saved = raw ? (JSON.parse(raw) as SavedValidation) : null;
+    return saved?.spec_id === specId ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /backtest/runs/{run_id} 응답 (backend/app/routers/backtest.py BacktestRunDetail).
+export type SeriesSummary = { total: number; cagr: number; mdd: number; sharpe: number; sortino: number };
 
 export type BacktestRun = {
   run_id: number;
@@ -274,16 +288,48 @@ export type BacktestRun = {
   period_start: string | null;
   period_end: string | null;
   status: "queued" | "running" | "done" | "failed" | null;
-  seed_money: number | null;
-  fee_rate: number | null;
-  tax_rate: number | null;
-  slippage_bp: number | null;
   data_snapshot_asof: string | null;
   metrics: Record<"cagr" | "mdd" | "sharpe" | "sortino" | "win_rate" | "benchmark_cagr", number | null> | null;
-  summary: { strategy: SeriesSummary; market: SeriesSummary } | null;
-  series: { date: string; strategy: number; market: number }[] | null;
-  schedule: { note: string; rebalance_dates: string[]; skipped_rebalance_dates: string[] } | null;
-  universe: RunUniverseItem[] | null;
-  decisions: { date: string; target: Record<string, number>; cash: number }[] | null;
+  summary: { strategy: SeriesSummary; control: SeriesSummary; market: SeriesSummary } | null;
+  scorer_sources: Record<string, string> | null;
+  schedule: { note: string; skipped_rebalance_dates: string[] } | null;
+  weight_path: string | null;
+  // 비중 범위 · 현금 · 간격을 검증 확정값으로 돌렸는지(passed) 아닌지(failed · none). 옛 실행에는 없다.
+  // source 는 2026-10-20 부터: stored(승인 시점 저장값) · recorded(마지막 검증 기록) ·
+  // revalidated(기록이 없어 이번 실행에서 같은 검사를 다시 돌림, 기록은 안 남김). none 은 그 전 실행에만 있다
+  validation?: {
+    status: "passed" | "failed" | "none";
+    source?: "stored" | "recorded" | "revalidated";
+    cash_target?: number;
+    min_interval_days?: number;
+    blocked_at?: number;
+  } | null;
   reason: string | null;
 };
+
+// POST /specs/{spec_id}/approve · GET /portfolios/{portfolio_id} 응답
+// (backend/app/routers/portfolio.py PortfolioResponse · ApproveResponse).
+export type Portfolio = {
+  portfolio_id: number;
+  spec_id: string;
+  account_no: string | null;
+  mode: "virtual" | "paper";
+  initial_cash: number | null;
+  status: string | null; // "active" 면 굴러가는 중. 전략서 쪽 상태는 approved 에서 더 안 바뀐다
+  activated_at: string | null;
+  approval: { approval_id: number; run_id: number | null; user_comment: string | null; decided_at: string | null } | null;
+};
+
+export type ApprovedPortfolio = Portfolio & {
+  initial_weights: Record<string, number>; // FN-409 균등 1/3
+  weights_as_of: string; // 활성화일(KST)
+};
+
+// 승인 근거는 이 전략서로 지금 확정값(범위 · 현금 목표 · 1회 손실 · 최소 간격)으로 끝까지 돈
+// 백테스트(run_id)다. 승인 · 포트폴리오 · 초기 가중치가 한 번에 생기고, 이미 승인한 전략서면 409 다.
+export function approveSpec(specId: string, runId: number, comment?: string): Promise<ApprovedPortfolio> {
+  return api<ApprovedPortfolio>(`/specs/${encodeURIComponent(specId)}/approve`, {
+    method: "POST",
+    body: { run_id: runId, user_comment: comment ?? null },
+  });
+}

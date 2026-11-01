@@ -1,6 +1,6 @@
 "use client";
 
-// 회원가입.
+// 회원가입 — docs/frontend_milestone.md 1단계.
 //
 // 중복확인 버튼이 곧 가입 요청이다. 서버에 "확인만 하는" 주소가 없어서, 409 면
 // 중복이고 성공이면 그 자리에서 가입과 토큰 발급이 끝난다.
@@ -78,7 +78,7 @@ export default function SignupPage() {
               가입이 완료되었습니다. 아이디: <b className="mono">{username.trim()}</b>
             </p>
             <p style={{ marginTop: 14 }}>아래 토큰을 복사해 두세요. 로그인할 때 아이디와 함께 입력합니다.</p>
-            <p className="flow-hint">로그인하면 홈으로 이동합니다.</p>
+            <p className="flow-hint">첫 로그인을 하면 바로 성향 설문으로 이동합니다.</p>
             <textarea readOnly value={token} rows={4} cols={60} aria-label="발급된 토큰" />
             <div className="flow-actions" style={{ marginTop: 12 }}>
               <button onClick={copy}>토큰 복사</button>

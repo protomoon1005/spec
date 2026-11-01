@@ -1,4 +1,9 @@
-"""app/contracts/ 전략서 계약(Spec v0.1) 테스트."""
+"""app/contracts/ 계약 4종 목업 테스트 (docs/infra-spec.md 6단계).
+
+목업은 random 모듈을 쓰지 않고 고정 시드로 결정론적인 값을 낸다는 것이
+이 파일이 지키는 계약이다: 같은 입력 -> 항상 같은 출력, 그리고 각 계약이
+명시한 수치 제약(합 1, 하한 0.10, [-1,1]/[0,1] 구간 등)을 항상 만족해야 한다.
+"""
 from __future__ import annotations
 
 import json
@@ -19,6 +24,9 @@ from app.contracts.spec import (
     TriggerSpec,
     UniverseItem,
 )
+from app.contracts.target_weights import mock_target_weights
+from app.contracts.view_score import mock_view_score, mock_view_scores
+from app.contracts.view_weights import VIEW_TYPES, WEIGHT_FLOOR, mock_get_view_weights
 
 AS_OF = date(2026, 9, 9)
 
@@ -127,8 +135,9 @@ def test_spec_v0_1_requires_all_five_constraint_fields():
         SpecV0_1.model_validate(payload)
 
 
-def test_constraint_spec_rejects_unknown_fields():
-    """ConstraintSpec 에 없는 칸(예: leverage_allowed)은 들어가면 안 된다."""
+def test_constraint_spec_rejects_hardcap_only_fields():
+    """min_interval_days(rebalance 소유)와 leverage_allowed(하드캡 전용)는
+    ConstraintSpec에 들어가면 안 된다."""
     with pytest.raises(ValidationError):
         ConstraintSpec.model_validate(
             {
@@ -159,3 +168,97 @@ def test_committed_schema_file_matches_current_model():
     """scripts/export_contract_schemas.py 를 안 돌리고 모델만 고치면 이 테스트가 실패한다."""
     committed = json.loads(SPEC_SCHEMA_PATH.read_text(encoding="utf-8"))
     assert committed == build_spec_schema()
+
+
+# ---------------------------------------------------------------------------
+# 계약 ② ViewScore 목업
+# ---------------------------------------------------------------------------
+
+
+def test_mock_view_score_is_deterministic():
+    a = mock_view_score("market", "069500", as_of=AS_OF)
+    b = mock_view_score("market", "069500", as_of=AS_OF)
+    assert a == b
+
+
+def test_mock_view_score_varies_by_input():
+    by_ticker = mock_view_score("market", "069500", as_of=AS_OF)
+    by_other_ticker = mock_view_score("market", "232080", as_of=AS_OF)
+    by_view_type = mock_view_score("sentiment", "069500", as_of=AS_OF)
+    by_date = mock_view_score("market", "069500", as_of=date(2026, 9, 10))
+
+    scores = {by_ticker.raw_score, by_other_ticker.raw_score, by_view_type.raw_score, by_date.raw_score}
+    assert len(scores) == 4
+
+
+def test_mock_view_score_stays_in_bounds():
+    for view_type in ("market", "sentiment", "regime"):
+        for ticker in ("069500", "232080", "133690", "148070"):
+            score = mock_view_score(view_type, ticker, as_of=AS_OF)  # type: ignore[arg-type]
+            assert -1 <= score.raw_score <= 1
+            assert 0 <= score.calibrated_prob <= 1
+
+
+def test_mock_view_scores_covers_whole_universe():
+    tickers = ["069500", "232080", "133690"]
+    scores = mock_view_scores("market", tickers, as_of=AS_OF)
+    assert [s.ticker for s in scores] == tickers
+
+
+# ---------------------------------------------------------------------------
+# 계약 ③ get_view_weights 목업
+# ---------------------------------------------------------------------------
+
+
+def test_mock_view_weights_is_deterministic():
+    assert mock_get_view_weights(1, as_of=AS_OF) == mock_get_view_weights(1, as_of=AS_OF)
+
+
+def test_mock_view_weights_sums_to_one():
+    weights = mock_get_view_weights(42, as_of=AS_OF)
+    assert set(weights) == set(VIEW_TYPES)
+    assert abs(sum(weights.values()) - 1.0) < 1e-6
+
+
+def test_mock_view_weights_respects_floor():
+    weights = mock_get_view_weights(42, as_of=AS_OF)
+    assert all(w >= WEIGHT_FLOOR - 1e-9 for w in weights.values())
+
+
+def test_mock_view_weights_varies_by_portfolio():
+    assert mock_get_view_weights(1, as_of=AS_OF) != mock_get_view_weights(2, as_of=AS_OF)
+
+
+# ---------------------------------------------------------------------------
+# 계약 ④ TargetWeights 목업
+# ---------------------------------------------------------------------------
+
+
+def test_mock_target_weights_is_deterministic():
+    tickers = ["069500", "232080", "133690"]
+    a = mock_target_weights(tickers, as_of=AS_OF)
+    b = mock_target_weights(tickers, as_of=AS_OF)
+    assert a == b
+
+
+def test_mock_target_weights_preserves_both_mapping_stages():
+    tickers = ["069500", "232080"]
+    result = mock_target_weights(tickers, as_of=AS_OF)
+
+    assert result.mapped_weights != result.weights
+    assert len(result.group_cap_applications) == 1
+    application = result.group_cap_applications[0]
+    assert application.cap < application.sum_before
+
+
+def test_mock_target_weights_final_allocation_sums_to_one():
+    tickers = ["069500", "232080", "133690", "148070"]
+    result = mock_target_weights(tickers, as_of=AS_OF, cash=0.05)
+
+    assert abs(sum(result.weights.values()) + result.cash - 1.0) < 1e-6
+    assert abs(sum(result.mapped_weights.values()) + 0.05 - 1.0) < 1e-6
+
+
+def test_mock_target_weights_rejects_empty_universe():
+    with pytest.raises(ValueError):
+        mock_target_weights([], as_of=AS_OF)

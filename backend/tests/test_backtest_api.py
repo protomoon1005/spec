@@ -25,6 +25,8 @@ DEMO_UNIVERSE = [
     ("411060", 0.00, 0.15),
 ]
 BODY = {"period_start": "2023-01-01", "period_end": "2025-12-31"}
+# service 는 draft 를 Validator 로 메모리 재검증한다(M2 체인). 스키마를 통과하는 제약이어야 한다.
+# 값은 성향 4 기본값(docs/m2-algorithms.md 4장), 1회 손실은 하드캡 v0.1 이 0.05 로 클램프한다.
 CONSTRAINT = {
     "max_weight_per_asset": 0.30,
     "min_weight_per_asset": 0.00,
@@ -39,14 +41,20 @@ FAKE_RESULT = {
     "metrics": {"cagr": 0.2, "mdd": -0.06, "sharpe": 1.5, "sortino": 2.0, "win_rate": None,
                 "benchmark_cagr": 0.28},
     "window_results": {
+        "weight_path": "M4 러너 임시 경로 (RiskSizer 없음, M2 WeightMapper 대기)",
+        "scorer_sources": {"market": "mock", "sentiment": "neutral", "regime": "mock"},
         "schedule": {"rule": MONTHLY_FIRST, "note": "근사", "rebalance_dates": ["2023-01-06"],
                      "skipped_rebalance_dates": []},
-        "summary": {name: {"total": 0.5, "mdd": -0.1} for name in ("strategy", "market")},
-        "series": [{"date": "2023-01-06", "strategy": 1.0, "market": 1.0}],
-        "universe": [{"ticker": "069500", "name": "KODEX 200", "asset_group": "EQUITY",
+        "summary": {name: {"total": 0.5, "mdd": -0.1} for name in ("strategy", "control", "market")},
+        "series": [{"date": "2023-01-06", "strategy": 1.0, "control": 1.0, "market": 1.0}],
+        "risk_level": 4,
+        "universe": [{"ticker": "069500", "name": "KODEX 200", "grade": "G3", "asset_group": "EQUITY",
                       "sector_group": "SECTOR_OTHER", "country_group": "COUNTRY_KR",
                       "weight_min_raw": 0.05, "weight_max_raw": 0.35}],
-        "decisions": [{"date": "2023-01-06", "target": {"069500": 0.3}, "cash": 0.7}],
+        "decisions": [{"date": "2023-01-06", "signals": {"069500": 0.2}, "mapped": {"069500": 0.3},
+                       "target": {"069500": 0.3}, "cash": 0.7, "capApplications": []}],
+        "control_decisions": [{"date": "2023-01-06", "signals": {"069500": 0.0}, "mapped": {"069500": 0.2},
+                               "target": {"069500": 0.2}, "cash": 0.8, "capApplications": []}],
     },
 }
 
@@ -58,7 +66,7 @@ def _auth(client, username: str) -> dict:
 
 @pytest.fixture
 def owner(make_draft_spec):
-    """사용자 하나와 그 사람의 draft 전략서 하나. (email, spec_id)."""
+    """성향 4 사용자 하나와 그 사람의 draft 전략서 하나. (email, spec_id)."""
     spec_id = make_draft_spec(DEMO_UNIVERSE, rebalance=MONTHLY_FIRST, name="백테스트 API 테스트",
                               signal_rules=SIGNAL_RULES, constraint=CONSTRAINT)
     return make_draft_spec.email, spec_id
@@ -106,12 +114,17 @@ def test_post_queues_then_get_shows_done_with_metrics_and_curve(client, owner, f
     assert got["status"] == "done"
     assert got["metrics"] == FAKE_RESULT["metrics"]
     assert got["series"] == FAKE_RESULT["window_results"]["series"]
+    assert got["scorer_sources"] == {"market": "mock", "sentiment": "neutral", "regime": "mock"}
     assert got["data_snapshot_asof"] == "2025-12-30"
     assert got["reason"] is None
     # 리포트 화면이 이 실행을 그대로 그리는 데 쓰는 값. 저장만 하고 내보내지 않던 것이다.
     results = FAKE_RESULT["window_results"]
+    assert got["risk_level"] == 4
     assert got["universe"] == results["universe"]
     assert got["decisions"] == results["decisions"]
+    assert got["control_decisions"] == results["control_decisions"]
+    # 체인 전 경로 결과라 확정값 기록이 없다 — 리포트는 정책으로 범위를 다시 계산한다
+    assert got["m2"] is None
     # 재현 조건
     assert got["feature_set_version"] == "v0.1-ta9"
     assert (got["seed_money"], got["fee_rate"], got["tax_rate"], got["slippage_bp"]) == (
@@ -134,7 +147,7 @@ def test_period_start_defaults_to_demo_plan(client, owner, fake_runner):
 
 def test_cannot_run_or_read_someone_elses(client, owner, make_user, fake_runner):
     email, spec_id = owner
-    other, _ = make_user()
+    other, _ = make_user("retail")
     run_id = _post(client, email, spec_id).json()["run_id"]
 
     assert _post(client, other, spec_id).status_code == 404
@@ -160,7 +173,7 @@ def test_input_failure_ends_failed_with_the_reason(client, owner, fake_runner, m
     assert got["reason"] == "러너가 지원하지 않는 리밸런싱 규칙: {...}"
     assert got["metrics"] is None and got["series"] is None
     # 실패한 실행에는 그릴 것이 없다. 반쯤 채운 결정 기록을 내보내지 않는다.
-    assert got["universe"] is None and got["decisions"] is None
+    assert got["universe"] is None and got["decisions"] is None and got["control_decisions"] is None
 
 
 def test_unexpected_error_does_not_leak_the_stack(client, owner, fake_runner, monkeypatch):
@@ -178,10 +191,10 @@ def test_unexpected_error_does_not_leak_the_stack(client, owner, fake_runner, mo
     assert "secret" not in str(got)
 
 
-# ── 지표 정의 ───────────────────────────────────────────────────────
+# ── 지표 정의 (frontend/lib/data.ts computeMetrics 와 같다) ──────────
 
 
-def test_metrics_follow_the_definition():
+def test_metrics_follow_the_frontend_definition():
     # 주간 수익률 +10%, −10%, +10%. 손으로 계산한 값과 대조한다.
     values = [100.0, 110.0, 99.0, 108.9]
     m = service.compute_metrics(values, years=1.0)
@@ -204,6 +217,20 @@ def test_metrics_follow_the_definition():
 # ── 재현성: 같은 spec_id 를 두 번 돌리면 지표와 목표 비중이 같다 ────────
 
 
+def test_get_exposes_the_bounds_the_chain_used(client, owner, fake_runner, monkeypatch):
+    # 리포트 화면이 비중 범위를 다시 계산하지 않고 체인이 쓴 확정값을 그리도록 내보낸다
+    email, spec_id = owner
+    m2 = {"source": "revalidated", "hardcap_version": "v0.1", "cash_target": 0.05,
+          "max_loss_per_trade": 0.05, "min_interval_days": 20, "bounds": {"069500": [0.05, 0.3]},
+          "risk_sizer": {"version": "v0.1", "atr_multiple": 2, "horizon_days": 20}}
+    result = {**FAKE_RESULT, "window_results": {**FAKE_RESULT["window_results"], "m2": m2}}
+    monkeypatch.setattr(service, "run_spec_backtest", lambda spec_id, **kwargs: result)
+
+    got = _get(client, email, _post(client, email, spec_id).json()["run_id"]).json()
+
+    assert got["m2"] == m2
+
+
 @pytest.mark.requires_backtest
 @pytest.mark.requires_backfill
 def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
@@ -219,6 +246,18 @@ def test_same_spec_twice_gives_the_same_metrics_and_targets(owner):
     targets = [[d["target"] for d in r["window_results"]["decisions"]] for r in runs]
     assert targets[0] == targets[1]
     assert len(targets[0]) == 36
+    # M2 체인: 같은 입력이면 주문까지 같다
+    orders = [[d["m2"]["orders"] for d in r["window_results"]["decisions"]] for r in runs]
+    assert orders[0] == orders[1]
+    assert runs[0]["window_results"]["m2"]["max_loss_per_trade"] == 0.05  # 하드캡 클램프값
+    # 2026-10-05 시장분석·시장온도가 실물로 바뀌었다. 2026-10-27 감성도 실물(빅카인즈 뉴스)이 됐다 —
+    # 기사가 적재되지 않았으면 그 실물이 중립 점수를 내지만 출처는 real 이다.
+    assert runs[0]["window_results"]["scorer_sources"] == {
+        "market": "real", "sentiment": "real", "regime": "real"
+    }
+    # 감성 근거(묶음별 z · state · 기사 ID)가 리밸런싱 기록에 실린다 — 빅카인즈 기사 적재가 전제다.
+    views = [d["views"] for d in runs[0]["window_results"]["decisions"] if "views" in d]
+    assert views and any(v["sentiment"] for v in views)
 
 
 @pytest.mark.requires_backtest
@@ -240,10 +279,18 @@ def test_task_runs_the_real_runner_to_done(owner):
     results = got["window_results"]
     universe = results["universe"]
     assert universe, "실행 기록에 universe 가 없다"
-    # weight_min · weight_max 는 전략서의 확정 범위
-    assert set(universe[0]) == {"ticker", "name", "asset_group", "sector_group",
+    # weight_min · weight_max 는 전략서의 확정 범위(검증 결과 쓰기, 2026-10-05)
+    assert set(universe[0]) == {"ticker", "name", "grade", "asset_group", "sector_group",
                                 "country_group", "weight_min_raw", "weight_max_raw",
                                 "weight_min", "weight_max"}
+    # 검증 기록이 없는 draft 라 메모리에서 다시 검증한 확정값으로 M2 체인이 돌았다(기록은 안 남긴다)
+    assert results["validation"] == {
+        "status": "passed", "source": "revalidated", "cash_target": 0.05, "min_interval_days": 20
+    }
+    assert results["weight_path"] == service.M2_CHAIN_PATH
+    assert results["m2"]["source"] == "revalidated"
+    assert "m2" in results["decisions"][0] and "m2" in results["control_decisions"][0]
     tickers = {u["ticker"] for u in universe}
     # 결정 기록의 목표 비중이 정확히 그 종목들로 되어 있어야 표가 맞게 그려진다.
     assert results["decisions"] and set(results["decisions"][-1]["target"]) == tickers
+    assert len(results["decisions"]) == len(results["control_decisions"])

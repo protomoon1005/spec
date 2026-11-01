@@ -1,15 +1,19 @@
-# Validator 의 순수 파이프라인 (docs/archive/m2-algorithms.md 6장, FN-301 ~ FN-306).
+# 4단 Validator 의 순수 파이프라인 (docs/m2-algorithms.md 6장, FN-301 ~ FN-306).
 #
 # 데이터베이스를 모른다. 필요한 사실은 전부 SpecContext 로 받는다 — 그래야 무작위
 # 전략서 1000건을 DB 없이 같은 함수로 돌릴 수 있고, 같은 입력에 같은 결과가 나온다.
 # DB 를 읽고 결과를 쓰는 쪽은 validator.py 다.
 #
 # ── 순서는 고정이다 ───────────────────────────────────────────────────
-#   1 스키마, 2 참조, 3 논리, 그다음 범위 보정(3단 행에 기록)
-# 한 단계가 실패하면 거기서 멈춘다. 뒤 단계는 not_run 이다.
+#   1 스키마 → 2 참조 → 3 논리 → (범위 보정, 3단 기록) → 4 하드캡 클램프
+# 1·2·3단 중 하나가 실패하면 거기서 멈춘다. 뒤 단계는 not_run 이다.
 #
-# 시스템 상한(성향 프리셋, 하드캡)은 없다(주제 변경 결정 3). 옛 4단(하드캡 클램프)은 지웠다.
-# 범위 보정의 종목 상한은 1, 하한은 0, 현금 하한은 사용자가 말한 cash_min 이다.
+# ── 하드캡은 범위 보정 입력에 이미 들어간다 (2026-10-04 결정 1-A) ────
+# 보정이 클램프보다 먼저 돌기 때문에, 보정이 하드캡을 모르면 4단에서 상한을 깎는
+# 순간 불변식이 다시 깨진다. 그래서 보정의 종목 상한은 min(allowed_max, 하드캡),
+# 현금 하한은 max(cash_min, 하드캡 cash_min) 이다. 4단은 요청값과 적용값을 비교해
+# clamped_fields 에 남긴다. **4단을 끄면 보정도 하드캡을 빼고 계산한다** — 계층 끄기
+# 실험에서 하드캡 위반이 실제로 새어 나가야 하기 때문이다.
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -22,7 +26,7 @@ FAILED = "failed"
 NOT_RUN = "not_run"  # 앞 단계에서 막혀 돌지 않았다
 SKIPPED = "skipped"  # 계층 끄기 실험으로 껐다 — API 로는 나가지 않는다
 
-STAGE_NAMES = {1: "schema", 2: "reference", 3: "logic"}
+STAGE_NAMES = {1: "schema", 2: "reference", 3: "logic", 4: "hardcap"}
 
 
 @dataclass(frozen=True)
@@ -33,18 +37,29 @@ class Stages:
     reference: bool = True
     logic: bool = True
     feasibility: bool = True
+    hardcap: bool = True
 
     @property
     def all_on(self) -> bool:
-        return all((self.schema, self.reference, self.logic, self.feasibility))
+        return all((self.schema, self.reference, self.logic, self.feasibility, self.hardcap))
 
 
 ALL_ON = Stages()
 
 
 @dataclass(frozen=True)
+class Bound:
+    """허용범위 프리셋 한 칸 (성향 × 위험등급)."""
+
+    allowed_min: float
+    allowed_max: float
+
+
+@dataclass(frozen=True)
 class EtfFacts:
     ticker: str
+    risk_tag: str | None
+    is_leveraged: bool
     active: bool
     delisted_date: date | None
 
@@ -72,6 +87,9 @@ class SpecContext:
     """Validator 가 보는 사실 전부. 비중은 전부 _raw(LLM 원출력)에서 출발한다."""
 
     payload: dict  # SpecV0_1 모양. universe 의 weight_min/max 는 _raw 값
+    risk_level: int
+    bounds: Mapping[str, Bound]  # 위험등급 → 허용범위
+    hardcap: Mapping
     etfs: Mapping[str, EtfFacts]  # 없는 종목은 키가 없다
     coverage: Mapping[str, PriceCoverage]
     drawdowns: Mapping[str, float | None]  # 구간 최대낙폭, 양수(0.40 = 40% 하락)
@@ -103,6 +121,7 @@ class StageResult:
     status: str
     violations: tuple[Violation, ...] = ()
     adjusted_bounds: Mapping | None = None  # 3단만
+    clamped_fields: tuple[Mapping, ...] | None = None  # 4단만
 
     @property
     def name(self) -> str:
@@ -133,6 +152,7 @@ class Regeneration:
 @dataclass(frozen=True)
 class ValidationResult:
     spec_id: str
+    hardcap_version: str
     as_of: date
     passed: bool
     blocked_at: int | None
@@ -146,9 +166,9 @@ class ValidationResult:
 
 
 def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
-    """스키마, 참조, 논리, 범위 보정. 순서를 바꾸지 않는다."""
+    """스키마 → 참조 → 논리 → 범위 보정 → 하드캡 클램프. 순서를 바꾸지 않는다."""
     # 단계 모듈이 이 파일의 타입을 쓰므로 여기서 불러온다(순환 import 회피).
-    from app.m2 import checks, feasibility
+    from app.m2 import checks, feasibility, hardcap
     from app.m2.regenerate import regeneration_for
 
     results: list[StageResult] = []
@@ -160,6 +180,7 @@ def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
         full = results + [StageResult(stage=s, status=NOT_RUN) for s in STAGE_NAMES if s not in done]
         return ValidationResult(
             spec_id=str(ctx.payload.get("spec_id")),
+            hardcap_version=str(ctx.hardcap["hardcap_version"]),
             as_of=ctx.as_of,
             passed=False,
             blocked_at=blocked_at,
@@ -200,7 +221,10 @@ def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
     else:
         results.append(StageResult(stage=2, status=SKIPPED))
 
+    # 하드캡을 켰으면 보정과 논리 검사가 하드캡을 반영한 현금 하한을 쓴다(결정 1-A).
     cash_min = float(spec.constraint.cash_min)
+    if stages.hardcap:
+        cash_min = max(cash_min, float(ctx.hardcap["cash_min"]))
 
     # 3 논리
     logic_violations = checks.check_logic(spec, ctx, cash_min=cash_min) if stages.logic else []
@@ -214,16 +238,22 @@ def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
     cash_target = cash_min
     reduce_violation: list[Violation] = []
     if stages.feasibility:
-        inputs = [
-            feasibility.BoundInput(
-                ticker=b.ticker,
-                weight_min_raw=b.weight_min_raw,
-                weight_max_raw=b.weight_max_raw,
-                ceiling=1.0,
-                floor=0.0,
+        cap = float(ctx.hardcap["max_weight_per_asset"]) if stages.hardcap else 1.0
+        inputs = []
+        for b in raw:
+            etf = ctx.etfs.get(b.ticker)
+            bound = ctx.bounds.get(etf.risk_tag) if etf is not None and etf.risk_tag else None
+            allowed_max = bound.allowed_max if bound else 1.0
+            allowed_min = bound.allowed_min if bound else 0.0
+            inputs.append(
+                feasibility.BoundInput(
+                    ticker=b.ticker,
+                    weight_min_raw=b.weight_min_raw,
+                    weight_max_raw=b.weight_max_raw,
+                    ceiling=min(allowed_max, cap),
+                    floor=allowed_min,
+                )
             )
-            for b in raw
-        ]
         fixed = feasibility.fix_bounds(inputs, cash_min=cash_min)
         adjusted = feasibility.as_log(fixed)
         cash_target = fixed.cash_target
@@ -259,11 +289,30 @@ def run_stages(ctx: SpecContext, stages: Stages = ALL_ON) -> ValidationResult:
     if reduce_violation:
         return stop(3)
 
+    # 4 하드캡 클램프
+    blocked_at = None
+    if stages.hardcap:
+        clamped = hardcap.clamp(spec, bounds, hardcap=ctx.hardcap, etfs=ctx.etfs)
+        bounds = clamped.universe
+        results.append(
+            StageResult(
+                stage=4,
+                status=FAILED if clamped.violations else PASSED,
+                violations=clamped.violations,
+                clamped_fields=clamped.clamped_fields,
+            )
+        )
+        if clamped.violations:
+            blocked_at = 4
+    else:
+        results.append(StageResult(stage=4, status=SKIPPED))
+
     return ValidationResult(
         spec_id=spec.spec_id,
+        hardcap_version=str(ctx.hardcap["hardcap_version"]),
         as_of=ctx.as_of,
-        passed=True,
-        blocked_at=None,
+        passed=blocked_at is None,
+        blocked_at=blocked_at,
         regeneration=regeneration_for(results),
         stages=tuple(results),
         universe=bounds,

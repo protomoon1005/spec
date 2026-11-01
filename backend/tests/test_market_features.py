@@ -11,7 +11,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.backtest.features import (
+from app.views.market.features import (
     CURRENT_FEATURE_SET_VERSION,
     FEATURE_SETS,
     FEATURE_WARMUP_ROWS,
@@ -182,9 +182,9 @@ def test_all_values_are_json_safe() -> None:
         assert value is None or math.isfinite(value), name
 
 
-@pytest.mark.requires_backtest
+@pytest.mark.requires_ml
 def test_pandas_dataframe_adapter() -> None:
-    # pandas 는 backtest extra 로만 들어온다. 어댑터가 실제 DataFrame 을 받는지만
+    # pandas 는 ml extra 로만 들어온다. 어댑터가 실제 DataFrame 을 받는지만
     # 여기서 확인하고, 계산 자체의 회귀는 위 테스트들이 의존성 없이 지킨다.
     import pandas as pd
 
@@ -201,7 +201,7 @@ def test_pandas_dataframe_adapter() -> None:
     assert compute_features(frame, as_of=as_of) == compute_features(bars, as_of=as_of)
 
 
-@pytest.mark.requires_backtest
+@pytest.mark.requires_ml
 def test_pandas_dataframe_with_trade_date_column() -> None:
     import pandas as pd
 

@@ -4,6 +4,7 @@ type HealthResponse = {
   status: string;
   database: string;
   redis: string;
+  minio: string;
   llm_backend: string;
 };
 
@@ -53,6 +54,7 @@ export default async function HealthPage() {
                 ["전체", body.status],
                 ["데이터베이스", body.database],
                 ["Redis", body.redis],
+                ["MinIO", body.minio],
                 ["LLM 백엔드", body.llm_backend],
               ] as const
             ).map(([label, value]) => (

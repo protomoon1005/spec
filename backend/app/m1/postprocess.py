@@ -12,15 +12,18 @@
 # 후보 밖 종목과 범위 이탈도 다시 본다. **Ollama 는 형식 강제가 약해 스키마를 어긴
 # 출력이 실제로 나온다.** 로컬 개발이 전부 Ollama 이므로 여기가 유일한 방어선이다.
 #
-# 저장할 때 원출력과 확정값이 같고 was_adjusted 는 false 다. 범위가 실행 불가능할 때
-# 확정값을 고치는 일은 Validator 의 비중 범위 실현가능성 보정 몫이다.
+# ── 하드캡은 여기서 접지 않는다 ──────────────────────────────────────
+# 2026-09-20 팀 결정: 프리셋은 M1 이 스키마로 "애초에 못 어기게" 하고, 하드캡은
+# Validator 가 "접는다". 그래서 저장할 때 원출력과 확정값이 같고 was_adjusted 는
+# false 다. **Validator 본체가 아직 없어 하드캡이 아무 데서도 안 걸린다** —
+# 마일스톤 리스크에 적어 뒀다.
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from app.contracts.spec import SpecV0_1
 from app.m1.candidates import CandidateSet
-from app.repositories import specs
+from app.repositories import presets, specs
 
 WEIGHT_TOLERANCE = 1e-9
 
@@ -68,7 +71,8 @@ def _check_universe(spec: SpecV0_1, candidate_set: CandidateSet) -> None:
 
     seen: set[str] = set()
     for item in spec.universe:
-        if item.ticker not in allowed:
+        candidate = allowed.get(item.ticker)
+        if candidate is None:
             raise CompileError(f"후보에 없는 종목이다: {item.ticker}")
         if item.ticker in seen:
             raise CompileError(f"같은 종목이 두 번 들어왔다: {item.ticker}")
@@ -77,6 +81,16 @@ def _check_universe(spec: SpecV0_1, candidate_set: CandidateSet) -> None:
         if item.weight_min > item.weight_max + WEIGHT_TOLERANCE:
             raise CompileError(
                 f"{item.ticker}: 하한이 상한보다 크다 ({item.weight_min} > {item.weight_max})"
+            )
+        if item.weight_max > candidate.weight_max + WEIGHT_TOLERANCE:
+            raise CompileError(
+                f"{item.ticker}: 이 성향의 상한을 넘었다 "
+                f"({item.weight_max} > {candidate.weight_max})"
+            )
+        if item.weight_min < candidate.weight_min - WEIGHT_TOLERANCE:
+            raise CompileError(
+                f"{item.ticker}: 이 성향의 하한보다 낮다 "
+                f"({item.weight_min} < {candidate.weight_min})"
             )
 
 
@@ -94,13 +108,21 @@ def save(
     compiled: CompiledSpec,
     *,
     user_id: int,
+    profile_id: int,
     input_prompt: str | None = None,
 ) -> specs.SavedSpec:
+    hardcap = presets.get_active_hardcap()
+    if hardcap is None:
+        raise CompileError("활성 하드캡이 없다 — db/seeds/01_hardcap_v0_1.sql 적재 여부를 확인할 것")
+
     spec = compiled.spec
+    by_ticker = {c.ticker: c for c in compiled.candidate_set.candidates}
     universe = [
         {
             "ticker": item.ticker,
-            # 원출력이 곧 확정값이다. 둘이 갈라지는 것은 Validator 가 범위를 보정할 때다.
+            "preset_id": by_ticker[item.ticker].preset_id,
+            # 스키마가 이미 허용 범위를 강제했으므로 원출력이 곧 확정값이다.
+            # 하드캡으로 접는 일은 Validator 몫이고, 그때 이 둘이 갈라진다.
             "weight_min": item.weight_min,
             "weight_max": item.weight_max,
             "weight_min_raw": item.weight_min,
@@ -113,6 +135,8 @@ def save(
     return specs.insert_spec(
         spec_id=spec.spec_id,
         user_id=user_id,
+        profile_id=profile_id,
+        hardcap_version=hardcap["hardcap_version"],
         spec_version=spec.spec_version,
         name=spec.name,
         input_prompt=input_prompt,

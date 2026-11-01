@@ -24,12 +24,12 @@ from app.repositories.bbl import Block
 # 요청에 리밸런싱 말이 없을 때 쓰는 블록. 백테스트 러너가 돌릴 수 있고 블록 설명이 "가장 무난" 이다.
 DEFAULT_REBALANCE_BLOCK = "RB_MONTHLY_FIRST"
 
-# 사용자가 말하지 않은 제약은 걸지 않는다(주제 변경 결정 3, 자유 거래). 전략서 계약이 이 칸들을
-# 요구하므로 "제약 없음" 에 해당하는 값을 채운다.
-NO_LIMIT_CONSTRAINT = {
-    "cash_min": 0.0,
-    "max_drawdown": 1.0,
-    "max_loss_per_trade": 1.0,
+RISK_LABELS = {
+    1: "안정투자형(가장 보수적)",
+    2: "안정추구형",
+    3: "위험중립형",
+    4: "성장투자형",
+    5: "공격투자형(가장 공격적)",
 }
 
 SYSTEM_PROMPT = (
@@ -44,11 +44,14 @@ def build_compile_prompt(
     user_text: str,
     candidate_set: CandidateSet,
     blocks: list[Block] | None = None,
+    defaults: dict[str, float] | None = None,
     rebalance_blocks: list[Block] | None = None,
     loss_limit: float | None = None,
 ) -> str:
     lines = [
         f"사용자 요청: {user_text}",
+        "",
+        f"투자 성향: {RISK_LABELS.get(candidate_set.risk_level, candidate_set.risk_level)}",
         "",
         "고를 수 있는 종목과 비중 범위:",
     ]
@@ -58,6 +61,8 @@ def build_compile_prompt(
             if candidate.requested
             else f" (요청한 특성: {candidate.trait})"
             if candidate.trait
+            else " (손실 제약을 지키려고 보충한 채권)"
+            if candidate.guard
             else ""
         )
         lines.append(
@@ -76,15 +81,16 @@ def build_compile_prompt(
         lines += ["", "요청과 맞아 보이는 구성 요소:"]
         lines += [f"  - {b.title}: {b.description}" for b in blocks if b.title]
 
-    lines += [
-        "",
-        "제약 (사용자가 말하지 않은 제약은 걸지 마라. 말하지 않았으면 아래 값을 그대로 써라):",
-        f"  - 최소 현금 비중 {NO_LIMIT_CONSTRAINT['cash_min']:.2f}",
-        f"  - 최대 낙폭 {NO_LIMIT_CONSTRAINT['max_drawdown']:.2f}"
-        if loss_limit is None
-        else f"  - 최대 낙폭 {loss_limit:.2f} (사용자가 말한 손실 한도. 이 값을 그대로 써라)",
-        f"  - 1회 최대 손실 {NO_LIMIT_CONSTRAINT['max_loss_per_trade']:.2f}",
-    ]
+    if defaults:
+        lines += [
+            "",
+            "이 성향의 기본 제약 (사용자가 달리 말하지 않았으면 그대로 써라):",
+            f"  - 최소 현금 비중 {defaults['cash_min_default']:.2f}",
+            f"  - 최대 낙폭 {defaults['max_drawdown_default']:.2f}"
+            if loss_limit is None
+            else f"  - 최대 낙폭 {loss_limit:.2f} (사용자가 말한 손실 한도. 이 값을 그대로 써라)",
+            f"  - 1회 최대 손실 {defaults['max_loss_per_trade_default']:.2f}",
+        ]
 
     if rebalance_blocks:
         default = next((b for b in rebalance_blocks if b.block_id == DEFAULT_REBALANCE_BLOCK), None)
@@ -107,4 +113,6 @@ def build_compile_prompt(
     ]
     if any(candidate.trait for candidate in candidate_set.candidates):
         lines.append("  - '요청한 특성' 표시가 있는 종목은 사용자가 원한 성격이다. 빼지 말고 담아라")
+    if any(candidate.guard for candidate in candidate_set.candidates):
+        lines.append("  - '보충한 채권' 표시가 있는 종목은 손실을 줄이려고 넣었다. 빼지 말고 담아라")
     return "\n".join(lines)

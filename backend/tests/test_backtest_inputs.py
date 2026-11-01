@@ -1,7 +1,8 @@
 """spec_id → 러너 입력 조립(app/backtest/inputs.py).
 
-조립 결과의 모양과 값을 본다. pandas 가 필요해 requires_backtest 다.
-데모 비교는 DB 에 적재된 실종가를 읽으므로 requires_backfill 도 붙는다. 로컬에서는
+조립 결과가 scripts/run_backtest_vbt.py 의 데모 7종목 입력과 같은 형태인지 본다.
+pandas 가 필요해 requires_backtest 다. 데모 비교는 DB 에 적재된 실종가를 읽으므로
+requires_backfill 도 붙는다. 로컬에서는
   docker compose exec -w /repo/backend api pytest -m requires_backtest
 로 돈다(-w 가 없으면 저장소 루트 data/ 를 못 찾아 CSV 대조가 건너뛰어진다).
 """
@@ -25,7 +26,7 @@ from app.backtest.runner import monthly_first, weekly_dates  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "data"
 
-# 데모 7종목
+# scripts/run_backtest_vbt.py 의 SPEC_UNIVERSE
 DEMO_UNIVERSE = [
     ("069500", 0.05, 0.35),
     ("091160", 0.00, 0.25),
@@ -35,9 +36,9 @@ DEMO_UNIVERSE = [
     ("357870", 0.00, 0.30),
     ("411060", 0.00, 0.15),
 ]
-# holdings 가 갖는 키
+# 스크립트의 holdings 가 갖는 키
 HOLDING_KEYS = {
-    "ticker", "name", "asset_group", "sector_group", "country_group", "min_raw", "max_raw",
+    "ticker", "name", "grade", "asset_group", "sector_group", "country_group", "min_raw", "max_raw",
 }
 MONTHLY_FIRST = {"trigger": {"type": "calendar", "freq": "monthly", "day": 1}, "min_interval_days": 20}
 PERIOD_START = date(2023, 1, 1)
@@ -50,7 +51,7 @@ def _build(spec_id: str):
 
 @pytest.fixture
 def make_spec(make_draft_spec):
-    """(universe, rebalance) -> spec_id. draft 전략서를 만든다."""
+    """(universe, rebalance) -> spec_id. 성향 4(스크립트 기본값)로 draft 전략서를 만든다."""
     def _make(universe, rebalance) -> str:
         return make_draft_spec(universe, rebalance=rebalance, name="백테스트 입력 테스트",
                                signal_rules={}, constraint={})
@@ -84,6 +85,7 @@ def unpriced_etf(engine):
 def test_demo_spec_assembles_into_the_script_shape(make_spec):
     got = _build(make_spec(DEMO_UNIVERSE, MONTHLY_FIRST))
 
+    assert got.risk_level == 4
     assert [h["ticker"] for h in got.holdings] == sorted(t for t, _lo, _hi in DEMO_UNIVERSE)
     for h in got.holdings:
         assert set(h) == HOLDING_KEYS
@@ -120,8 +122,8 @@ def test_demo_spec_matches_the_script_inputs_built_from_csv(make_spec):
     assert got.rebalance_dates == monthly_first(weekly)
     for h in got.holdings:
         row = uni.loc[h["ticker"]]
-        assert (h["asset_group"], h["sector_group"], h["country_group"]) == (
-            row["asset_group"], row["sector_group"], row["country_group"]
+        assert (h["grade"], h["asset_group"], h["sector_group"], h["country_group"]) == (
+            row["risk_tag"], row["asset_group"], row["sector_group"], row["country_group"]
         )
     tickers = [h["ticker"] for h in got.holdings]
     pd.testing.assert_frame_equal(
@@ -187,6 +189,7 @@ BBL_RULES = {
     "RB_QUARTERLY": _rule("calendar", "quarterly", 1, 60),
     "RB_WEEKLY": _rule("calendar", "weekly", 1, 5),
     "RB_THRESHOLD_5": _rule("threshold", "daily", None, 5),
+    "RB_SIGNAL": _rule("signal", "daily", None, 5),
 }
 # 2023-01~2023-07 의 주 마지막 거래일 일부(설 연휴·공휴일 주 포함 모양)
 WEEKS = [
@@ -230,7 +233,14 @@ def test_quarterly_takes_the_first_week_of_each_quarter():
     got = bi.plan_schedule(BBL_RULES["RB_QUARTERLY"], WEEKS)
 
     assert got.dates == ["2023-01-06", "2023-04-07", "2023-07-07"]
-    assert got.skipped == [] and got.drift is None
+    assert got.skipped == [] and got.drift is None and got.signal_interval is None
+
+
+def test_quarterly_min_interval_drops_a_quarter_start_too_close():
+    # 확정 간격이 분기보다 길면 다음 분기 첫 평가일을 건너뛴다
+    got = bi.plan_schedule(BBL_RULES["RB_QUARTERLY"], WEEKS, min_interval_days=100)
+
+    assert got.dates == ["2023-01-06", "2023-07-07"] and got.skipped == ["2023-04-07"]
 
 
 def test_monthly_first_and_weekly_are_unchanged():
@@ -243,7 +253,15 @@ def test_threshold_hands_every_week_to_the_runner_with_the_block_threshold():
 
     # 간격은 미리 거르지 않는다 — 직전 "실제" 리밸런싱일을 러너만 안다
     assert got.dates == WEEKS and got.skipped == []
-    assert got.drift == (0.05, 5)
+    assert got.drift == (0.05, 5) and got.signal_interval is None
+    assert bi.plan_schedule(BBL_RULES["RB_THRESHOLD_5"], WEEKS, min_interval_days=9).drift == (0.05, 9)
+
+
+def test_signal_hands_every_week_to_the_runner_with_the_interval():
+    got = bi.plan_schedule(BBL_RULES["RB_SIGNAL"], WEEKS, min_interval_days=7)
+
+    assert got.dates == WEEKS and got.skipped == []
+    assert got.signal_interval == 7 and got.drift is None
 
 
 def test_min_interval_keeps_the_first_and_drops_what_is_too_close():
@@ -254,7 +272,8 @@ def test_min_interval_keeps_the_first_and_drops_what_is_too_close():
 
 
 # ── 검증 결과 쓰기 ────────────────────────────────────────────────────
-# 조립이 실행 기록용 확정 범위를 읽는지 본다.
+# 어떤 확정값을 쓸지는 app/backtest/m2_chain.resolve_policy 가 정한다(tests/test_m2_chain.py).
+# 여기서는 조립이 그 값(간격)을 받아 쓰는지와, 실행 기록용 확정 범위를 읽는지만 본다.
 
 WEEKLY = {"trigger": {"type": "calendar", "freq": "weekly", "day": 1}, "min_interval_days": 5}
 CONFIRMED = [
@@ -264,12 +283,13 @@ CONFIRMED = [
 
 
 def _logs(*, cash_target: float = 0.12) -> list[dict]:
-    """record_validation 에 넣을 3단 통과 기록. 검증기를 돌리지 않고 결과 모양만 만든다."""
+    """record_validation 에 넣을 4단 통과 기록. 검증기를 돌리지 않고 결과 모양만 만든다."""
     return [
         {"stage": 1, "passed": True, "violations": []},
         {"stage": 2, "passed": True, "violations": []},
         {"stage": 3, "passed": True, "violations": [],
          "adjusted_bounds": {"case": "B", "cash_target": cash_target}},
+        {"stage": 4, "passed": True, "violations": [], "clamped_fields": []},
     ]
 
 
@@ -281,22 +301,48 @@ def test_final_ranges_read_the_confirmed_columns_and_holdings_keep_raw(make_spec
     inp = _build(spec_id)
 
     assert inp.final_ranges == {"069500": (0.05, 0.30), "273130": (0.10, 0.25)}
-    # 원래 범위는 그대로 남는다(실행 기록의 weight_*_raw)
+    # 원래 범위는 그대로 남는다(실행 기록의 weight_*_raw · 데모 스크립트와 같은 holdings 모양)
     raw = {h["ticker"]: (h["min_raw"], h["max_raw"]) for h in inp.holdings}
     assert raw["069500"] == (0.05, 0.20)
 
 
 @pytest.mark.requires_backfill
-def test_runner_holds_targets_inside_the_ranges_and_cash(make_spec):
-    """러너는 확정 범위 안에서, 현금 하한을 남기고 비중을 낸다."""
+def test_confirmed_interval_replaces_the_requested_one(make_spec):
+    spec_id = make_spec([("069500", 0.05, 0.20)], WEEKLY)
+
+    requested = _build(spec_id)
+    clamped = bi.build_inputs(spec_id, period_start=PERIOD_START, period_end=PERIOD_END, min_interval_days=7)
+
+    assert requested.skipped_rebalance_dates == ["2024-12-30", "2025-12-30"]
+    # 간격 7일이 적용됐다 — 남은 리밸런싱일끼리는 7일 이상 떨어져 있다
+    days = [date.fromisoformat(d) for d in clamped.rebalance_dates]
+    assert all((b - a).days >= 7 for a, b in zip(days, days[1:]))
+    assert len(clamped.rebalance_dates) < len(requested.rebalance_dates)
+
+
+@pytest.mark.requires_backfill
+def test_m2_chain_holds_targets_inside_confirmed_ranges_and_cash(make_spec):
+    """확정 범위 · 현금을 M2 체인에 넘기면 러너가 그 안에서 비중을 낸다. 신호 없는 대조군으로 본다."""
+    from app.backtest.m2_chain import AtrSource, ConfirmedPolicy, M2Weigher
+    from app.backtest.policy import CAP_EXEMPT_GROUPS, caps_for
     from app.backtest.runner import run
 
     spec_id = make_spec([("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], WEEKLY)
     inp = _build(spec_id)
-    bounds = {"069500": (0.02, 0.08), "273130": (0.03, 0.09)}
-    tickers = [h["ticker"] for h in inp.holdings]
+    confirmed = ConfirmedPolicy(
+        source="recorded", hardcap_version="v0.1",
+        bounds={"069500": (0.02, 0.08), "273130": (0.03, 0.09)},
+        cash_target=0.40, max_loss_per_trade=0.05, min_interval_days=5,
+    )
+    weigh = M2Weigher(
+        inp.holdings, confirmed, caps=caps_for(inp.risk_level), exempt=CAP_EXEMPT_GROUPS, horizon_days=5,
+        atr=AtrSource.load([h["ticker"] for h in inp.holdings], as_of=PERIOD_END),
+    )
 
-    out = run(inp.prices_wide, tickers, bounds, 0.40, inp.valuation_dates, inp.rebalance_dates, 1_000_000)
+    out = run(
+        inp.prices_wide, inp.holdings, inp.risk_level, inp.valuation_dates, inp.rebalance_dates,
+        1_000_000, use_signals=False, weigh=weigh,
+    )
 
     for decision in out["decisions"]:
         assert 0.02 - 1e-9 <= decision["target"]["069500"] <= 0.08 + 1e-9
@@ -304,23 +350,34 @@ def test_runner_holds_targets_inside_the_ranges_and_cash(make_spec):
         assert decision["cash"] >= 0.40 - 1e-9
 
 
-@pytest.mark.requires_backfill
-def test_spec_backtest_repeats_through_the_service(make_draft_spec):
-    """같은 전략서를 두 번 돌리면 결과가 같다."""
-    from app.backtest import service
+# ── 신호형(RB_SIGNAL) 전략서를 service 경로로 끝까지 ─────────────────────
 
+
+@pytest.mark.requires_backfill
+def test_signal_rule_spec_runs_through_the_m2_chain_and_repeats(make_draft_spec, monkeypatch):
+    from app.backtest import service
+    from app.views import bridge
+
+    monkeypatch.setattr(bridge, "SCORERS", bridge.MOCK_SCORERS)  # LightGBM 없이 결정적으로
     spec_id = make_draft_spec(
-        [("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], rebalance=WEEKLY,
-        name="재현성 픽스처", signal_rules={},
+        [("069500", 0.05, 0.20), ("273130", 0.10, 0.25)], rebalance=BBL_RULES["RB_SIGNAL"],
+        name="신호형 픽스처", signal_rules={"market_analysis": {"indicators": ["ret_20"]}},
         constraint={"max_weight_per_asset": 0.30, "min_weight_per_asset": 0.0, "cash_min": 0.05,
                     "max_loss_per_trade": 0.05, "max_drawdown": 0.25},
     )
+    specs.record_validation(spec_id, bounds=CONFIRMED, logs=_logs())  # 4단 통과 기록 → M2 체인 경로
 
     def once():
         return service.run_spec_backtest(spec_id, period_start=PERIOD_START, period_end=PERIOD_END,
                                          seed_money=10_000_000)
 
     first, second = once(), once()
-    dates = first["window_results"]["schedule"]["rebalance_dates"]
-    assert dates == [d["date"] for d in first["window_results"]["decisions"]] and len(dates) >= 2
+    w = first["window_results"]
+
+    assert w["weight_path"] == service.M2_CHAIN_PATH
+    assert w["m2"]["risk_sizer"]["horizon_days"] == w["m2"]["min_interval_days"]  # 신호형 h = 최소 간격
+    dates = w["schedule"]["rebalance_dates"]
+    assert dates == [d["date"] for d in w["decisions"]] and len(dates) >= 2
+    # 대조군은 전략 계열이 리밸런싱한 날짜를 그대로 쓴다
+    assert [d["date"] for d in w["control_decisions"]] == dates
     assert first == second

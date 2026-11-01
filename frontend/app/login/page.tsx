@@ -1,6 +1,6 @@
 "use client";
 
-// 로그인.
+// 로그인 — docs/frontend_milestone.md 2단계.
 //
 // 아이디만 넣으면 로그인 버튼이 눌린다. 누르면 쓸 토큰을 이렇게 고른다.
 //   1) 토큰 칸에 값이 있으면 그 토큰
@@ -10,7 +10,10 @@
 //
 // 서버는 만료와 위조를 둘 다 401 하나로 돌려준다. 그래서 만료는 토큰 안의 exp 를
 // 읽어 따로 판단하고, 만료면 "토큰 재인증" 버튼으로 POST /auth/login 에서 새 토큰을 받는다.
-// 로그인하면 홈(/home)으로 간다.
+// 로그인하면 홈(/home)으로 간다. 성향이 아직 없으면(GET /profile/me 404) 설문(/survey)으로
+// 바로 간다 — 가입 뒤 첫 로그인이 이 경우다. 성향 없이는 전략을 만들 수 없어서 홈을 거칠
+// 이유가 없다. "첫 로그인" 을 따로 기록하지 않고 성향 유무로 본다: 설문을 마치지 않고 나간
+// 사람도 다음 로그인에 설문으로 간다.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -118,7 +121,18 @@ export default function LoginPage() {
 
     // 로그인 화면에는 refresh 토큰이 없다. 만료되면 이 화면에서 재인증한다.
     saveSession({ access, refresh: "", username: me.username });
-    router.push("/home");
+    router.push(await landing());
+  }
+
+  // 로그인 직후 갈 곳. 성향 확인이 404 가 아닌 이유로 실패하면 홈으로 보낸다 — 홈이 같은
+  // 확인을 다시 하고 실패 사유를 화면에 보여 준다.
+  async function landing(): Promise<string> {
+    try {
+      await api("/profile/me");
+      return "/home";
+    } catch (err) {
+      return err instanceof ApiError && err.status === 404 ? "/survey" : "/home";
+    }
   }
 
   return (
