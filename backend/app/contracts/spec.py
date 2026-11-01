@@ -1,4 +1,4 @@
-"""계약 ① Spec JSON 스키마 v0.1 (docs/infra-spec.md 6단계 표 ①).
+"""계약 ① Spec JSON 스키마 v0.1.
 
 M1(자연어 -> Spec 컴파일러)의 structured outputs 스키마이자, M2 이후 모든 계층이
 읽는 Spec의 형태다. 스키마 변경은 전원 합의 사항이므로(그래프 상위 CLAUDE.md)

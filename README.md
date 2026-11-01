@@ -125,4 +125,3 @@ docker compose exec frontend npx tsc --noEmit
 - `docs/pivot-plan.md` — 기준 문서. 주제 변경 기반 정리 계획과 결정 사항
 - `docs/known-issues.md` — 알려진 설계 구멍
 - `docs/db-erd.md` — 표 구조 정본
-- `docs/archive/` — 옛 주제(국내 ETF 모의운용) 문서. 기록으로만 남긴다

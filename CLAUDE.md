@@ -14,7 +14,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 사용자와의 대화는 한국어로 한다
 - 기준 문서는 `docs/pivot-plan.md`. 시작 전 반드시 읽는다
-  - `docs/infra-spec.md` 는 옛 주제의 기준 문서다. 두 문서가 다르면 `docs/pivot-plan.md` 를 따른다
 - 사용자가 지정한 단계만 수행한다. 다음 단계로 넘어가지 않는다
 - 스키마 설계 판단이 필요하면 임의 결정하지 말고 선택지를 제시하고 멈춘다
 - 칸이나 테이블을 임의로 추가하지 않는다. 필요하면 먼저 묻는다

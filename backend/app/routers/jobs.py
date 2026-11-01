@@ -1,5 +1,5 @@
-"""GET /jobs/{job_id}/stream — 202 Accepted + job_id -> SSE 구독 패턴 (docs/
-infra-spec.md 7단계). 라우터 6종 중 유일하게 "이 패턴만 실제로 동작"해야 하는
+"""GET /jobs/{job_id}/stream — 202 Accepted + job_id -> SSE 구독 패턴.
+라우터 6종 중 유일하게 "이 패턴만 실제로 동작"해야 하는
 부분이라 501로 두지 않는다. Celery AsyncResult를 폴링해 상태 변화와 완료를
 text/event-stream으로 흘린다.
 """

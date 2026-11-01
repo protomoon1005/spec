@@ -1,8 +1,8 @@
 """Pydantic 모델 -> JSON Schema 파일 export.
 
 계약 ①(Spec JSON 스키마 v0.1)만 대상이다. M1의 structured outputs가 이
-파일을 직접 입력으로 쓰므로, Pydantic 모델과 별도로 저장소에 커밋해 둔다
-(docs/infra-spec.md 6단계). 다른 세 계약(②③④)은 M2 내부 모듈 간 형식 계약일
+파일을 직접 입력으로 쓰므로, Pydantic 모델과 별도로 저장소에 커밋해 둔다.
+다른 세 계약(②③④)은 M2 내부 모듈 간 형식 계약일
 뿐 LLM 입력이 아니므로 export 대상이 아니다.
 """
 from __future__ import annotations

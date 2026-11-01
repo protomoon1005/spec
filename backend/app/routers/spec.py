@@ -96,7 +96,7 @@ class AdjustedItem(BaseModel):
 
 
 class AdjustedBounds(BaseModel):
-    """범위 보정 내역(docs/archive/m2-algorithms.md 1장). `case` 가 null 이면 보정이 필요 없었다."""
+    """범위 보정 내역. `case` 가 null 이면 보정이 필요 없었다."""
 
     case: str | None
     cash_min: float
