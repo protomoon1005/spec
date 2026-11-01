@@ -8,7 +8,7 @@
 나온다. 모든 질의가 `ticker` 로 정렬해 끝난다.
 
 **아쉬운 점**: "대표적인 종목부터" 고르고 싶은데 순자산 칸이 표에 없다.
-원본 파일(frontend/data/universe.csv)에는 있지만 표에 칸이 없어 적재하지 못했다.
+종목 목록(data/listing.csv)에는 시가총액이 있지만 표에 칸이 없어 적재하지 못했다.
 지금은 종목코드 순이라 사실상 임의 순서다 — README 의 알려진 문제에 적어 뒀다.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from app.core.db import get_engine
 
-# 분류는 세 축을 따로 읽는다 (db/migrate/001_etf_master_group_axes.sql).
+# 분류는 세 축을 따로 읽는다 (instruments 의 asset_group_id · sector_group_id · country_group_id).
 # 옛 컬럼 두 개는 일부러 안 읽는다 — `sector` 는 한글 라벨(`반도체`)이고
 # `group_id` 는 자산군만 담던 자리라, 둘을 섞어 쓰면 어느 쪽을 보는지 헷갈린다.
 _COLUMNS = """
@@ -52,7 +52,7 @@ def get_by_tickers(tickers: list[str]) -> dict[str, EtfRecord]:
         return {}
     with get_engine().connect() as conn:
         rows = conn.execute(
-            text(f"SELECT {_COLUMNS} FROM etf_master WHERE ticker = ANY(:tickers) ORDER BY ticker"),
+            text(f"SELECT {_COLUMNS} FROM instruments WHERE ticker = ANY(:tickers) ORDER BY ticker"),
             {"tickers": list(tickers)},
         ).all()
     return {row.ticker: _as_record(row) for row in rows}
@@ -67,7 +67,7 @@ def list_all(*, include_leveraged: bool) -> list[EtfRecord]:
     """
     clause = "" if include_leveraged else " WHERE is_leveraged = false"
     with get_engine().connect() as conn:
-        rows = conn.execute(text(f"SELECT {_COLUMNS} FROM etf_master{clause} ORDER BY ticker")).all()
+        rows = conn.execute(text(f"SELECT {_COLUMNS} FROM instruments{clause} ORDER BY ticker")).all()
     return [_as_record(row) for row in rows]
 
 
@@ -87,7 +87,7 @@ def find_by_name(fragment: str, *, limit: int = 10) -> list[EtfRecord]:
         rows = conn.execute(
             text(
                 f"""
-                SELECT {_COLUMNS} FROM etf_master
+                SELECT {_COLUMNS} FROM instruments
                  WHERE REPLACE(name, ' ', '') ILIKE :pattern
                  ORDER BY ticker
                  LIMIT :limit
@@ -140,7 +140,7 @@ def search(
     with get_engine().connect() as conn:
         rows = conn.execute(
             text(
-                f"SELECT {_COLUMNS} FROM etf_master"
+                f"SELECT {_COLUMNS} FROM instruments"
                 f" WHERE {' AND '.join(clauses)}"
                 " ORDER BY ticker LIMIT :limit"
             ),
@@ -151,3 +151,23 @@ def search(
 
 def _as_record(row) -> EtfRecord:
     return EtfRecord(**row._mapping)
+
+
+def list_group_ids(group_level: int) -> list[str]:
+    """묶음 이름 목록. 1 이면 자산군, 2 면 업종 · 국가."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT group_id FROM asset_groups WHERE group_level = :lv ORDER BY group_id"),
+            {"lv": group_level},
+        ).all()
+    return [row.group_id for row in rows]
+
+
+def list_group_labels(group_level: int) -> dict[str, str]:
+    """묶음 이름에서 한국어 이름표(asset_groups.label)로. 이름 순."""
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text("SELECT group_id, label FROM asset_groups WHERE group_level = :lv ORDER BY group_id"),
+            {"lv": group_level},
+        ).all()
+    return {row.group_id: row.label for row in rows}

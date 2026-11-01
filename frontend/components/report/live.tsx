@@ -3,8 +3,7 @@
 // /report?run_id= — 사용자가 돌린 실행 한 건을 리포트로 그린다.
 //
 // 토큰이 브라우저 저장소에 있어서(lib/api.ts) 서버가 대신 받아 올 수 없다. 그래서
-// 여기서 받는다. 받기 전에는 로딩 화면만 보인다 — 정적 데모 결과를 먼저 그렸다가
-// 바꾸면, 잠깐이라도 사용자가 만들지 않은 전략의 수치가 보인다.
+// 여기서 받는다. 받기 전에는 로딩 화면만 보인다.
 //
 // 로그인 확인은 components/require-login 을 쓰지 않는다. 그 컴포넌트는 기본 HTML 막대를
 // 화면 위에 그리고 곧바로 /login 으로 보내는데, 리포트는 자기 디자인 안에서 이유를 적고
@@ -14,17 +13,26 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import Report from "@/components/report";
-import { api, ApiError, isExpired, loadSession } from "@/lib/api";
-import { buildReport, type Report as ReportData } from "@/lib/data";
-import { metaFromSpec, ReportUnavailable, resultFromRun, type RunDetail, type SpecDetail } from "@/lib/report-from-run";
+import { api, ApiError, type BacktestRun, isExpired, loadSession } from "@/lib/api";
 import { C, MONO, R, SANS } from "./tokens";
+
+// 끝나지 않았거나 실패한 실행은 그릴 것이 없다. 이유를 문장으로 올린다.
+class ReportUnavailable extends Error {}
+
+function readyRun(run: BacktestRun): BacktestRun {
+  if (run.status === "failed") throw new ReportUnavailable(`이 실행은 실패했습니다 — ${run.reason ?? "이유 없음"}`);
+  if (run.status !== "done" || !run.series || !run.summary) {
+    throw new ReportUnavailable(`아직 끝나지 않은 실행입니다(상태: ${run.status ?? "알 수 없음"}). 잠시 뒤 다시 열어 주세요.`);
+  }
+  return run;
+}
 
 type State =
   | { kind: "loading" }
   // expired 면 로그인 화면이 아이디를 채우고 재인증 버튼을 바로 보여 준다(?expired=1).
   | { kind: "login"; message: string; expired?: boolean }
   | { kind: "error"; message: string }
-  | { kind: "ok"; report: ReportData; run: RunDetail };
+  | { kind: "ok"; run: BacktestRun };
 
 export default function LiveReport({ runId }: { runId: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -50,11 +58,8 @@ export default function LiveReport({ runId }: { runId: string }) {
     let alive = true;
     (async () => {
       try {
-        const run = await api<RunDetail>(`/backtest/runs/${id}`);
-        const result = resultFromRun(run); // 끝나지 않았거나 실패했으면 여기서 멈춘다
-        const spec = await api<SpecDetail>(`/specs/${run.spec_id}`);
-        const report = buildReport(result, metaFromSpec(spec, run));
-        if (alive) setState({ kind: "ok", report, run });
+        const run = readyRun(await api<BacktestRun>(`/backtest/runs/${id}`));
+        if (alive) setState({ kind: "ok", run });
       } catch (err) {
         if (alive) setState(describe(err));
       }
@@ -64,7 +69,7 @@ export default function LiveReport({ runId }: { runId: string }) {
     };
   }, [runId]);
 
-  if (state.kind === "ok") return <Report report={state.report} run={state.run} />;
+  if (state.kind === "ok") return <Report run={state.run} />;
   return <Notice state={state} runId={runId} />;
 }
 
@@ -92,7 +97,7 @@ function Notice({ state, runId }: { state: Exclude<State, { kind: "ok" }>; runId
         </div>
         <h1 style={{ fontFamily: MONO, fontSize: 18, fontWeight: 600, color: tone, margin: "10px 0 14px" }}>{title}</h1>
         {state.kind === "loading" ? (
-          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>실행 기록과 전략서를 받아 오고 있습니다.</p>
+          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>실행 기록을 받아 오고 있습니다.</p>
         ) : (
           <p
             role="alert"
@@ -115,7 +120,6 @@ function Notice({ state, runId }: { state: Exclude<State, { kind: "ok" }>; runId
               <NavLink href={state.expired ? "/login?expired=1" : "/login"}>로그인</NavLink>
             )}
             <NavLink href="/backtest">백테스트 화면으로</NavLink>
-            <NavLink href="/report">데모 결과 보기</NavLink>
           </div>
         )}
       </main>

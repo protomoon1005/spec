@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from app.m1 import intent as I
-from app.repositories import bbl, presets
+from app.repositories import bbl, etf_master
 
 
 @pytest.fixture
@@ -25,10 +25,10 @@ def test_keyword_choices_come_from_the_tag_vocabulary(engine, schema):
 
 
 def test_sector_and_group_choices_come_from_the_group_table(engine, schema):
-    sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
+    sectors = {g for g in etf_master.list_group_ids(2) if g.startswith("SECTOR_")}
 
     assert set(schema["properties"]["sectors"]["items"]["enum"]) == sectors
-    assert set(schema["properties"]["asset_groups"]["items"]["enum"]) == set(presets.list_group_ids(1))
+    assert set(schema["properties"]["asset_groups"]["items"]["enum"]) == set(etf_master.list_group_ids(1))
 
 
 def test_names_stay_free_text(engine, schema):
@@ -151,7 +151,7 @@ def test_extract_returns_vocabulary_values(engine):
     intent = I.extract("반도체 위주로 공격적으로 굴리고 매달 정리해줘", get_llm_client())
 
     allowed = set(bbl.list_tags("kw:"))
-    sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
+    sectors = {g for g in etf_master.list_group_ids(2) if g.startswith("SECTOR_")}
     assert set(intent.keywords) <= allowed
     assert set(intent.sectors) <= sectors
 
@@ -185,8 +185,8 @@ def test_keywords_spoken_in_the_sentence_are_kept_even_if_the_llm_drops_them(eng
 
 
 def test_rebalance_words_narrow_the_rebalance_blocks(engine):
-    monthly = I.resolve(I.Intent(keywords=("매달",))).rebalance_block_ids
+    monthly = I.resolve(I.Intent(keywords=("매달",))).rebalance_element_ids
     assert monthly == ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
-    assert I.resolve(I.Intent(keywords=("주간",))).rebalance_block_ids == ("RB_WEEKLY",)
+    assert I.resolve(I.Intent(keywords=("주간",))).rebalance_element_ids == ("RB_WEEKLY",)
     # 말이 없으면 좁히지 않는다 — 전략서 작성이 블록 전부에서 고르고 기본값 안내를 따른다
-    assert I.resolve(I.Intent(keywords=("배당",))).rebalance_block_ids == ()
+    assert I.resolve(I.Intent(keywords=("배당",))).rebalance_element_ids == ()

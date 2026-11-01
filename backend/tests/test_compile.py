@@ -12,7 +12,7 @@ from sqlalchemy import text
 from app.m1 import candidates as C
 from app.m1 import pipeline, postprocess
 from app.m1.postprocess import CompileError
-from app.repositories import bbl, profiles, specs
+from app.repositories import bbl, specs
 
 USER_TEXT = "안전하게 굴려줘"
 
@@ -24,7 +24,7 @@ def rebalance(engine):
 
 @pytest.fixture
 def candidate_set(engine):
-    return C.select(risk_level=5, target=3)
+    return C.select(target=3)
 
 
 def _payload(candidate_set, rebalance, **overrides) -> dict:
@@ -38,8 +38,8 @@ def _payload(candidate_set, rebalance, **overrides) -> dict:
         for c in candidate_set.candidates
     ]
     payload = {
-        "spec_id": "무시됨",
-        "spec_version": "0.1",
+        "strategy_id": "무시됨",
+        "strategy_version": "0.1",
         "user_id": 999,
         "name": "테스트 전략",
         "created_at": "2026-09-20T09:00:00+09:00",
@@ -59,7 +59,7 @@ def _payload(candidate_set, rebalance, **overrides) -> dict:
 
 
 def _parse(payload, candidate_set):
-    return postprocess.parse(payload, candidate_set, spec_id="STR-TEST", user_id=7)
+    return postprocess.parse(payload, candidate_set, strategy_id="STR-TEST", user_id=7)
 
 
 # --- 파싱 -------------------------------------------------------------------
@@ -69,7 +69,7 @@ def test_identity_is_not_taken_from_the_model(engine, candidate_set, rebalance):
     """사용자 번호를 지어내면 남의 전략서가 되고, 전략서 번호가 겹치면 저장이 깨진다."""
     compiled = _parse(_payload(candidate_set, rebalance), candidate_set)
 
-    assert compiled.spec.spec_id == "STR-TEST"
+    assert compiled.spec.strategy_id == "STR-TEST"
     assert compiled.spec.user_id == 7
 
 
@@ -79,14 +79,6 @@ def test_ticker_outside_the_candidates_is_rejected(engine, candidate_set, rebala
     payload["universe"][0]["ticker"] = "999999"
 
     with pytest.raises(CompileError, match="후보에 없는 종목"):
-        _parse(payload, candidate_set)
-
-
-def test_weight_above_the_profile_cap_is_rejected(engine, candidate_set, rebalance):
-    payload = _payload(candidate_set, rebalance)
-    payload["universe"][0]["weight_max"] = 0.99
-
-    with pytest.raises(CompileError, match="상한을 넘었다"):
         _parse(payload, candidate_set)
 
 
@@ -128,78 +120,70 @@ def test_malformed_payload_is_reported_not_crashed(engine, candidate_set):
 
 
 @pytest.fixture
-def profile(engine, make_user):
-    email, user_id = make_user("retail")
-    version = profiles.active_preset_version()
-    defaults = profiles.get_profile_defaults(version, 5)
-    record = profiles.insert_profile(
-        user_id=user_id, risk_level=5, preset_version=version, defaults=defaults, provenance={}
-    )
-    yield record
+def owner(engine, make_user):
+    """전략서를 저장할 사용자 번호. 만든 전략서까지 뒤에서 지운다."""
+    _, user_id = make_user()
+    yield user_id
     with engine.begin() as conn:
         conn.execute(
             text(
-                "DELETE FROM spec_universe WHERE spec_id IN"
-                " (SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
+                "DELETE FROM strategy_assets WHERE strategy_id IN"
+                " (SELECT strategy_id FROM strategies WHERE user_id = :u)"
             ),
             {"u": user_id},
         )
-        conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
-        conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
+        conn.execute(text("DELETE FROM strategies WHERE user_id = :u"), {"u": user_id})
 
 
-def test_save_writes_spec_and_universe_together(engine, candidate_set, rebalance, profile):
+def test_save_writes_spec_and_universe_together(engine, candidate_set, rebalance, owner):
     compiled = postprocess.parse(
         _payload(candidate_set, rebalance),
         candidate_set,
-        spec_id=specs.new_spec_id(),
-        user_id=profile.user_id,
+        strategy_id=specs.new_strategy_id(),
+        user_id=owner,
     )
 
-    saved = postprocess.save(
-        compiled, user_id=profile.user_id, profile_id=profile.profile_id, input_prompt=USER_TEXT
-    )
+    saved = postprocess.save(compiled, user_id=owner, input_prompt=USER_TEXT)
 
     assert saved.status == "draft"
     assert saved.universe_size == len(candidate_set.candidates)
-    rows = specs.get_spec_universe(saved.spec_id)
+    rows = specs.get_strategy_assets(saved.strategy_id)
     assert {row["ticker"] for row in rows} == set(candidate_set.tickers)
 
 
-def test_saved_rows_keep_raw_and_final_weights(engine, candidate_set, rebalance, profile):
-    """M1 단계에서는 스키마가 이미 범위를 강제했으므로 둘이 같고 조정 표시가 없다.
-    하드캡으로 접는 일은 Validator 몫이고, 그때 이 둘이 갈라진다."""
+def test_saved_rows_keep_raw_and_final_weights(engine, candidate_set, rebalance, owner):
+    """M1 단계에서는 원출력이 곧 확정값이라 둘이 같고 조정 표시가 없다.
+    범위를 고치는 일은 Validator 몫이고, 그때 이 둘이 갈라진다."""
     compiled = postprocess.parse(
         _payload(candidate_set, rebalance),
         candidate_set,
-        spec_id=specs.new_spec_id(),
-        user_id=profile.user_id,
+        strategy_id=specs.new_strategy_id(),
+        user_id=owner,
     )
-    saved = postprocess.save(compiled, user_id=profile.user_id, profile_id=profile.profile_id)
+    saved = postprocess.save(compiled, user_id=owner)
 
-    for row in specs.get_spec_universe(saved.spec_id):
+    for row in specs.get_strategy_assets(saved.strategy_id):
         assert row["weight_min"] == row["weight_min_raw"]
         assert row["weight_max"] == row["weight_max_raw"]
         assert row["was_adjusted"] is False
-        assert row["preset_id"] > 0
 
 
-def test_saved_spec_records_which_hardcap_applied(engine, candidate_set, rebalance, profile):
+def test_saved_spec_is_a_draft_with_the_request(engine, candidate_set, rebalance, owner):
     compiled = postprocess.parse(
         _payload(candidate_set, rebalance),
         candidate_set,
-        spec_id=specs.new_spec_id(),
-        user_id=profile.user_id,
+        strategy_id=specs.new_strategy_id(),
+        user_id=owner,
     )
-    saved = postprocess.save(compiled, user_id=profile.user_id, profile_id=profile.profile_id)
+    saved = postprocess.save(compiled, user_id=owner, input_prompt=USER_TEXT)
 
     with engine.connect() as conn:
         row = conn.execute(
-            text("SELECT hardcap_version, status, input_prompt FROM strategy_specs WHERE spec_id = :s"),
-            {"s": saved.spec_id},
+            text("SELECT status, input_prompt FROM strategies WHERE strategy_id = :s"),
+            {"s": saved.strategy_id},
         ).one()
-    assert row.hardcap_version == "v0.1"
     assert row.status == "draft"
+    assert row.input_prompt == USER_TEXT
 
 
 # --- 전 구간 (가짜 모델) -----------------------------------------------------
@@ -230,8 +214,8 @@ class _FakeLLM:
         tickers = option["properties"]["ticker"]["enum"][:2]
         self.picked = list(tickers)
         return {
-            "spec_id": "무시됨",
-            "spec_version": "0.1",
+            "strategy_id": "무시됨",
+            "strategy_version": "0.1",
             "user_id": 0,
             "name": "보수적 채권 전략",
             "created_at": "2026-09-20T09:00:00+09:00",
@@ -257,50 +241,41 @@ class _FakeLLM:
         }
 
 
-def test_compile_end_to_end_with_a_fake_model(engine, rebalance, profile):
+def test_compile_end_to_end_with_a_fake_model(engine, rebalance, owner):
     fake = _FakeLLM(rebalance)
 
-    result = pipeline.start(profile.user_id, USER_TEXT, fake)
+    result = pipeline.start(owner, USER_TEXT, fake)
 
     assert result.status == pipeline.STATUS_COMPLETED
     assert result.saved.status == "draft"
     assert result.saved.universe_size == len(fake.picked)
-    assert {row["ticker"] for row in specs.get_spec_universe(result.saved.spec_id)} == set(fake.picked)
-
-
-def test_compile_needs_a_confirmed_profile(engine, make_user, rebalance):
-    """성향을 모르면 종목별 허용 범위가 정해지지 않는다."""
-    _, user_id = make_user("retail")
-
-    with pytest.raises(CompileError, match="투자 성향"):
-        pipeline.start(user_id, USER_TEXT, _FakeLLM(rebalance))
+    assert {row["ticker"] for row in specs.get_strategy_assets(result.saved.strategy_id)} == set(fake.picked)
 
 
 # --- 실제 모델 ---------------------------------------------------------------
 
 
 @pytest.mark.requires_ollama
-def test_compile_with_the_real_model(engine, profile):
+def test_compile_with_the_real_model(engine, owner):
     """호스트 Ollama 로 한 번 끝까지 돌린다.
 
     무엇을 고르는지는 모델이 정하는 것이라 고정하지 않는다. 보려는 것은
-    **나온 전략서가 우리 규칙 안에 있는가** 다 — 후보 밖 종목이 없고, 비중이 그 성향의
-    범위 안이고, 실행 가능한가. Ollama 는 형식 강제가 약해서 이게 실제로 깨질 수 있다.
+    **나온 전략서가 우리 규칙 안에 있는가** 다 — 후보 밖 종목이 없고, 비중 범위가 맞고,
+    실행 가능한가. Ollama 는 형식 강제가 약해서 이게 실제로 깨질 수 있다.
     """
     from app.llm.client import get_llm_client
 
     result = pipeline.start(
-        profile.user_id, "안전하게 채권 위주로 굴리고 매달 정리해줘", get_llm_client()
+        owner, "안전하게 채권 위주로 굴리고 매달 정리해줘", get_llm_client()
     )
 
     assert result.status == pipeline.STATUS_COMPLETED
-    rows = specs.get_spec_universe(result.saved.spec_id)
+    rows = specs.get_strategy_assets(result.saved.strategy_id)
     assert rows
-    bounds = {c.ticker: c for c in C.select(risk_level=profile.risk_level, target=300).candidates}
+    known = set(C.select(target=300).tickers)
     for row in rows:
-        assert row["ticker"] in bounds
+        assert row["ticker"] in known
         assert row["weight_min"] <= row["weight_max"]
-        assert float(row["weight_max"]) <= bounds[row["ticker"]].weight_max
 
 
 def test_model_supplied_name_is_overwritten(engine, candidate_set, rebalance):

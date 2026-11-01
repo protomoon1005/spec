@@ -65,9 +65,9 @@ function SpecList() {
         </thead>
         <tbody>
           {list.map((s) => (
-            <tr key={s.spec_id}>
+            <tr key={s.strategy_id}>
               <td>
-                <Link href={`/specs/view?id=${encodeURIComponent(s.spec_id)}`}>{s.name}</Link>
+                <Link href={`/specs/view?id=${encodeURIComponent(s.strategy_id)}`}>{s.name}</Link>
               </td>
               <td>
                 <StatusBadge status={s.status} />
@@ -77,7 +77,7 @@ function SpecList() {
                 {formatDate(s.created_at)}
               </td>
               <td className="mono" style={{ color: "var(--c-muted)" }}>
-                {s.spec_id}
+                {s.strategy_id}
               </td>
             </tr>
           ))}

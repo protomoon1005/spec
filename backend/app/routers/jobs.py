@@ -1,5 +1,5 @@
-"""GET /jobs/{job_id}/stream — 202 Accepted + job_id -> SSE 구독 패턴 (docs/
-infra-spec.md 7단계). 라우터 6종 중 유일하게 "이 패턴만 실제로 동작"해야 하는
+"""GET /jobs/{job_id}/stream — 202 Accepted + job_id -> SSE 구독 패턴.
+라우터 6종 중 유일하게 "이 패턴만 실제로 동작"해야 하는
 부분이라 501로 두지 않는다. Celery AsyncResult를 폴링해 상태 변화와 완료를
 text/event-stream으로 흘린다.
 """
@@ -12,7 +12,7 @@ from celery.result import AsyncResult
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.core.security import AuthUser, require_any_role
+from app.core.security import AuthUser, require_user
 from app.workers.celery_app import celery_app
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -46,7 +46,7 @@ async def _event_stream(job_id: str):
 
 
 @router.get("/{job_id}/stream", summary="작업 진행 상황 실시간으로 보기")
-def stream_job(job_id: str, user: AuthUser = Depends(require_any_role)) -> StreamingResponse:
+def stream_job(job_id: str, user: AuthUser = Depends(require_user)) -> StreamingResponse:
     """작업 번호를 주면 그 작업이 어디까지 갔는지 실시간으로 보내 준다.
 
     연결을 끊지 않고 계속 흘려보내는 방식이다. 상태가 바뀔 때마다 한 줄씩 오고,

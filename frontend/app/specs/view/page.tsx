@@ -1,6 +1,6 @@
 "use client";
 
-// 전략서 보기 — 전략 관리 목록에서 고른 전략서 하나의 내용(GET /specs/{spec_id}).
+// 전략서 보기 — 전략 관리 목록에서 고른 전략서 하나의 내용(GET /specs/{strategy_id}).
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";

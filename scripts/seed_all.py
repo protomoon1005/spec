@@ -6,7 +6,7 @@
 시드가 두 가지 형식이다. 성격이 달라서 일부러 그렇게 뒀다.
 
   .sql  규칙표 — 팀이 회의에서 정한 값. 손으로 쓰고 잘 안 바뀐다
-        (공통 상한선 · 허용범위 프리셋 · 자산군/묶음 상한 · 블록 라이브러리)
+        (분류표 · 전략 요소 사전)
   .csv  데이터 — 종목 원장. 사람이 스프레드시트로 분류 작업을 한다
         한글 분류값(`반도체`)을 묶음 이름(`SECTOR_SEMICONDUCTOR`)으로 옮기는
         매핑이 필요해서 전용 적재기를 쓴다 (scripts/load_etf_master.py)
@@ -16,13 +16,13 @@
 
 ## 순서가 중요하다
 
-종목이 자산군을 참조하고 자산군이 기준표 버전을 참조한다. 아래 순서를 바꾸면
+종목(instruments)이 분류표(asset_groups)를 참조한다. 아래 순서를 바꾸면
 외래키 때문에 적재가 실패한다. 그래서 디렉터리를 훑지 않고 **목록을 명시**한다 —
 db/seeds/ 에는 적재 대상이 아닌 파일(예: 상장폐지 후보 목록)도 들어 있다.
 
 ## 멱등하지 않은 것이 섞여 있다
 
-01~03 은 같은 값을 두 번 넣으면 중복으로 쌓인다(ON CONFLICT 가 없는 구문이 있다).
+03 은 같은 값을 두 번 넣으면 기본키 충돌로 실패한다(ON CONFLICT 가 없다).
 **새 데이터베이스에 한 번 돌리는 것이 전제다.** 05(블록)와 04(종목)는 여러 번
 돌려도 괜찮다 — 각각 비우고 다시 채우거나 갱신한다.
 
@@ -42,9 +42,7 @@ SEEDS_DIR = REPO_ROOT / "db" / "seeds"
 
 # (파일명, 설명). 순서가 곧 적재 순서다.
 SQL_SEEDS: tuple[tuple[str, str], ...] = (
-    ("01_hardcap_v0_1.sql", "모든 전략에 공통으로 걸리는 상한선"),
-    ("02_preset_v0_1.sql", "성향 5단계 × 위험등급 6단계 허용범위"),
-    ("03_asset_groups.sql", "자산군·업종·국가 묶음과 묶음별 상한"),
+    ("03_asset_groups.sql", "자산군·업종·국가 묶음(분류표)"),
 )
 
 # 종목 원장. 전용 적재기가 한글 분류값을 묶음 이름으로 옮긴다.
@@ -52,7 +50,7 @@ ETF_LOADER = REPO_ROOT / "scripts" / "load_etf_master.py"
 
 # 블록 라이브러리는 종목보다 뒤에 둘 이유가 없지만, 번호 순서를 지켜 읽기 쉽게 둔다.
 LATE_SQL_SEEDS: tuple[tuple[str, str], ...] = (
-    ("05_bbl.sql", "전략서에 들어갈 수 있는 값들의 목록"),
+    ("05_bbl.sql", "전략 요소 사전(strategy_elements · strategy_element_tags)"),
 )
 
 
@@ -96,7 +94,7 @@ def _run_etf_master() -> None:
     )
     if result.returncode != 0:
         raise RuntimeError("load_etf_master.py 가 실패했다")
-    print("seed_all: 04_etf_master.csv — 종목 원장")
+    print("seed_all: 04_etf_master.csv — 종목 원장(instruments)")
 
 
 def main() -> int:
@@ -114,7 +112,7 @@ def main() -> int:
         print(f"seed_all: 실패 — {message}", file=sys.stderr)
         if "duplicate key" in message or "already exists" in message:
             print(
-                "seed_all: 이미 적재된 데이터베이스로 보인다. 01~03 은 두 번 넣을 수 없다 —"
+                "seed_all: 이미 적재된 데이터베이스로 보인다. 03 은 두 번 넣을 수 없다 —"
                 " 새로 깔려면 볼륨을 지우고 다시 띄울 것",
                 file=sys.stderr,
             )

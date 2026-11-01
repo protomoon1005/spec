@@ -38,7 +38,7 @@ VOLATILITY_SLOT = "signal_rules.market_temperature.volatility_index"
 
 
 def build_compile_schema(
-    candidate_set: CandidateSet, *, rebalance_block_ids: tuple[str, ...] | list[str] = ()
+    candidate_set: CandidateSet, *, rebalance_element_ids: tuple[str, ...] | list[str] = ()
 ) -> dict[str, Any]:
     # 후보가 없으면 만들 수 있는 전략서가 없다. 빈 스키마를 주면 LLM 이
     # 아무거나 지어내거나 빈 배열을 내고, 어느 쪽이든 원인을 알기 어렵다.
@@ -50,7 +50,7 @@ def build_compile_schema(
 
     schema["properties"]["universe"] = _universe_schema(candidate_set)
     _narrow_indicators(defs)
-    rebalance = _rebalance_schema(rebalance_block_ids)
+    rebalance = _rebalance_schema(rebalance_element_ids)
     if rebalance is not None:
         schema["properties"]["rebalance"] = rebalance
     _narrow_market_temperature(defs)
@@ -59,8 +59,8 @@ def build_compile_schema(
 
 
 def _universe_schema(candidate_set: CandidateSet) -> dict[str, Any]:
-    # 허용 범위가 같은 종목끼리 묶어 선택지를 만든다. 범위는 위험등급마다 정해지므로
-    # **후보가 몇 개든 선택지는 많아야 여섯 개**(G1~G6)다.
+    # 허용 범위가 같은 종목끼리 묶어 선택지를 만든다. 시스템 상한이 없어 지금은 모든 후보의
+    # 범위가 0~1 로 같으므로 선택지는 하나다.
     #
     # 처음엔 종목마다 선택지를 하나씩 뒀는데, 제약 디코딩이 선택지 수에 따라 급격히
     # 느려졌다 — 5종목 2분, 10종목은 5분을 넘겨 시간초과로 죽었다(2026-09-20 실측,
@@ -107,7 +107,7 @@ def _rebalance_schema(only: tuple[str, ...] | list[str] = ()) -> dict[str, Any] 
     # monthly + threshold, "매주" 요청에 day 없는 weekly 가 나와 백테스트 러너가 거부했다
     # (2026-10-21 데모 흐름 4회 중 4회, qwen3:8b). day · min_interval_days 도 블록 값으로 묶는다.
     # 간격은 하드캡(min_interval_days)이 하한으로 다시 클램프한다.
-    # only 를 주면(사용자 말에 걸린 블록, intent.rebalance_block_ids) 그 블록들로만 좁힌다.
+    # only 를 주면(사용자 말에 걸린 블록, intent.rebalance_element_ids) 그 블록들로만 좁힌다.
     options = [
         _exactly(block.params_schema)
         for block in rebalance_blocks(only)
@@ -120,7 +120,7 @@ def _rebalance_schema(only: tuple[str, ...] | list[str] = ()) -> dict[str, Any] 
 def rebalance_blocks(only: tuple[str, ...] | list[str] = ()) -> list[bbl.Block]:
     # 스키마와 프롬프트가 같은 목록을 보게 한 곳에서 고른다.
     blocks = bbl.list_blocks("rebalance")
-    return [block for block in blocks if block.block_id in only] if only else blocks
+    return [block for block in blocks if block.element_id in only] if only else blocks
 
 
 def _exactly(value: Any) -> dict[str, Any]:

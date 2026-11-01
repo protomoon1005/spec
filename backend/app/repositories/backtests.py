@@ -29,7 +29,7 @@ _METRIC_FIELDS = ("cagr", "mdd", "sharpe", "sortino", "win_rate", "benchmark_cag
 
 
 def create_run(
-    spec_id: str,
+    strategy_id: str,
     *,
     period_start: date,
     period_end: date,
@@ -42,13 +42,13 @@ def create_run(
             text(
                 """
                 INSERT INTO backtest_runs
-                    (spec_id, period_start, period_end, seed_money, feature_set_version, status)
-                VALUES (:spec_id, :period_start, :period_end, :seed_money, :feature_set_version, :status)
-                RETURNING run_id, spec_id, period_start, period_end, status, started_at
+                    (strategy_id, period_start, period_end, seed_money, feature_set_version, status)
+                VALUES (:strategy_id, :period_start, :period_end, :seed_money, :feature_set_version, :status)
+                RETURNING run_id, strategy_id, period_start, period_end, status, started_at
                 """
             ),
             {
-                "spec_id": spec_id,
+                "strategy_id": strategy_id,
                 "period_start": period_start,
                 "period_end": period_end,
                 "seed_money": seed_money,
@@ -69,14 +69,14 @@ def get_run(run_id: int, *, conn: Connection | None = None) -> dict | None:
         row = conn.execute(
             text(
                 """
-                SELECT r.run_id, r.spec_id, s.user_id, r.period_start, r.period_end,
+                SELECT r.run_id, r.strategy_id, s.user_id, r.period_start, r.period_end,
                        r.seed_money, r.fee_rate, r.tax_rate, r.slippage_bp,
                        r.random_seed, r.data_snapshot_asof, r.feature_set_version,
                        r.status, r.started_at,
                        m.cagr, m.mdd, m.sharpe, m.sortino, m.win_rate, m.benchmark_cagr,
                        m.window_results
                   FROM backtest_runs r
-                  JOIN strategy_specs s ON s.spec_id = r.spec_id
+                  JOIN strategies s ON s.strategy_id = r.strategy_id
                   LEFT JOIN backtest_metrics m ON m.run_id = r.run_id
                  WHERE r.run_id = :run_id
                 """

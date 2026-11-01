@@ -15,6 +15,10 @@ node_modules/
 next-env.d.ts
 frontend/dist/
 
+# 가격 스냅샷 (GitHub Release 로 공유, scripts/fetch_prices.py · ingest_prices.py)과 수집 원천
+data/snapshot/
+data/raw/
+
 # Docker 볼륨 로컬 마운트 잔여물
 *.log
 
@@ -25,5 +29,3 @@ celerybeat-schedule
 .DS_Store
 Thumbs.db
 
-# 빅카인즈 기사 원본 · 채점 결과 — 재배포 제한으로 커밋하지 않는다 (scripts/score_news.py · ingest_news.py)
-data/news/

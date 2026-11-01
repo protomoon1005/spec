@@ -1,14 +1,14 @@
-# 4단 Validator — 데이터베이스 쪽 (FN-301 ~ FN-306).
+# Validator — 데이터베이스 쪽 (FN-301 ~ FN-306).
 #
-# 저장된 draft 전략서를 spec_id 로 읽어 순수 파이프라인(stages.run_stages)에 넣고,
-# 결과를 spec_universe 확정값과 validation_logs 에 남긴다. 판정은 전부 stages 쪽에 있다.
+# 저장된 draft 전략서를 strategy_id 로 읽어 순수 파이프라인(stages.run_stages)에 넣고,
+# 결과를 strategy_assets 확정값과 validation_logs 에 남긴다. 판정은 전부 stages 쪽에 있다.
 #
 # ── 구간 ─────────────────────────────────────────────────────────────
 # as_of 는 오늘이 아니라 백테스트 구간의 끝이다. 구간은 DEFAULT_PERIOD_START 부터
 # 가격 표의 마지막 거래일까지(2026-10-04 결정 3). period_end() 가 그 끝을 준다.
 #
 # ── 낙폭은 가격에서 계산한다 (결정 4) ─────────────────────────────────
-# etf_master.mdd_3y 는 76종목 중 37종목만 채워져 있다(2026-10-04 확인). 비어 있는
+# instruments.mdd_3y 는 76종목 중 37종목만 채워져 있다(2026-10-04 확인). 비어 있는
 # 종목만 가격으로 메우면 두 출처의 구간이 섞이므로, 전 종목을 구간 [시작, as_of] 의
 # 종가로 계산한다. 저장소를 거치고 as_of 경계를 지킨다.
 #
@@ -24,14 +24,13 @@ from app.m2.stages import (
     ALL_ON,
     FAILED,
     PASSED,
-    Bound,
     EtfFacts,
     SpecContext,
     Stages,
     ValidationResult,
     run_stages,
 )
-from app.repositories import etf_master, presets, specs
+from app.repositories import etf_master, specs
 from app.repositories import price_daily as prices
 
 
@@ -44,9 +43,9 @@ def period_end() -> date | None:
     return prices.get_latest_trade_date()
 
 
-def validate(spec_id: str, *, as_of: date, stages: Stages = ALL_ON) -> ValidationResult:
-    """전략서를 4단으로 검증한다. stages 를 하나라도 끄면 결과를 돌려주기만 하고 기록하지 않는다."""
-    result = run_stages(load_context(spec_id, as_of=as_of), stages)
+def validate(strategy_id: str, *, as_of: date, stages: Stages = ALL_ON) -> ValidationResult:
+    """전략서를 단계별로 검증한다. stages 를 하나라도 끄면 결과를 돌려주기만 하고 기록하지 않는다."""
+    result = run_stages(load_context(strategy_id, as_of=as_of), stages)
     if not stages.all_on:
         return result
 
@@ -67,33 +66,26 @@ def validate(spec_id: str, *, as_of: date, stages: Stages = ALL_ON) -> Validatio
             "passed": s.status == PASSED,
             "violations": [v.as_dict() for v in s.violations],
             "adjusted_bounds": s.adjusted_bounds,
-            "clamped_fields": list(s.clamped_fields) if s.clamped_fields is not None else None,
+            "clamped_fields": None,
         }
         for s in result.stages
         if s.status in (PASSED, FAILED)
     ]
-    specs.record_validation(spec_id, bounds=bounds, logs=logs)
+    specs.record_validation(strategy_id, bounds=bounds, logs=logs)
     return result
 
 
-def load_context(spec_id: str, *, as_of: date) -> SpecContext:
-    spec = specs.get_spec(spec_id)
+def load_context(strategy_id: str, *, as_of: date) -> SpecContext:
+    spec = specs.get_spec(strategy_id)
     if spec is None:
-        raise SpecNotFound(spec_id)
-    profile = specs.get_spec_profile(spec_id)
-    if profile is None:
-        raise SpecNotFound(f"{spec_id}: 성향 기록이 없다")
-    risk_level, preset_version = profile
-    hardcap = presets.get_active_hardcap()
-    if hardcap is None:
-        raise LookupError("활성 하드캡이 없다 — db/seeds/01_hardcap_v0_1.sql 적재 여부를 확인할 것")
+        raise SpecNotFound(strategy_id)
 
     # 비중은 _raw 에서 출발한다. 확정값(weight_min/max)은 지난 검증의 산물이라 입력이 아니다.
-    universe = specs.get_spec_universe(spec_id)
+    universe = specs.get_strategy_assets(strategy_id)
     tickers = [u["ticker"] for u in universe]
     payload = {
-        "spec_id": spec["spec_id"],
-        "spec_version": spec["spec_version"],
+        "strategy_id": spec["strategy_id"],
+        "strategy_version": spec["strategy_version"],
         "user_id": spec["user_id"],
         "name": spec["name"],
         "created_at": spec["created_at"],
@@ -118,17 +110,9 @@ def load_context(spec_id: str, *, as_of: date) -> SpecContext:
 
     return SpecContext(
         payload=payload,
-        risk_level=risk_level,
-        bounds={
-            tag: Bound(allowed_min=b.allowed_min, allowed_max=b.allowed_max)
-            for tag, b in presets.get_asset_bounds(risk_level, preset_version=preset_version).items()
-        },
-        hardcap=hardcap,
         etfs={
             t: EtfFacts(
                 ticker=t,
-                risk_tag=r.risk_tag,
-                is_leveraged=r.is_leveraged,
                 active=r.active,
                 delisted_date=r.delisted_date,
             )

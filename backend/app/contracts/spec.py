@@ -1,4 +1,4 @@
-"""계약 ① Spec JSON 스키마 v0.1 (docs/infra-spec.md 6단계 표 ①).
+"""계약 ① Spec JSON 스키마 v0.1.
 
 M1(자연어 -> Spec 컴파일러)의 structured outputs 스키마이자, M2 이후 모든 계층이
 읽는 Spec의 형태다. 스키마 변경은 전원 합의 사항이므로(그래프 상위 CLAUDE.md)
@@ -29,16 +29,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class UniverseItem(BaseModel):
-    """SPEC_UNIVERSE 한 행에 대응하는 LLM 원출력 단위.
+    """STRATEGY_ASSETS 한 행에 대응하는 LLM 원출력 단위.
 
     여기 담기는 weight_min/weight_max는 LLM이 낸 원출력이다. 검증 단계(Validator,
-    이번 범위 밖)를 거치면 DB의 spec_universe.weight_min_raw/weight_max_raw로
+    이번 범위 밖)를 거치면 DB의 strategy_assets.weight_min_raw/weight_max_raw로
     보존되고, 허용범위 프리셋으로 보정된 값이 weight_min/weight_max에 확정된다.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    ticker: str = Field(min_length=1, description="etf_master.ticker FK")
+    ticker: str = Field(min_length=1, description="instruments.ticker FK")
     name: str = Field(min_length=1)
     weight_min: float = Field(ge=0, le=1)
     weight_max: float = Field(ge=0, le=1)
@@ -62,11 +62,11 @@ class TriggerSpec(BaseModel):
 
 
 class RebalanceRule(BaseModel):
-    """STRATEGY_SPECS.rebalance JSONB (docs/db-erd.md 4.1, 기획서 3.2).
+    """STRATEGIES.rebalance JSONB (docs/db-erd.md 4.1, 기획서 3.2).
 
     min_interval_days는 사용자가 요청한 리밸런싱 주기다. HARDCAP_VERSIONS.
     min_interval_days(시스템 하드캡, 이 스키마엔 자리가 없다)는 이 값의 하한으로
-    Validator 4계층이 클램프한다 — SPEC_UNIVERSE의 weight_min/max가 허용범위
+    Validator 4계층이 클램프한다 — STRATEGY_ASSETS의 weight_min/max가 허용범위
     프리셋으로 클램프되는 것과 같은 패턴이다.
     """
 
@@ -113,7 +113,7 @@ class MarketTemperatureRule(BaseModel):
 
 
 class SignalRules(BaseModel):
-    """STRATEGY_SPECS.signal_rules JSONB — 3관점 판단 기준 (기획서 3.2).
+    """STRATEGIES.signal_rules JSONB — 3관점 판단 기준 (기획서 3.2).
 
     세 관점 모두 내부 구조는 고정하되, 블록 자체는 여전히 선택적(None 허용)
     이다 — 그래프 상위 CLAUDE.md가 감성·시장온도 관점을 "선택 범위"로 명시하고
@@ -130,7 +130,7 @@ class SignalRules(BaseModel):
 
 
 class ConstraintSpec(BaseModel):
-    """STRATEGY_SPECS.constraint_user JSONB — 사용자 제약 (기획서 3.2 확정본).
+    """STRATEGIES.constraint_user JSONB — 사용자 제약 (기획서 3.2 확정본).
 
     다섯 필드 모두 사용자가 요청한 값이다. 이름이 같은 HARDCAP_VERSIONS 컬럼
     (max_weight_per_asset · max_loss_per_trade · max_drawdown)은 별개의
@@ -152,8 +152,8 @@ class SpecV0_1(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    spec_id: str = Field(min_length=1)
-    spec_version: str = Field(min_length=1)
+    strategy_id: str = Field(min_length=1)
+    strategy_version: str = Field(min_length=1)
     user_id: int
     name: str = Field(min_length=1)
     created_at: datetime

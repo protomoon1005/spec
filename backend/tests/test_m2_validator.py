@@ -1,8 +1,8 @@
-"""4단 Validator — DB 왕복과 API (POST /specs/{spec_id}/validate).
+"""Validator — DB 왕복과 API (POST /specs/{strategy_id}/validate).
 
 postgres 와 시드가 적재된 상태여야 한다. 시험용 종목과 합성 일봉은 픽스처가 넣고 지운다
 (실제 백필 데이터에 기대지 않는다). 전략서는 M1 을 거치지 않고 직접 저장한다 —
-M1 이 막는 조합(안정투자형 + G2 등)도 넣어 봐야 하기 때문이다.
+M1 이 막는 조합(상장폐지 종목 등)도 넣어 봐야 하기 때문이다.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from sqlalchemy import text
 from app.backtest.service import DEFAULT_PERIOD_START
 from app.m2.stages import FAILED, NOT_RUN, PASSED, Stages
 from app.m2.validator import validate
-from app.repositories import presets, profiles, specs
 from app.repositories import price_daily as price_repo
+from app.repositories import specs
 
 FALLBACK_END = date(2025, 12, 30)
 
@@ -54,7 +54,7 @@ CALM = [(0, 100.0), (0.4, 102.0), (0.5, 96.9), (1, 105.0)]
 
 @pytest.fixture(scope="module")
 def world(engine):
-    """시험용 종목 7개. {역할: 종목코드} 와 {종목코드: 위험등급} 을 돌려준다."""
+    """시험용 종목 7개. {역할: 종목코드} 를 돌려준다."""
     suffix = uuid.uuid4().hex[:4].upper()
     end = price_repo.get_latest_trade_date() or FALLBACK_END
     days = _weekdays(DEFAULT_PERIOD_START, end)
@@ -70,12 +70,11 @@ def world(engine):
         "stale": ("G3", False, True, CRASH30, date(2024, 6, 28)),
     }
     tickers = {role: f"T{suffix}{i}" for i, role in enumerate(spec_rows)}
-    tags = {}
     with engine.begin() as conn:
         for role, (tag, lev, active, _, _) in spec_rows.items():
             conn.execute(
                 text(
-                    "INSERT INTO etf_master"
+                    "INSERT INTO instruments"
                     " (ticker, name, sector, group_id, risk_tag, is_leveraged, active, delisted_date)"
                     " VALUES (:t, :n, 'SECTOR_OTHER', 'EQUITY', :tag, :lev, :active, :dl)"
                 ),
@@ -88,7 +87,6 @@ def world(engine):
                     "dl": None if active else date(2025, 6, 30),
                 },
             )
-            tags[tickers[role]] = tag
     for role, (_, _, _, points, last) in spec_rows.items():
         if points is None:
             continue
@@ -98,56 +96,43 @@ def world(engine):
             tickers[role], bars=[{"trade_date": d, "close": c} for d, c in zip(span, closes)]
         )
 
-    yield {"t": tickers, "tags": tags}
+    yield {"t": tickers}
 
     with engine.begin() as conn:
         mine = list(tickers.values())
         conn.execute(text("DELETE FROM price_daily WHERE ticker = ANY(:t)"), {"t": mine})
-        conn.execute(text("DELETE FROM etf_master WHERE ticker = ANY(:t)"), {"t": mine})
+        conn.execute(text("DELETE FROM instruments WHERE ticker = ANY(:t)"), {"t": mine})
 
 
 @pytest.fixture
-def make_profile(engine, make_user):
-    """성향 등급을 받아 (email, ProfileRecord) 를 만든다. 만든 전략서까지 뒤에서 지운다."""
+def make_owner(engine, make_user):
+    """() -> (email, user_id). 만든 전략서까지 뒤에서 지운다."""
     users = []
 
-    def _make(level: int):
-        email, user_id = make_user("retail")
-        version = profiles.active_preset_version()
-        record = profiles.insert_profile(
-            user_id=user_id,
-            risk_level=level,
-            preset_version=version,
-            defaults=profiles.get_profile_defaults(version, level),
-            provenance={},
-        )
+    def _make():
+        email, user_id = make_user()
         users.append(user_id)
-        return email, record
+        return email, user_id
 
     yield _make
 
     with engine.begin() as conn:
         for user_id in users:
-            mine = "(SELECT spec_id FROM strategy_specs WHERE user_id = :u)"
-            for table in ("spec_universe", "validation_logs"):
-                conn.execute(text(f"DELETE FROM {table} WHERE spec_id IN {mine}"), {"u": user_id})
-            conn.execute(text("DELETE FROM strategy_specs WHERE user_id = :u"), {"u": user_id})
-            conn.execute(text("DELETE FROM risk_profiles WHERE user_id = :u"), {"u": user_id})
+            mine = "(SELECT strategy_id FROM strategies WHERE user_id = :u)"
+            for table in ("strategy_assets", "validation_logs"):
+                conn.execute(text(f"DELETE FROM {table} WHERE strategy_id IN {mine}"), {"u": user_id})
+            conn.execute(text("DELETE FROM strategies WHERE user_id = :u"), {"u": user_id})
 
 
 def _save(
-    world, profile, items, *, cash_min=0.05, max_drawdown=0.25, min_interval=20, trigger_type="calendar"
+    world, user_id, items, *, cash_min=0.05, max_drawdown=0.25, min_interval=20, trigger_type="calendar"
 ) -> str:
     """items: [(역할, weight_min_raw, weight_max_raw)]. M1 을 거치지 않고 바로 저장한다."""
-    bounds = presets.get_asset_bounds(profile.risk_level, preset_version=profile.preset_version)
-    hardcap = presets.get_active_hardcap()
     universe = []
     for role, lo, hi in items:
-        ticker = world["t"][role]
         universe.append(
             {
-                "ticker": ticker,
-                "preset_id": bounds[world["tags"][ticker]].preset_id,
+                "ticker": world["t"][role],
                 "weight_min": lo,
                 "weight_max": hi,
                 "weight_min_raw": lo,
@@ -156,11 +141,9 @@ def _save(
             }
         )
     return specs.insert_spec(
-        spec_id=specs.new_spec_id(),
-        user_id=profile.user_id,
-        profile_id=profile.profile_id,
-        hardcap_version=hardcap["hardcap_version"],
-        spec_version="0.1",
+        strategy_id=specs.new_strategy_id(),
+        user_id=user_id,
+        strategy_version="0.1",
         name="검증 시험 전략",
         input_prompt="x",
         rebalance={
@@ -176,7 +159,7 @@ def _save(
             "max_drawdown": max_drawdown,
         },
         universe=universe,
-    ).spec_id
+    ).strategy_id
 
 
 def _as_of() -> date:
@@ -187,7 +170,7 @@ def _codes(result, stage: int) -> set[str]:
     return {v.code for v in result.stages[stage - 1].violations}
 
 
-def _universe_rows(spec_id: str) -> list[tuple]:
+def _universe_rows(strategy_id: str) -> list[tuple]:
     return [
         (
             u["ticker"],
@@ -197,199 +180,116 @@ def _universe_rows(spec_id: str) -> list[tuple]:
             float(u["weight_max_raw"]),
             u["was_adjusted"],
         )
-        for u in specs.get_spec_universe(spec_id)
+        for u in specs.get_strategy_assets(strategy_id)
     ]
 
 
-def _log_count(engine, spec_id: str) -> int:
+def _log_count(engine, strategy_id: str) -> int:
     with engine.connect() as conn:
         return conn.execute(
-            text("SELECT count(*) FROM validation_logs WHERE spec_id = :s"), {"s": spec_id}
+            text("SELECT count(*) FROM validation_logs WHERE strategy_id = :s"), {"s": strategy_id}
         ).scalar_one()
 
 
 # ── 2. 상장폐지 종목 → 2단 차단 (실패 장면 3) ─────────────────────────
 
 
-def test_delisted_blocked_at_reference(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(world, profile, [("eq_a", 0.0, 0.30), ("delisted", 0.0, 0.30), ("bond", 0.0, 0.30)])
+def test_delisted_blocked_at_reference(world, make_owner):
+    _, owner = make_owner()
+    strategy_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("delisted", 0.0, 0.30), ("bond", 0.0, 0.30)])
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert not result.passed
     assert result.blocked_at == 2
     assert "DELISTED" in _codes(result, 2)
     assert result.regeneration.required
     assert any(r["code"] == "DELISTED" for r in result.regeneration.reasons)
-    assert [s.status for s in result.stages] == [PASSED, FAILED, NOT_RUN, NOT_RUN]
+    assert [s.status for s in result.stages] == [PASSED, FAILED, NOT_RUN]
 
 
-def test_stale_prices_blocked_at_reference(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(world, profile, [("eq_a", 0.0, 0.30), ("stale", 0.0, 0.30), ("bond", 0.0, 0.30)])
+def test_stale_prices_blocked_at_reference(world, make_owner):
+    _, owner = make_owner()
+    strategy_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("stale", 0.0, 0.30), ("bond", 0.0, 0.30)])
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert result.blocked_at == 2
     assert _codes(result, 2) == {"NO_PRICE_DATA"}
 
 
-# ── 3. 안정투자형 + 반도체(G2) → 3단 차단 (실패 장면 1) ───────────────
+# ── 3. 레버리지는 막지 않는다 ───────────────────────────────────────
 
 
-def test_conservative_with_g2_blocked_at_logic(world, make_profile):
-    _, profile = make_profile(1)
-    spec_id = _save(
-        world, profile, [("bond", 0.0, 0.30), ("semi", 0.0, 0.10)], cash_min=0.20, max_drawdown=0.10
+def test_leveraged_ticker_passes(world, make_owner):
+    """시스템 상한이 없다(주제 변경 결정 3). 레버리지 종목도 통과한다."""
+    _, owner = make_owner()
+    strategy_id = _save(
+        world, owner, [("lev", 0.0, 0.20), ("bond", 0.0, 0.30), ("eq_a", 0.0, 0.30)], max_drawdown=0.50
     )
 
-    result = validate(spec_id, as_of=_as_of())
-
-    assert result.blocked_at == 3
-    assert "PRESET_FORBIDDEN" in _codes(result, 3)
-    assert not result.regeneration.required  # 논리 위반은 재생성 사유가 아니다
-    assert [s.status for s in result.stages] == [PASSED, PASSED, FAILED, NOT_RUN]
-
-
-# ── 4. 하드캡 클램프 ─────────────────────────────────────────────────
-
-
-def test_hardcap_clamps_weight_and_drawdown(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(
-        world, profile, [("eq_a", 0.0, 0.40), ("eq_b", 0.0, 0.40), ("bond", 0.0, 0.40)], max_drawdown=0.35
-    )
-
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert result.passed, [v.as_dict() for s in result.stages for v in s.violations]
-    clamped = {c["field"]: c for c in result.stages[3].clamped_fields}
-    eq_a = world["t"]["eq_a"]
-    assert clamped[f"universe.{eq_a}.weight_max"]["requested"] == pytest.approx(0.40)
-    assert clamped[f"universe.{eq_a}.weight_max"]["applied"] == pytest.approx(0.30)
-    assert clamped["constraint.max_drawdown"]["requested"] == pytest.approx(0.35)
-    assert clamped["constraint.max_drawdown"]["applied"] == pytest.approx(0.25)
-
-    rows = {r[0]: r for r in _universe_rows(spec_id)}
-    assert rows[eq_a][2] == pytest.approx(0.30)  # weight_max 확정
-    assert rows[eq_a][4] == pytest.approx(0.40)  # weight_max_raw 보존
-    assert rows[eq_a][5] is True
+    assert [s.status for s in result.stages] == [PASSED, PASSED, PASSED]
 
 
-def test_leverage_is_violation_at_hardcap(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(
-        world, profile, [("lev", 0.0, 0.20), ("bond", 0.0, 0.30), ("eq_a", 0.0, 0.30)], max_drawdown=0.35
-    )
-
-    result = validate(spec_id, as_of=_as_of())
-
-    assert result.blocked_at == 4
-    assert "LEVERAGE_NOT_ALLOWED" in _codes(result, 4)
+# ── 4. 낙폭 목표와 변동성 모순 → 3단 ──────────────────────────────────
 
 
-# ── 5. 낙폭 목표와 변동성 모순 → 3단 ──────────────────────────────────
-
-
-def test_drawdown_target_contradiction(world, make_profile):
-    _, profile = make_profile(5)
+def test_drawdown_target_contradiction(world, make_owner):
+    _, owner = make_owner()
     # 가장 덜 빠진 종목도 30% 빠졌다: 0.95 × 0.30 = 0.285 > 목표 0.10
-    spec_id = _save(world, profile, [("eq_a", 0.0, 0.30), ("eq_b", 0.0, 0.30)], max_drawdown=0.10)
+    strategy_id = _save(world, owner, [("eq_a", 0.0, 0.30), ("eq_b", 0.0, 0.30)], max_drawdown=0.10)
 
-    result = validate(spec_id, as_of=_as_of())
+    result = validate(strategy_id, as_of=_as_of())
 
     assert result.blocked_at == 3
     assert "DRAWDOWN_INFEASIBLE" in _codes(result, 3)
 
 
-def test_interval_shorter_than_hardcap_is_clamped(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(
-        world, profile, [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)], max_drawdown=0.35, min_interval=1
+# ── 5. 두 번 검증해도 같다 ───────────────────────────────────────────
+
+
+def test_validate_twice_same_result(world, make_owner):
+    _, owner = make_owner()
+    strategy_id = _save(
+        world, owner, [("eq_a", 0.05, 0.40), ("eq_b", 0.0, 0.20), ("bond", 0.10, 0.25)], max_drawdown=0.35
     )
 
-    result = validate(spec_id, as_of=_as_of())
-
-    assert result.passed
-    clamped = {c["field"]: c for c in result.stages[3].clamped_fields}
-    assert clamped["rebalance.min_interval_days"] == {
-        "field": "rebalance.min_interval_days",
-        "requested": 1,
-        "applied": 5,
-        "limit": "min_interval_days",
-    }
-
-
-def test_no_rebalance_trigger_is_not_clamped(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(
-        world,
-        profile,
-        [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)],
-        max_drawdown=0.35,
-        min_interval=0,
-        trigger_type="none",
-    )
-
-    result = validate(spec_id, as_of=_as_of())
-
-    assert result.passed
-    assert "rebalance.min_interval_days" not in {c["field"] for c in result.stages[3].clamped_fields}
-
-
-# ── 6. 두 번 검증해도 같다 ───────────────────────────────────────────
-
-
-def test_validate_twice_same_result(world, make_profile):
-    _, profile = make_profile(5)
-    spec_id = _save(
-        world, profile, [("eq_a", 0.05, 0.40), ("eq_b", 0.0, 0.20), ("bond", 0.10, 0.25)], max_drawdown=0.35
-    )
-
-    first = validate(spec_id, as_of=_as_of())
-    rows_first = _universe_rows(spec_id)
-    second = validate(spec_id, as_of=_as_of())
+    first = validate(strategy_id, as_of=_as_of())
+    rows_first = _universe_rows(strategy_id)
+    second = validate(strategy_id, as_of=_as_of())
 
     assert first == second
-    assert _universe_rows(spec_id) == rows_first
+    assert _universe_rows(strategy_id) == rows_first
     assert first.stages[2].adjusted_bounds["case"] == "B"
 
 
-# ── 7. 계층 끄기 ─────────────────────────────────────────────────────
+# ── 6. 계층 끄기 ─────────────────────────────────────────────────────
 
 
-def test_layer_off_lets_violation_through(engine, world, make_profile):
-    _, profile = make_profile(5)
+def test_layer_off_lets_violation_through(engine, world, make_owner):
+    _, owner = make_owner()
     delisted = _save(
-        world, profile, [("eq_a", 0.0, 0.30), ("delisted", 0.0, 0.30), ("bond", 0.0, 0.30)], max_drawdown=0.35
+        world, owner, [("eq_a", 0.0, 0.30), ("delisted", 0.0, 0.30), ("bond", 0.0, 0.30)], max_drawdown=0.35
     )
-    contradiction = _save(world, profile, [("eq_a", 0.0, 0.30), ("eq_b", 0.0, 0.30)], max_drawdown=0.10)
-    over_cap = _save(
-        world, profile, [("eq_a", 0.0, 0.40), ("eq_b", 0.0, 0.40), ("bond", 0.0, 0.40)], max_drawdown=0.35
-    )
+    contradiction = _save(world, owner, [("eq_a", 0.0, 0.30), ("eq_b", 0.0, 0.30)], max_drawdown=0.10)
     as_of = _as_of()
 
     assert validate(delisted, as_of=as_of, stages=Stages(reference=False)).blocked_at != 2
     assert validate(contradiction, as_of=as_of, stages=Stages(logic=False)).passed
 
-    loose = validate(over_cap, as_of=as_of, stages=Stages(hardcap=False))
-    assert loose.passed
-    assert max(b.weight_max for b in loose.universe) == pytest.approx(0.40)
-
     # 끈 실행은 기록하지 않는다 — 실험 결과가 검증 이력이나 확정값에 섞이면 안 된다.
-    for spec_id in (delisted, contradiction, over_cap):
-        assert _log_count(engine, spec_id) == 0
-    assert all(not r[5] for r in _universe_rows(over_cap))
+    for strategy_id in (delisted, contradiction):
+        assert _log_count(engine, strategy_id) == 0
 
-    # 같은 전략서를 다 켜고 돌리면 막히거나 깎인다.
+    # 같은 전략서를 다 켜고 돌리면 막힌다.
     assert validate(delisted, as_of=as_of).blocked_at == 2
     assert validate(contradiction, as_of=as_of).blocked_at == 3
-    strict = validate(over_cap, as_of=as_of)
-    assert max(b.weight_max for b in strict.universe) == pytest.approx(0.30)
 
 
-# ── 8. API ───────────────────────────────────────────────────────────
+# ── 7. API ───────────────────────────────────────────────────────────
 
 
 def _auth(client, username: str) -> dict:
@@ -397,17 +297,18 @@ def _auth(client, username: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_api_validate(engine, client, world, make_profile):
-    email, profile = make_profile(5)
-    other_email, other = make_profile(5)
-    spec_id = _save(
-        world, profile, [("eq_a", 0.0, 0.40), ("eq_b", 0.0, 0.40), ("bond", 0.0, 0.40)], max_drawdown=0.35
+def test_api_validate(engine, client, world, make_owner):
+    email, owner = make_owner()
+    _, other = make_owner()
+    # 상한 합 0.60 < 투자 가능 0.95 — 범위 보정 case B 로 상한이 늘어난다
+    strategy_id = _save(
+        world, owner, [("eq_a", 0.0, 0.20), ("eq_b", 0.0, 0.20), ("bond", 0.0, 0.20)], max_drawdown=0.35
     )
     others = _save(world, other, [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)])
-    approved = _save(world, profile, [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)])
+    approved = _save(world, owner, [("eq_a", 0.0, 0.30), ("bond", 0.0, 0.30)])
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE strategy_specs SET status = 'approved' WHERE spec_id = :s"), {"s": approved}
+            text("UPDATE strategies SET status = 'approved' WHERE strategy_id = :s"), {"s": approved}
         )
 
     headers = _auth(client, email)
@@ -415,19 +316,18 @@ def test_api_validate(engine, client, world, make_profile):
     assert client.post(f"/specs/{approved}/validate", headers=headers).status_code == 409
     assert client.post("/specs/STR-없는전략서/validate", headers=headers).status_code == 404
 
-    res = client.post(f"/specs/{spec_id}/validate", headers=headers)
+    res = client.post(f"/specs/{strategy_id}/validate", headers=headers)
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["spec_id"] == spec_id
+    assert body["strategy_id"] == strategy_id
     assert body["passed"] is True
     assert body["blocked_at"] is None
     assert body["regeneration"] == {"required": False, "reasons": []}
-    assert [s["stage"] for s in body["stages"]] == [1, 2, 3, 4]
-    assert [s["name"] for s in body["stages"]] == ["schema", "reference", "logic", "hardcap"]
+    assert [s["stage"] for s in body["stages"]] == [1, 2, 3]
+    assert [s["name"] for s in body["stages"]] == ["schema", "reference", "logic"]
     assert body["stages"][2]["adjusted_bounds"]["case"] == "B"
-    assert any(c["limit"] == "max_weight_per_asset" for c in body["stages"][3]["clamped_fields"])
     eq_a = next(u for u in body["universe"] if u["ticker"] == world["t"]["eq_a"])
-    assert eq_a["weight_max_raw"] == pytest.approx(0.40)
-    assert eq_a["weight_max"] == pytest.approx(0.30)
+    assert eq_a["weight_max_raw"] == pytest.approx(0.20)
+    assert eq_a["weight_max"] > 0.20
     assert eq_a["was_adjusted"] is True
-    assert _log_count(engine, spec_id) == 4
+    assert _log_count(engine, strategy_id) == 3

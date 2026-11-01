@@ -19,17 +19,12 @@
 # 종목은 176개라 목록으로 주기엔 많고, 사용자는 코드가 아니라 이름으로 말한다.
 # 그래서 들린 대로 받아 적게 하고 **찾는 일은 우리가 한다**(mentioned_names).
 # 코드를 지어내게 두면 없는 종목코드가 나온다.
-#
-# ── 성향은 여기서 안 정한다 ──────────────────────────────────────────
-# "공격적으로" 라고 써 있어도 성향은 설문으로 확정된 값을 쓴다. 그 말은 keywords 에
-# 남아 블록을 고르는 데만 쓰인다. 사용자가 말 한마디로 자기 한도를 올릴 수 있으면
-# 성향 판정이 의미가 없다.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from app.repositories import bbl, etf_master, presets
+from app.repositories import bbl, etf_master
 
 SYSTEM_PROMPT = (
     "너는 투자 요청 문장에서 핵심을 뽑아내는 도구다. "
@@ -57,15 +52,15 @@ class ResolvedIntent:
     # 사용자 말(kw:)에 걸린 ETF 특성 블록의 (이름, 종목명 정규식). 후보를 고를 때 이 종목을 앞에 둔다
     traits: tuple[tuple[str, str], ...] = field(default=())
     # 사용자 말(kw:)에 걸린 리밸런싱 블록. 비어 있으면 전략서 작성이 블록 전부에서 고른다
-    rebalance_block_ids: tuple[str, ...] = field(default=())
+    rebalance_element_ids: tuple[str, ...] = field(default=())
 
 
 def build_intent_schema() -> dict[str, Any]:
     # 고를 수 있는 값을 스키마에 박아 둔다. 목록은 시드에서 나오므로 블록이나 묶음이
     # 늘면 자동으로 따라간다.
     keywords = bbl.list_tags("kw:")
-    sectors = [g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")]
-    asset_groups = presets.list_group_ids(1)
+    sectors = [g for g in etf_master.list_group_ids(2) if g.startswith("SECTOR_")]
+    asset_groups = etf_master.list_group_ids(1)
     return {
         "type": "object",
         "additionalProperties": False,
@@ -111,8 +106,8 @@ def build_prompt(
 def extract(user_text: str, client) -> Intent:
     # client 는 app.llm.client.LLMClient 다. 여기서 만들지 않고 받는다 —
     # 테스트가 가짜 클라이언트를 넣을 수 있어야 한다.
-    sectors = {g: label for g, label in presets.list_group_labels(2).items() if g.startswith("SECTOR_")}
-    text = build_prompt(user_text, asset_labels=presets.list_group_labels(1), sector_labels=sectors)
+    sectors = {g: label for g, label in etf_master.list_group_labels(2).items() if g.startswith("SECTOR_")}
+    text = build_prompt(user_text, asset_labels=etf_master.list_group_labels(1), sector_labels=sectors)
     raw = client.generate_json(text, build_intent_schema(), system=SYSTEM_PROMPT)
     return _with_spoken_keywords(from_payload(raw), user_text)
 
@@ -129,8 +124,8 @@ def from_payload(raw: dict) -> Intent:
     # LLM 이 목록 밖의 값을 낼 수 있다(Ollama 는 형식 강제가 약하다). 여기서 한 번
     # 더 거른다 — 스키마를 믿고 그냥 쓰면 없는 업종으로 종목을 찾게 된다.
     allowed_keywords = set(bbl.list_tags("kw:"))
-    allowed_sectors = {g for g in presets.list_group_ids(2) if g.startswith("SECTOR_")}
-    allowed_groups = set(presets.list_group_ids(1))
+    allowed_sectors = {g for g in etf_master.list_group_ids(2) if g.startswith("SECTOR_")}
+    allowed_groups = set(etf_master.list_group_ids(1))
 
     return Intent(
         keywords=_clean(raw.get("keywords"), allowed_keywords),
@@ -162,7 +157,7 @@ def resolve(intent: Intent) -> ResolvedIntent:
         requested_tickers=tuple(tickers),
         unresolved_names=tuple(unresolved),
         traits=_traits(intent.keywords),
-        rebalance_block_ids=_rebalance_blocks(intent.keywords),
+        rebalance_element_ids=_rebalance_blocks(intent.keywords),
     )
 
 
@@ -186,17 +181,17 @@ def _rebalance_blocks(keywords: tuple[str, ...]) -> tuple[str, ...]:
     # "매달 초에 맞춰줘" 에 블록 6개를 다 주면 비중 이탈 블록을 고르기도 했다(2026-10-21).
     # 사용자 말이 블록 태그(kw:매달 · kw:주간 …)에 걸리면 그 블록들로만 좁힌다.
     said = {f"kw:{value}" for value in keywords}
-    return tuple(block.block_id for block in bbl.list_blocks("rebalance") if said & set(block.tags))
+    return tuple(block.element_id for block in bbl.list_blocks("rebalance") if said & set(block.tags))
 
 
 def _traits(keywords: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
-    # "배당 나오는 ETF" 의 배당은 업종도 자산군도 아니라 종목 이름에서 읽히는 성격이다
-    # (docs/m1_milestone.md ④). 블록이 이름 정규식을 들고 있는데 후보 선정에 이어지지 않아
+    # "배당 나오는 ETF" 의 배당은 업종도 자산군도 아니라 종목 이름에서 읽히는 성격이다.
+    # 블록이 이름 정규식을 들고 있는데 후보 선정에 이어지지 않아
     # 배당 요청에 시장대표 ETF 만 담겼다(2026-10-21). 사용자 말(kw:)로 걸린 블록만 쓴다 —
     # asset:bond 같은 태그까지 쓰면 채권 요청마다 국채 블록이 걸린다.
     said = {f"kw:{value}" for value in keywords}
     return tuple(
-        (block.title or block.block_id, block.params_schema["name_pattern"])
+        (block.title or block.element_id, block.params_schema["name_pattern"])
         for block in bbl.list_blocks("etf_trait")
         if said & set(block.tags) and (block.params_schema or {}).get("name_pattern")
     )

@@ -1,39 +1,33 @@
 "use client";
 
-// 전략서 하나의 내용 — GET /specs/{spec_id}. 전략 완료 화면과 전략 관리 상세 화면이 같이 쓴다.
+// 전략서 하나의 내용 — GET /specs/{strategy_id}. 전략 완료 화면과 전략 관리 상세 화면이 같이 쓴다.
 //
 // 규칙 칸을 JSON 그대로 늘어놓지 않고 사람이 읽는 말로 바꾼다.
 //   리밸런싱  {"type":"calendar","freq":"weekly"} → "매주 (최소 7일 간격)"
 //   신호      market_temperature → "시장온도 — 코스피200 20일 추세 · VIX"
 //   제약      cash_min 0.15 → "현금 최소 15%"
-// 종목 비중 범위는 이중막대로 그린다(U05 전략 초안 이중막대) — 위 줄은 성향이 허용한 범위,
-// 아래 줄은 AI 가 실제로 고른 범위. "AI 는 허용범위 안에서만 골랐다" 가 눈에 보이게 하려는 것.
-// 검증기가 범위를 고쳤으면(was_adjusted) 확정 범위를 아래 줄에 겹쳐 그린다. 노란 선은
-// 하드캡 종목당 상한(lib/policy.ts HARDCAP — 정책 3중 사본 대조 테스트 대상).
+// 종목 비중 범위는 AI 가 고른 범위와, 검증기가 고쳤으면(was_adjusted) 확정 범위를 같이 적는다.
 // 모르는 키나 모양은 버리지 않고 원래 값 그대로
 // 보여 준다 — 서버가 새 규칙을 보내도 화면에서 사라지지 않게.
 //
 // 리밸런싱이 백테스트에서 돌 수 없는 규칙이면 미리 경고한다. 러너가 받는 규칙은
-// backend/app/backtest/inputs.py 의 _SCHEDULES 여섯 개(BBL 리밸런싱 블록)다(BACKTESTABLE). 러너가 늘면
+// backend/app/backtest/inputs.py 의 _SCHEDULES 다섯 개(리밸런싱 블록)다(BACKTESTABLE). 러너가 늘면
 // 여기도 같이 고친다. 이름표(INDICATOR_LABEL)는 BBL 지표 블록의 title 이다.
 
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { HARDCAP } from "@/lib/policy";
 
 type Rules = Record<string, unknown> | null;
 
 type SpecDetail = {
-  spec_id: string;
+  strategy_id: string;
   name: string;
   status: string;
   input_prompt: string | null;
   rebalance: Rules;
   signal_rules: Rules;
   constraint_user: Rules;
-  // 전략서가 만들어질 때의 성향
-  risk_level?: number | null;
   universe: {
     ticker: string;
     name: string;
@@ -44,15 +38,10 @@ type SpecDetail = {
     weight_min_raw?: number | null;
     weight_max_raw?: number | null;
     was_adjusted?: boolean;
-    // 양식에 들어간 허용범위(기준표 행)
-    risk_tag?: string | null;
-    allowed_min?: number | null;
-    allowed_max?: number | null;
   }[];
 };
 
 const pct = (v: number | null) => (v === null ? "-" : `${Math.round(v * 1000) / 10}%`);
-const pctOf = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
 export default function SpecContents({ specId }: { specId: string }) {
   const [spec, setSpec] = useState<SpecDetail | null>(null);
@@ -80,7 +69,7 @@ export default function SpecContents({ specId }: { specId: string }) {
     <>
       <dl className="flow-kv">
         <dt>번호</dt>
-        <dd className="mono">{spec.spec_id}</dd>
+        <dd className="mono">{spec.strategy_id}</dd>
         <dt>이름</dt>
         <dd className="prose">{spec.name}</dd>
         <dt>상태</dt>
@@ -120,114 +109,34 @@ export default function SpecContents({ specId }: { specId: string }) {
   );
 }
 
-// 막대의 오른쪽 끝. 허용 상한이 100%(G6)여도 AI 범위가 보이도록, 그려지는 값이 다 0.4 안이면
-// 0.4 로, 넘으면 1 로 잡는다. 허용범위가 끝을 넘으면 막대 끝에 화살표를 단다.
-function trackOf(universe: SpecDetail["universe"]): number {
-  const drawn = universe.flatMap((u) => [u.weight_max_raw ?? u.weight_max ?? 0, u.weight_max ?? 0, HARDCAP.maxWeightPerAsset]);
-  return Math.max(...drawn) <= 0.4 ? 0.4 : 1;
-}
-
 function Holdings({ universe }: { universe: SpecDetail["universe"] }) {
-  const track = trackOf(universe);
-  const adjusted = universe.some((u) => u.was_adjusted);
   return (
-    <>
-      <p className="flow-legend" aria-hidden="true">
-        <span className="allowed" /> 성향이 허용한 범위 <span className="ai" /> AI가 고른 범위
-        {adjusted && (
-          <>
-            <span className="final" /> 검증 후 확정 범위
-          </>
-        )}
-        <span className="cap" /> 하드캡 {pctOf(HARDCAP.maxWeightPerAsset)}
-      </p>
-      <div className="flow-table">
-        <table className="flow-range-table">
-          <thead>
-            <tr>
-              <th>종목</th>
-              <th style={{ width: "38%" }}>허용 · AI 범위</th>
-              <th className="num allowed-num">허용</th>
-              <th className="num">AI</th>
+    <div className="flow-table">
+      <table>
+        <thead>
+          <tr>
+            <th>종목</th>
+            <th className="num">AI 범위</th>
+            <th className="num">확정 범위</th>
+          </tr>
+        </thead>
+        <tbody>
+          {universe.map((u) => (
+            <tr key={u.ticker}>
+              <td>
+                {u.name} <span className="mono flow-hint">{u.ticker}</span>
+              </td>
+              <td className="num" style={{ color: "var(--c-bright)" }}>
+                {pct(u.weight_min_raw ?? u.weight_min)} ~ {pct(u.weight_max_raw ?? u.weight_max)}
+              </td>
+              <td className="num" style={u.was_adjusted ? { color: "var(--c-warn)" } : undefined}>
+                {pct(u.weight_min)} ~ {pct(u.weight_max)}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {universe.map((u) => {
-              const rawMin = u.weight_min_raw ?? u.weight_min;
-              const rawMax = u.weight_max_raw ?? u.weight_max;
-              const hasAllowed = u.allowed_min != null && u.allowed_max != null;
-              return (
-                <tr key={u.ticker}>
-                  <td>
-                    {u.name} <span className="mono flow-hint">{u.ticker}</span>
-                    {u.risk_tag && (
-                      <span className="flow-badge muted" style={{ marginLeft: 6 }}>
-                        {u.risk_tag}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <DualBar
-                      track={track}
-                      allowed={hasAllowed ? [u.allowed_min as number, u.allowed_max as number] : null}
-                      ai={rawMin !== null && rawMax !== null ? [rawMin, rawMax] : null}
-                      final={
-                        u.was_adjusted && u.weight_min !== null && u.weight_max !== null
-                          ? [u.weight_min, u.weight_max]
-                          : null
-                      }
-                    />
-                  </td>
-                  <td className="num flow-hint allowed-num">
-                    {hasAllowed ? `${pct(u.allowed_min ?? null)} ~ ${pct(u.allowed_max ?? null)}` : "-"}
-                  </td>
-                  <td className="num" style={{ color: "var(--c-bright)" }}>
-                    {pct(rawMin)} ~ {pct(rawMax)}
-                    {u.was_adjusted && (
-                      <span style={{ display: "block", color: "var(--c-warn)", fontSize: 11 }}>
-                        확정 {pct(u.weight_min)} ~ {pct(u.weight_max)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-// 위 줄: 허용범위(옅은 띠), 아래 줄: AI 범위(진한 막대) + 확정 범위(노란 테두리), 하드캡 세로선.
-function DualBar({
-  track,
-  allowed,
-  ai,
-  final,
-}: {
-  track: number;
-  allowed: [number, number] | null;
-  ai: [number, number] | null;
-  final: [number, number] | null;
-}) {
-  const at = (v: number) => `${Math.min(100, (v / track) * 100)}%`;
-  const span = ([lo, hi]: [number, number]) => ({
-    left: at(lo),
-    width: `max(3px, calc(${at(hi)} - ${at(lo)}))`,
-  });
-  return (
-    <span className="flow-dual" aria-hidden="true">
-      <span className="row">
-        {allowed && <span className="allowed" style={span(allowed)} />}
-        {allowed && allowed[1] > track && <em>→ {pctOf(allowed[1])}</em>}
-      </span>
-      <span className="row">
-        {ai && <span className="ai" style={span(ai)} />}
-        {final && <span className="final" style={span(final)} />}
-      </span>
-      <i style={{ left: at(HARDCAP.maxWeightPerAsset) }} />
-    </span>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -246,7 +155,6 @@ const BACKTESTABLE = new Set([
   "calendar/quarterly/1",
   "calendar/weekly/1",
   "threshold/daily/null",
-  "signal/daily/null",
 ]);
 
 function describeRebalance(rule: Rules): { text: string; backtestable: boolean | null } {
@@ -260,7 +168,6 @@ function describeRebalance(rule: Rules): { text: string; backtestable: boolean |
     else if (trigger.freq === "monthly") what = trigger.day === 1 ? "매달 첫 거래일" : trigger.day ? `매달 ${trigger.day}일` : "매달";
     else if (trigger.freq === "quarterly") what = "분기마다";
   } else if (trigger.type === "threshold") what = "비중이 정한 범위를 벗어날 때";
-  else if (trigger.type === "signal") what = "신호가 바뀔 때";
 
   const text = what ? `${what}${interval !== null ? ` (최소 ${interval}일 간격)` : ""}` : JSON.stringify(rule);
   // day 가 없으면 서버 키의 None 과 같게 null 로 적는다.
@@ -336,6 +243,6 @@ function describeConstraints(rules: Rules): string {
   const entries = Object.entries(rules).filter(([, v]) => v !== null && v !== undefined);
   if (!entries.length) return "없음";
   return entries
-    .map(([k, v]) => `${CONSTRAINT_LABEL[k] ?? k} ${typeof v === "number" ? pctOf(v) : JSON.stringify(v)}`)
+    .map(([k, v]) => `${CONSTRAINT_LABEL[k] ?? k} ${typeof v === "number" ? pct(v) : JSON.stringify(v)}`)
     .join(" · ");
 }

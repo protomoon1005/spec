@@ -10,21 +10,21 @@ from __future__ import annotations
 
 import pytest
 
+from app.backtest.features import CURRENT_FEATURE_SET_VERSION, FEATURE_SETS
 from app.contracts.spec import SpecV0_1
 from app.m1 import candidates as C
 from app.m1 import schema_builder as S
 from app.repositories import bbl
-from app.views.market.features import CURRENT_FEATURE_SET_VERSION, FEATURE_SETS
 
 
 @pytest.fixture
 def built(engine):
-    return S.build_compile_schema(C.select(risk_level=5, sectors=["SECTOR_SEMICONDUCTOR"], target=3))
+    return S.build_compile_schema(C.select(sectors=["SECTOR_SEMICONDUCTOR"], target=3))
 
 
 def test_no_candidates_is_an_error(engine):
     """빈 스키마를 주면 LLM 이 아무거나 지어내거나 빈 배열을 낸다. 둘 다 원인을 알기 어렵다."""
-    empty = C.select(risk_level=1, requested_tickers=["999999"], sectors=["SECTOR_CONSUMER"], target=0)
+    empty = C.select(requested_tickers=["999999"], sectors=["SECTOR_CONSUMER"], target=0)
     assert empty.candidates == ()
 
     with pytest.raises(ValueError, match="후보"):
@@ -45,7 +45,7 @@ def _allowed_tickers(schema) -> set[str]:
 def test_universe_offers_only_the_candidates(engine, built):
     """후보로 뽑힌 종목만 고를 수 있어야 한다. 어떤 종목이 뽑히는지는 원장에 달려
     있으므로 종목코드를 박지 않는다 — 원장이 바뀌어도 깨지지 않게."""
-    expected = set(C.select(risk_level=5, sectors=["SECTOR_SEMICONDUCTOR"], target=3).tickers)
+    expected = set(C.select(sectors=["SECTOR_SEMICONDUCTOR"], target=3).tickers)
 
     assert _allowed_tickers(built) == expected
     assert built["properties"]["universe"]["maxItems"] == len(expected)
@@ -54,17 +54,17 @@ def test_universe_offers_only_the_candidates(engine, built):
 def test_options_are_grouped_by_bound_not_by_ticker(engine):
     """제약 디코딩이 선택지 수에 따라 급격히 느려진다 — 10종목이면 5분을 넘겨 죽었다.
     범위가 같은 종목을 묶으면 후보를 늘려도 선택지는 등급 수(최대 6)를 넘지 않는다."""
-    result = C.select(risk_level=5, target=30)
+    result = C.select(target=30)
     schema = S.build_compile_schema(result)
 
     options = schema["properties"]["universe"]["items"]["oneOf"]
     assert len(result.candidates) > len(options)
-    assert len(options) <= 6
+    assert len(options) == 1  # 시스템 상한이 없어 모든 후보의 범위가 같다
     assert _allowed_tickers(schema) == set(result.tickers)
 
 
-def test_weight_range_matches_the_preset(engine):
-    result = C.select(risk_level=3, target=4)
+def test_weight_range_matches_the_candidates(engine):
+    result = C.select(target=4)
     schema = S.build_compile_schema(result)
     by_ticker = {
         ticker: option["properties"]
@@ -138,7 +138,7 @@ def test_prompt_lists_the_rebalance_blocks_and_the_default(engine):
 
     text = prompt.build_compile_prompt(
         user_text="배당 나오는 ETF 위주로 담아줘",
-        candidate_set=C.select(risk_level=3, target=3),
+        candidate_set=C.select(target=3),
         rebalance_blocks=bbl.list_blocks("rebalance"),
     )
 
@@ -158,7 +158,7 @@ def test_macro_indexes_are_limited(engine, built):
 
 def test_sectors_are_limited_to_the_candidates(engine):
     """담지도 않을 업종의 뉴스를 보라고 할 이유가 없다."""
-    result = C.select(risk_level=5, sectors=["SECTOR_BATTERY"], target=3)
+    result = C.select(sectors=["SECTOR_BATTERY"], target=3)
     schema = S.build_compile_schema(result)
 
     allowed = schema["$defs"]["SentimentRule"]["properties"]["target_sectors"]["items"]["enum"]
@@ -189,13 +189,13 @@ def test_building_does_not_mutate_the_base_schema(engine, built):
 
 def test_an_instance_built_within_the_schema_passes_the_contract(engine):
     """스키마가 허용하는 값으로 만든 전략서는 계약 검사도 통과해야 한다."""
-    result = C.select(risk_level=5, sectors=["SECTOR_SEMICONDUCTOR"], target=2)
+    result = C.select(sectors=["SECTOR_SEMICONDUCTOR"], target=2)
     schema = S.build_compile_schema(result)
     rebalance = bbl.get_block("RB_MONTHLY_FIRST").params_schema
 
     spec = SpecV0_1(
-        spec_id="STR-TEST",
-        spec_version="0.1",
+        strategy_id="STR-TEST",
+        strategy_version="0.1",
         user_id=1,
         name="테스트 전략",
         created_at="2026-09-20T09:00:00+09:00",
@@ -229,7 +229,7 @@ def test_an_instance_built_within_the_schema_passes_the_contract(engine):
 
 
 def test_same_request_gives_the_same_schema(engine):
-    kwargs = {"risk_level": 3, "target": 5}
+    kwargs = {"target": 5}
 
     first = S.build_compile_schema(C.select(**kwargs))
     second = S.build_compile_schema(C.select(**kwargs))
@@ -241,7 +241,7 @@ def test_rebalance_can_be_narrowed_to_the_spoken_blocks(engine):
     import jsonschema
 
     only = ("RB_MONTHLY_FIRST", "RB_MONTHLY_MID")
-    schema = S.build_compile_schema(C.select(risk_level=3, target=3), rebalance_block_ids=only)
+    schema = S.build_compile_schema(C.select(target=3), rebalance_element_ids=only)
     rebalance = schema["properties"]["rebalance"]
 
     assert len(rebalance["oneOf"]) == 2

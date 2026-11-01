@@ -1,9 +1,9 @@
 """price_daily as_of 질의와 적재. docs/db-erd.md 가 정본이다.
 
-**append-only 가 아니다.** view_weights 와 달리 가격은 거래소 정정·수정주가 반영으로
-같은 (종목, 거래일) 이 다시 채워지는 일이 정상이다. feature_store 와 같은 논리다.
+**append-only 가 아니다.** 가격은 거래소 정정·수정주가 반영으로
+같은 (종목, 거래일) 이 다시 채워지는 일이 정상이다.
 
-**atr_14 컬럼은 이 모듈이 채우지 않는다.** app/views/market/features.py 가
+**atr_14 컬럼은 이 모듈이 채우지 않는다.** app/backtest/features.py 가
 atr_14_pct 를 Wilder 방식으로 계산하고 워밍업 120행이 v0.1-ta9 정의의 일부다.
 DB 에도 넣으면 정의가 두 곳이 되어 반드시 갈라진다 (질의 8-b 답, 2026-09-19).
 """
@@ -23,7 +23,7 @@ _BAR_FIELDS = ("open", "high", "low", "close", "volume")
 def get_price_window(ticker: str, *, as_of: date, lookback_days: int) -> list[dict]:
     """as_of 시점까지의 최근 lookback_days 거래일. 오래된 것부터.
 
-    반환 dict 의 키는 app/views/market/features.py 의 _bar_from_mapping 이 받는
+    반환 dict 의 키는 app/backtest/features.py 의 _bar_from_mapping 이 받는
     이름 그대로다 — compute_features 에 그대로 먹일 수 있어야 한다.
 
     as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (거래일은 장 마감 후 확정되므로
@@ -100,8 +100,8 @@ def get_close_history(tickers: list[str], *, as_of: date) -> dict[str, list[tupl
 def get_bar_history(tickers: list[str], *, as_of: date) -> dict[str, list[dict]]:
     """여러 종목의 as_of 시점까지 일봉 전체. {종목: [행, ...]} 오래된 것부터.
 
-    M2 RiskSizer 가 atr_14_pct 를 계산하려고 쓴다. 행의 키는 get_price_window 와 같아서
-    compute_features 에 그대로 먹일 수 있다. 워밍업 절단(직전 120행)은 호출부 몫이다.
+    행의 키는 get_price_window 와 같아서 compute_features 에 그대로 먹일 수 있다.
+    워밍업 절단(직전 120행)은 호출부 몫이다.
     가격이 한 행도 없는 종목은 결과에 키가 없다.
 
     as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=` (get_price_window 와 같다).
@@ -238,3 +238,98 @@ def _finite_or_none(ticker: str, trade_date: date, field: str, value) -> float |
 
 def _optional_float(value) -> float | None:
     return float(value) if value is not None else None
+
+
+# --- 가격 스냅샷 (기반 정리 3단계, scripts/fetch_prices.py · ingest_prices.py) -------------
+
+
+def copy_price_bars(bars) -> int:
+    """스냅샷 전체를 한 번에 적재한다. 같은 (종목, 거래일)이면 덮어쓴다.
+
+    bars 는 {ticker, trade_date, open, high, low, close, volume} dict 를 내는 이터러블이다.
+    수백만 행이라 upsert_price_bars(종목마다 executemany)로는 분 단위가 넘는다. COPY 로 임시
+    표에 넣고 INSERT … ON CONFLICT 한 번으로 옮긴다. 검사 규칙은 upsert_price_bars 와 같다
+    (종가 없음 · NaN · Inf 거부). 한 트랜잭션이라 중간에 실패하면 아무것도 남지 않는다.
+    """
+    columns = ("ticker", "trade_date", *_BAR_FIELDS)
+    engine = get_engine()
+    raw = engine.raw_connection()
+    try:
+        with raw.cursor() as cursor:
+            cursor.execute(
+                "CREATE TEMP TABLE price_stage (LIKE price_daily INCLUDING DEFAULTS) ON COMMIT DROP"
+            )
+            count = 0
+            with cursor.copy(f"COPY price_stage ({', '.join(columns)}) FROM STDIN") as copy:
+                for bar in bars:
+                    params = _validated_params(bar["ticker"], bar)
+                    copy.write_row(tuple(params[c] for c in columns))
+                    count += 1
+            cursor.execute(
+                f"""
+                INSERT INTO price_daily ({', '.join(columns)})
+                SELECT {', '.join(columns)} FROM price_stage
+                ON CONFLICT (ticker, trade_date)
+                DO UPDATE SET open   = EXCLUDED.open,
+                              high   = EXCLUDED.high,
+                              low    = EXCLUDED.low,
+                              close  = EXCLUDED.close,
+                              volume = EXCLUDED.volume
+                """
+            )
+        raw.commit()
+    except Exception:
+        raw.rollback()
+        raise
+    finally:
+        raw.close()
+    return count
+
+
+def price_content_sha256(bars) -> str:
+    """가격 행 내용의 해시. (종목, 거래일) 순으로 정렬된 bars 를 받는다.
+
+    스냅샷 파일(scripts/fetch_prices.py)과 적재된 DB(stored_price_content_sha256)를 같은 규칙으로
+    계산해 맞춰 본다 — 두 사람이 빌드한 DB 의 가격이 같은지를 이 값 하나로 확인한다.
+    숫자는 정수면 정수로, 아니면 repr(float) 로 적는다. NUMERIC · float · int 어느 쪽에서 와도
+    같은 문자열이 나와야 하기 때문이다. 빈 값은 빈 문자열.
+    """
+    import hashlib
+
+    digest = hashlib.sha256()
+    for bar in bars:
+        values = (_canonical(bar.get(field)) for field in _BAR_FIELDS)
+        line = "|".join([str(bar["ticker"]), bar["trade_date"].isoformat(), *values])
+        digest.update(line.encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def stored_price_content_sha256() -> str:
+    """적재된 price_daily 전체의 내용 해시. 규칙은 price_content_sha256 과 같다."""
+    def rows():
+        with get_engine().connect() as conn:
+            result = conn.execution_options(stream_results=True, yield_per=50_000).execute(
+                text(
+                    "SELECT ticker, trade_date, open, high, low, close, volume"
+                    "  FROM price_daily ORDER BY ticker, trade_date"
+                )
+            )
+            for row in result:
+                yield row._mapping
+
+    return price_content_sha256(rows())
+
+
+def count_price_rows() -> int:
+    with get_engine().connect() as conn:
+        return int(conn.execute(text("SELECT count(*) FROM price_daily")).scalar())
+
+
+def _canonical(value) -> str:
+    if value is None:
+        return ""
+    number = float(value)
+    if math.isnan(number):
+        return ""
+    return str(int(number)) if number.is_integer() else repr(number)

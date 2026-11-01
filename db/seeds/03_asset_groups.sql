@@ -1,4 +1,4 @@
--- 2계층 자산 그룹 + 그룹캡 (docs/infra-spec.md 4.3)
+-- 2계층 자산 그룹 (분류표). 그룹캡 시드는 그룹캡 기능과 함께 지웠다(기반 정리 2단계).
 -- 레벨2(섹터·국가) 그룹의 parent_group_id는 NULL로 둔다 — 섹터·국가는 자산군의
 -- 하위가 아니라 독립된 분류축이다 (사용자 확정, 2026-09-08 이후 보충 지시).
 -- 국가(예: 한국)는 EQUITY와 BOND에 걸쳐 있어 트리로 묶을 수 없다.
@@ -27,36 +27,3 @@ VALUES
     ('COUNTRY_KR', NULL, 2, '한국'),
     ('COUNTRY_US', NULL, 2, '미국'),
     ('COUNTRY_OTHER', NULL, 2, '기타');
-
--- 그룹캡 레벨1: 자산군 상한, 성향별 (3 그룹 x 5 성향 = 15행)
-INSERT INTO group_caps (group_id, preset_version, risk_level, max_total_weight)
-VALUES
-    ('EQUITY', 'v0.1', 1, 0.25),
-    ('EQUITY', 'v0.1', 2, 0.40),
-    ('EQUITY', 'v0.1', 3, 0.60),
-    ('EQUITY', 'v0.1', 4, 0.75),
-    ('EQUITY', 'v0.1', 5, 0.85),
-    ('BOND', 'v0.1', 1, 0.70),
-    ('BOND', 'v0.1', 2, 0.60),
-    ('BOND', 'v0.1', 3, 0.50),
-    ('BOND', 'v0.1', 4, 0.35),
-    ('BOND', 'v0.1', 5, 0.25),
-    ('COMMODITY', 'v0.1', 1, 0.05),
-    ('COMMODITY', 'v0.1', 2, 0.10),
-    ('COMMODITY', 'v0.1', 3, 0.15),
-    ('COMMODITY', 'v0.1', 4, 0.20),
-    ('COMMODITY', 'v0.1', 5, 0.25);
-
--- 그룹캡 레벨2: 섹터 0.30 / 국가 0.50, 성향 무관 고정(risk_level=0) (7 + 3 = 10행)
-INSERT INTO group_caps (group_id, preset_version, risk_level, max_total_weight)
-VALUES
-    ('SECTOR_SEMICONDUCTOR', 'v0.1', 0, 0.30),
-    ('SECTOR_BATTERY', 'v0.1', 0, 0.30),
-    ('SECTOR_BIOHEALTH', 'v0.1', 0, 0.30),
-    ('SECTOR_FINANCE', 'v0.1', 0, 0.30),
-    ('SECTOR_INTERNET_PLATFORM', 'v0.1', 0, 0.30),
-    ('SECTOR_CONSUMER', 'v0.1', 0, 0.30),
-    ('SECTOR_OTHER', 'v0.1', 0, 0.30),
-    ('COUNTRY_KR', 'v0.1', 0, 0.50),
-    ('COUNTRY_US', 'v0.1', 0, 0.50),
-    ('COUNTRY_OTHER', 'v0.1', 0, 0.50);
