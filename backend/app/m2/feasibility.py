@@ -1,4 +1,4 @@
-# FN-304 비중 범위 실현가능성 보정 (docs/archive/m2-algorithms.md 1장).
+# FN-304 비중 범위 실현가능성 보정.
 from __future__ import annotations
 
 from collections.abc import Sequence

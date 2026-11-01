@@ -1,4 +1,4 @@
-"""LLMClient 통합 테스트 (docs/infra-spec.md 8단계).
+"""LLMClient 통합 테스트.
 
 호스트에 뜬 Ollama(qwen3:8b)로 실제 구조화 JSON 응답을 받아 확인한다. GPU가
 없어 vLLM 쪽은 이번 단계에서 검증하지 못한다 — VLLMClient는 코드만 존재하고

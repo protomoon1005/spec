@@ -1,4 +1,4 @@
-# Validator 의 순수 파이프라인 (docs/archive/m2-algorithms.md 6장, FN-301 ~ FN-306).
+# Validator 의 순수 파이프라인 (FN-301 ~ FN-306).
 #
 # 데이터베이스를 모른다. 필요한 사실은 전부 SpecContext 로 받는다 — 그래야 무작위
 # 전략서 1000건을 DB 없이 같은 함수로 돌릴 수 있고, 같은 입력에 같은 결과가 나온다.

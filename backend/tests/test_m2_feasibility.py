@@ -121,7 +121,7 @@ def test_same_input_twice_same_result():
 
 
 def test_regression_example_needs_no_adjustment():
-    # docs/archive/m2-algorithms.md 3장 기준 계산 예제: Σmin 0.40 ≤ 0.95 ≤ Σmax 1.40
+    # 기준 계산 예제: Σmin 0.40 ≤ 0.95 ≤ Σmax 1.40
     items = [
         BoundInput("069500", 0.10, 0.40, ceiling=0.40, floor=0.0),
         BoundInput("232080", 0.05, 0.25, ceiling=0.40, floor=0.0),

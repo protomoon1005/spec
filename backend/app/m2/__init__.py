@@ -1,1 +1,1 @@
-"""M2 검증·통제 (B 라인). 알고리즘 정본은 docs/archive/m2-algorithms.md 다."""
+"""M2 검증·통제 (B 라인)."""

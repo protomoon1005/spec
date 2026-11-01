@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     llm_seed: int = 42
 
     # 브라우저에서 프론트(NEXT_PUBLIC_API_BASE_URL, 기본 3000)가 이 API를 직접
-    # 호출하므로 CORS를 열어야 한다 (docs/infra-spec.md 9단계, /health 페이지).
+    # 호출하므로 CORS를 열어야 한다.
     cors_allow_origins: list[str] = ["http://localhost:3000"]
 
 

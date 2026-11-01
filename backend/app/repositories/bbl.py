@@ -33,7 +33,7 @@ from app.core.db import get_engine
 # strategy_elements.element_type 의 CHECK 와 같다(db/init/02_schema.sql)
 BLOCK_TYPES = ("indicator", "filter", "rebalance", "etf_trait")
 
-# 태그 접두어. 늘리지 않는다 — docs/archive/m1_milestone.md 3단계 참고.
+# 태그 접두어. 늘리지 않는다.
 TAG_PREFIXES = ("kw:", "asset:", "sector:", "country:", "risk:")
 
 

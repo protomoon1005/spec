@@ -185,8 +185,8 @@ def _rebalance_blocks(keywords: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def _traits(keywords: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
-    # "배당 나오는 ETF" 의 배당은 업종도 자산군도 아니라 종목 이름에서 읽히는 성격이다
-    # (docs/archive/m1_milestone.md ④). 블록이 이름 정규식을 들고 있는데 후보 선정에 이어지지 않아
+    # "배당 나오는 ETF" 의 배당은 업종도 자산군도 아니라 종목 이름에서 읽히는 성격이다.
+    # 블록이 이름 정규식을 들고 있는데 후보 선정에 이어지지 않아
     # 배당 요청에 시장대표 ETF 만 담겼다(2026-10-21). 사용자 말(kw:)로 걸린 블록만 쓴다 —
     # asset:bond 같은 태그까지 쓰면 채권 요청마다 국채 블록이 걸린다.
     said = {f"kw:{value}" for value in keywords}
