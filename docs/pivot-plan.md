@@ -20,7 +20,7 @@
   - 기존: 투자 성향 확인, 전략서 생성, 검증과 비중 통제, 3개 신호원 판단, 모의운용
   - 변경: 한국어 입력, 명세화, 백테스트 결과 확인. 모의운용은 범위에서 빠진다
 - 핵심 기여
-  - 기존: LLM 은 전략서 작성까지, 거래는 정해진 규칙대로s
+  - 기존: LLM 은 전략서 작성까지, 거래는 정해진 규칙대로
   - 변경: 한국어 전략 문장을 전략 요소 사전에 있는 요소만 쓰는 전략서로 변환
   - 사용자의 문장을 정확히 인식해 그대로 백테스트 거래를 하는 것이 핵심이다. 사용자가 말하지 않은 외부 판단(시장 국면, 뉴스 감성, 예측 모델)이 거래에 끼어들지 않는다
 - 입력 판정
@@ -125,14 +125,14 @@
     - 모의운용: portfolios, positions, orders, executions, approvals, decision_records, reports
     - 성향과 하드캡: risk_profile_defaults, risk_profiles, survey_responses, preset_versions, asset_bound_presets, hardcap_versions, group_caps, group_cap_applications
     - 신호원과 외부 데이터: view_weights, view_scores, view_performance, feature_store, macro_indicators, regime_snapshots, news_articles, news_sentiment, ml_models
-  - 남는 테이블: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, audit_logs, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags(이름 변경은 아래)
+  - 남는 테이블: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags(이름 변경은 아래). audit_logs 는 쓰는 코드가 없어 2026-11-02 에 지우기로 했다
   - 테이블 · 칸 이름 변경 (2026-11-01 확정). 우리가 지어낸 말(Spec, BBL)과 이제 맞지 않는 말(ETF 원장)을 일반적인 단어로 바꾼다
     - etf_master 는 instruments. 개별주와 ETF 를 모두 담는다
     - strategy_specs 는 strategies, spec_universe 는 strategy_assets
     - bbl_blocks 는 strategy_elements, bbl_tags 는 strategy_element_tags
     - 칸 이름도 같이 바꾼다: spec_id 는 strategy_id(strategies, strategy_assets, validation_logs, backtest_runs), spec_version 은 strategy_version, spec_universe_id 는 strategy_asset_id, block_id 는 element_id, block_type 은 element_type
     - 코드의 저장소 함수, API 응답 키, 전략서 계약의 칸 이름(spec_id, spec_version)도 같이 바꾼다
-    - 그대로 두는 이름: users, validation_logs, backtest_runs, backtest_metrics, audit_logs, asset_groups, price_daily, schema_migrations
+    - 그대로 두는 이름: users, validation_logs, backtest_runs, backtest_metrics, asset_groups, price_daily, schema_migrations
   - 칸을 더하거나 새 테이블을 만드는 것은 이번 범위가 아니다. 지우는 것만 한다
 
 ### 3.3 챙길 것 (기반으로 남는 것)
@@ -289,7 +289,7 @@
 ### 2단계 — DB 테이블 구성 다시 하기
 
 - 새 `db/init/` 을 쓴다(3.2)
-  - 남는 테이블 12개만 만든다: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, audit_logs, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags
+  - 남는 테이블 11개만 만든다: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags
   - 3.2 의 테이블 · 칸 이름 변경을 이때 같이 한다. 코드(저장소 함수, 라우터, 테스트, 시드, 스크립트, 프론트의 API 키)도 같이 맞춘다
   - 지운 테이블을 가리키던 칸을 없앤다: `strategy_specs.profile_id`, `strategy_specs.hardcap_version`, `spec_universe.preset_id`
   - `users.role` 의 3역할 제약 등 지운 기능에 걸린 제약과 트리거를 정리한다
@@ -299,7 +299,20 @@
 - 테스트는 별도 DB(예: `spec_test`)를 쓰게 `backend/tests/conftest.py` 를 고친다. 개발 DB 가 테스트 찌꺼기로 더러워지지 않는다
 - 빌드 명령의 앞부분: 볼륨 삭제, 기동, 스키마 생성까지 한 번에 한다. 데이터 적재는 3단계에서 붙인다
 - `docs/db-erd.md` 를 남는 테이블 기준으로 고친다
-- 끝난 기준: 빈 볼륨에서 빌드하면 테이블 12개만 새 이름으로 생김, 코드에 옛 테이블 · 칸 이름이 남지 않음, 두 번 연속 빌드해도 같은 스키마, DB 데이터가 필요 없는 테스트 통과
+- 끝난 기준: 빈 볼륨에서 빌드하면 테이블 11개만 새 이름으로 생김, 코드에 옛 테이블 · 칸 이름이 남지 않음, 두 번 연속 빌드해도 같은 스키마, DB 데이터가 필요 없는 테스트 통과
+
+- 2단계 결과 (2026-11-02)
+  - 새 `db/init/02_schema.sql` 이 테이블 11개를 새 이름으로 만든다. 옛 migrate 001 의 분류 세 칸은 instruments 에 넣었고, 002 · 003 과 승인 상태 트리거는 버렸다. `db/migrate/` 는 비었다
+  - `db/init/03_test_db.sh` 가 같은 스키마로 테스트 전용 DB `spec_test` 를 만든다. `backend/tests/conftest.py` 는 DB 이름 끝이 `_test` 가 아니면 멈추고, 비어 있으면 `seed_all.py` 로 시드를 한 번 넣는다
+  - 빌드 명령 앞부분: `scripts/build_db.sh` (볼륨 삭제, 기동, 두 DB 의 테이블 수 확인). 데이터 적재는 3단계에서 붙인다
+  - 코드 · 테스트 · 시드 · 프론트 API 키를 새 테이블 · 칸 이름으로 맞췄다. 파일과 모듈 이름(`repositories/etf_master.py`, `bbl.py`, `specs.py`, `04_etf_master.csv`)은 2장 원칙대로 두었다
+  - 계획에서 더 나간 것
+    - `users.role` 은 NOT NULL 만 푸는 대신 칸을 지웠다. 읽는 코드가 없다
+    - 지운 기능에 걸린 CHECK 를 좁혔다: `validation_logs.stage` 1~3, `strategy_elements.element_type` 에서 lens 제외
+    - `db/seeds/03_asset_groups.sql` 의 그룹캡 INSERT 를 지웠다. group_caps 가 없어 시드와 테스트가 깨지기 때문이다. 시드 01 · 02 는 `seed_all.py` 에서만 뺐고 파일 삭제는 3단계 몫이다
+  - 그대로 둔 것: `strategies.status` 의 CHECK 4값(draft, approved, running, closed). draft 가 아니면 막는 코드와 테스트가 approved 를 쓴다
+  - 확인: 빈 볼륨 빌드 두 번 모두 11개, 스키마 덤프 동일. lint, as_of 가드, 프론트 타입 검사 통과. 로컬 테스트 229건, 테스트 DB 에 가격을 넣은 뒤 백테스트 테스트 29건 통과. 테스트 뒤 개발 DB 행 수 변화 없음
+  - 팀원은 기존 볼륨을 지우고 `scripts/build_db.sh` 로 다시 빌드해야 한다
 
 ### 3단계 — 공용 데이터와 가격 3년치 스냅샷 적재
 
