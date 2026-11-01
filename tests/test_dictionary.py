@@ -20,11 +20,13 @@ def test_exported_schema_is_up_to_date():
 def test_schema_enums_are_the_dictionary():
     s = build_json_schema()
     cond = s["$defs"]["Condition"]["properties"]
-    assert cond["left"]["enum"] == INDICATOR_IDS
+    assert cond["left"]["enum"] == INDICATOR_IDS + ["UNSUPPORTED"]      # 탈출구
     assert cond["op"]["enum"] == list(OPERATORS)
     uni = s["$defs"]["UniverseItem"]["properties"]
-    assert uni["ticker"]["enum"] == list(load_tickers())
-    assert uni["name"]["enum"] == [t.name for t in load_tickers().values()]
+    assert uni["ticker"]["enum"] == list(load_tickers()) + ["UNKNOWN"]
+    assert uni["name"]["enum"] == [t.name for t in load_tickers().values()] + ["UNKNOWN"]
+    assert s["properties"]["unmapped_phrases"]["items"]["type"] == "string"
+    assert "unmapped_phrases" in s["required"]
     assert list(get_args(IndicatorId)) == INDICATOR_IDS == list(INDICATORS)
     assert list(get_args(Operator)) == list(OPERATORS)
 

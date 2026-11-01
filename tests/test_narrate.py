@@ -24,8 +24,8 @@ CASES = {
         "universe": [{"ticker": "005930", "name": "삼성전자", "weight": 1.0}],
         "entry": {"logic": "all", "conditions": [{"left": "RSI_14", "op": "cross_below", "right": 30}]},
         "exit": {"logic": "any", "conditions": [{"left": "CLOSE", "op": "cross_below", "right": "SMA_5"}]},
-        "provenance": {"input_text": "RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔아줘",
-                       "defaults_applied": ["universe", "backtest", "costs"]},
+        "provenance": {"input_text": "삼성전자 RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔아줘",
+                       "defaults_applied": ["backtest", "costs"]},   # 종목은 기본값 없음 (B4 판정 원칙)
     },
     # 반반(주식+ETF 세율 차이), 상태(lt) 조건, 손절·익절·보유기간
     "half_stock_etf_stops": {

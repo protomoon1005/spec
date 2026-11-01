@@ -7,7 +7,7 @@ import pytest
 from core.specify import (EXAMPLES, build_system_prompt, compose_refined_input, refine, specify)
 from core.dictionary import INDICATORS, load_tickers
 
-EVAL_PATH = Path(__file__).resolve().parents[1] / "eval" / "sentences.jsonl"
+EVAL_PATH = Path(__file__).resolve().parents[1] / "eval" / "dev_sentences.jsonl"
 EVAL = [json.loads(l) for l in EVAL_PATH.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
@@ -40,7 +40,7 @@ def test_examples_cover_each_verdict_twice_and_do_not_leak_into_eval():
 
 def test_eval_set_shape():
     counts = {v: sum(s["verdict"] == v for s in EVAL) for v in ("ok", "clarify", "reject")}
-    assert counts == {"ok": 12, "clarify": 9, "reject": 9}
+    assert counts == {"ok": 10, "clarify": 12, "reject": 8}
     assert all(s["expected_spec"] == "TODO" for s in EVAL if s["verdict"] == "ok")
     assert len({s["text"] for s in EVAL}) == 30
 
@@ -69,7 +69,7 @@ def test_format_failure_twice_gives_up(tmp_path):
 def test_non_format_failure_is_not_retried(tmp_path):
     bad = json.loads(json.dumps(EXAMPLES[0][1]))
     bad["exit"]["stop_loss"] = 7                        # 4단계(범위) 실패
-    r = specify("문장", chat_fn=fake_chat(bad, EXAMPLES[0][1]), cache_dir=tmp_path)
+    r = specify(EXAMPLES[0][0], chat_fn=fake_chat(bad, EXAMPLES[0][1]), cache_dir=tmp_path)
     assert r.attempts == 1 and r.next_step == "invalid" and r.report.failed_stage == 4
 
 
@@ -87,14 +87,68 @@ def test_refine_combines_original_questions_answers(tmp_path):
     clar = specify(clar_text, chat_fn=fake_chat(clar_out), cache_dir=tmp_path)
     assert clar.next_step == "clarify"
     chat = fake_chat(EXAMPLES[0][1])
-    refine(clar.spec, ["RSI 30 아래", "10% 오르면"], chat_fn=chat, cache_dir=tmp_path)
+    refine(clar, ["삼성전자", "10% 오르면"], chat_fn=chat, cache_dir=tmp_path)
     sent = chat.calls[0][-1]["content"]
     assert sent.startswith(clar_text)
-    for q in clar.spec.questions:
+    for q in clar.report.questions:
         assert q in sent
-    assert "RSI 30 아래" in sent and "10% 오르면" in sent
+    assert "삼성전자" in sent and "10% 오르면" in sent
 
 
 def test_refine_rejects_answer_count_mismatch():
     with pytest.raises(ValueError):
         compose_refined_input("문장", ["q1", "q2"], ["a1"])
+
+
+def _ok_out(**over):
+    out = json.loads(json.dumps(EXAMPLES[0][1]))      # POSCO홀딩스 ok 예시
+    out.update(over)
+    return out
+
+
+def test_llm_ok_with_unknown_ticker_goes_to_clarify(tmp_path):
+    out = _ok_out(universe=[{"ticker": "UNKNOWN", "name": "UNKNOWN", "weight": 1.0}], unmapped_phrases=["에코프로"])
+    out["provenance"]["mappings"][0]["phrase"] = "에코프로"
+    r = specify("에코프로 10일선 뚫으면 사고 10일선 무너지면 팔아, 손절은 7%", chat_fn=fake_chat(out), cache_dir=tmp_path)
+    assert r.llm_verdict == "ok" and r.verdict == "clarify" and r.next_step == "clarify"
+
+
+def test_llm_ok_with_swapped_ticker_goes_to_clarify(tmp_path):
+    """원문에 없는 종목(바꿔치기·기본값 삽입)은 백테스트로 가지 않는다."""
+    out = _ok_out()
+    out["provenance"]["mappings"] = out["provenance"]["mappings"][1:]
+    r = specify("LG에너지솔루션 10일선 뚫으면 사고 10일선 무너지면 팔아, 손절은 7%", chat_fn=fake_chat(out),
+                cache_dir=tmp_path)
+    assert r.next_step == "clarify" and r.report.questions[0].startswith("어떤 종목")
+
+
+def test_llm_ok_with_unmapped_fundamentals_goes_to_reject(tmp_path):
+    out = _ok_out(unmapped_phrases=["PER 10 아래"])
+    r = specify("POSCO홀딩스 10일선 뚫으면 사고 PER 10 아래여도 10일선 무너지면 팔아, 손절은 7%", chat_fn=fake_chat(out),
+                cache_dir=tmp_path)
+    assert r.next_step == "reject" and r.report.reject_reason.code == "UNSUPPORTED_CONCEPT"
+
+
+def test_clarify_question_without_question_mark_retries_then_invalid(tmp_path):
+    bad = {**EXAMPLES[3][1], "questions": ["RSI 30 아래면"]}
+    chat = fake_chat(bad, bad)
+    r = specify("RSI 30 아래면 사고 5일선 깨지면 팔아 (테스트)", chat_fn=chat, cache_dir=tmp_path)
+    assert r.attempts == 2 and r.next_step == "invalid" and r.report.failed_stage == 1
+    assert "물음표" in chat.calls[1][-1]["content"]
+
+
+def test_refine_source_check_ignores_example_tickers_in_questions(tmp_path):
+    """질문 예시에 '삼성전자'가 있어도, 사용자가 답하지 않은 종목은 원문 대조를 통과하지 못한다."""
+    clar_text, clar_out = EXAMPLES[3]                    # "20일선 돌파하면 사" → 종목·매도 질문
+    clar = specify(clar_text, chat_fn=fake_chat(clar_out), cache_dir=tmp_path)
+    assert "삼성전자" in clar.report.questions[0]
+    out = _ok_out(universe=[{"ticker": "005930", "name": "삼성전자", "weight": 1.0}],
+                  entry={"logic": "all", "conditions": [{"left": "CLOSE", "op": "cross_above", "right": "SMA_20"}]})
+    out["exit"] = {"logic": "any", "conditions": [{"left": "CLOSE", "op": "cross_below", "right": "SMA_5"}],
+                   "stop_loss": None, "take_profit": None, "max_hold_days": None}
+    out["provenance"]["mappings"] = [{"phrase": "20일선 돌파하면", "field": "entry.conditions[0]"}]
+    r = refine(clar, ["KODEX 200", "5일선 깨지면"], chat_fn=fake_chat(out), cache_dir=tmp_path)
+    assert r.next_step == "clarify"                       # 삼성전자는 질문 예시에만 있었음
+    out["universe"] = [{"ticker": "069500", "name": "KODEX 200", "weight": 1.0}]
+    r2 = refine(clar, ["KODEX 200", "5일선 깨지면"], chat_fn=fake_chat(out), cache_dir=tmp_path / "b")
+    assert r2.next_step == "confirm"                      # 답변에 나온 종목은 통과

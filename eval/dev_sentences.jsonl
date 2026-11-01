@@ -1,5 +1,5 @@
-{"id": "ok-01", "text": "RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔아줘", "verdict": "ok", "expected_spec": "TODO"}
-{"id": "ok-02", "text": "RSI 30 아래면 사고 5일선 깨지면 팔아", "verdict": "ok", "expected_spec": "TODO"}
+{"id": "ok-01", "text": "RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔아줘", "verdict": "clarify", "label_change": "2026-11-02 판정 원칙(B4) 적용: ok→clarify. 종목 언급 없음 → clarify (기본값 삼성전자 제거)"}
+{"id": "ok-02", "text": "RSI 30 아래면 사고 5일선 깨지면 팔아", "verdict": "clarify", "label_change": "2026-11-02 판정 원칙(B4) 적용: ok→clarify. 종목 언급 없음 → clarify (기본값 삼성전자 제거)"}
 {"id": "ok-03", "text": "삼성전자 골든크로스 나오면 사고 데드크로스 나오면 팔아", "verdict": "ok", "expected_spec": "TODO"}
 {"id": "ok-04", "text": "SK하이닉스 20일선 위로 올라가면 사고 10% 떨어지면 손절해줘", "verdict": "ok", "expected_spec": "TODO"}
 {"id": "ok-05", "text": "KODEX 200 볼린저 하단 아래로 내려가면 사고 볼린저 상단 위로 올라가면 팔아", "verdict": "ok", "expected_spec": "TODO"}
@@ -26,5 +26,5 @@
 {"id": "reject-05", "text": "삼성전자 공매도해줘", "verdict": "reject"}
 {"id": "reject-06", "text": "PER 10 아래면 사고 20 넘으면 팔아", "verdict": "reject"}
 {"id": "reject-07", "text": "5분봉 RSI 보고 단타 쳐줘", "verdict": "reject"}
-{"id": "reject-08", "text": "삼성전자 RSI 30 아래면 사줘", "verdict": "reject"}
+{"id": "reject-08", "text": "삼성전자 RSI 30 아래면 사줘", "verdict": "clarify", "label_change": "2026-11-02 판정 원칙(B4) 적용: reject→clarify. 매도 조건 없음 → clarify '언제 팔까요?'. NO_EXIT_RULE 는 답을 거부한 경우에만"}
 {"id": "reject-09", "text": "신용 끌어서 하이닉스 3배로 사", "verdict": "reject"}

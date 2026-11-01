@@ -216,6 +216,18 @@ def _benchmark(df: pd.DataFrame, mask: pd.Series, cash0: float, bps: float) -> p
     return (cash0 - gross - comm) + n * d["Close"]
 
 
+def _refuse_escape_values(spec: DemoSpec) -> None:
+    """탈출구 값(UNKNOWN 종목·UNSUPPORTED 지표·unmapped_phrases)은 검증기가 막지만, 엔진에서도 한 번 더 거부한다."""
+    from core.schema import UNKNOWN_TICKER, UNSUPPORTED_INDICATOR, RefMul
+    bad = [u.ticker for u in spec.universe if u.ticker == UNKNOWN_TICKER]
+    for rule in (spec.entry, spec.exit):
+        for c in rule.conditions:
+            r = c.right.ref if isinstance(c.right, RefMul) else c.right
+            bad += [v for v in (c.left, r) if v == UNSUPPORTED_INDICATOR]
+    if bad or spec.unmapped_phrases:
+        raise ValueError(f"사전에 없는 값이 남아 있어 실행할 수 없습니다: {bad or spec.unmapped_phrases}")
+
+
 def run_backtest(spec: DemoSpec, data: Optional[dict[str, pd.DataFrame]] = None,
                  asset_types: Optional[dict[str, str]] = None,
                  costs_config: Optional[dict] = None) -> BacktestResult:
@@ -227,6 +239,7 @@ def run_backtest(spec: DemoSpec, data: Optional[dict[str, pd.DataFrame]] = None,
     """
     if spec.entry is None or spec.exit is None or not spec.universe:
         raise ValueError("실행할 수 없는 명세입니다 (universe/entry/exit 없음). 검증기를 먼저 통과시키세요.")
+    _refuse_escape_values(spec)
     costs_cfg = costs_config or load_costs()
     profile = costs_cfg["tax_profiles"][spec.costs.tax_profile]
     default_type = costs_cfg.get("default_asset_type", "stock")
