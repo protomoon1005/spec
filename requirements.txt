@@ -1,0 +1,7 @@
+finance-datareader==0.9.202
+pandas==3.1.0
+numpy==2.4.6
+pyarrow==26.0.0
+pydantic==2.14.2
+PyYAML==6.0.3
+pytest==9.2.0
