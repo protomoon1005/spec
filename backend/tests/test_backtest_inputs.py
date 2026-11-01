@@ -1,9 +1,7 @@
 """strategy_id → 러너 입력 조립(app/backtest/inputs.py).
 
 조립 결과의 모양과 값을 본다. pandas 가 필요해 requires_backtest 다.
-데모 비교는 DB 에 적재된 실종가를 읽으므로 requires_backfill 도 붙는다. 로컬에서는
-  docker compose exec -w /repo/backend api pytest -m requires_backtest
-로 돈다(-w 가 없으면 저장소 루트 data/ 를 못 찾아 CSV 대조가 건너뛰어진다).
+DB 에 적재된 가격(가격 스냅샷, scripts/ingest_prices.py)을 읽는 테스트는 requires_backfill 도 붙는다.
 """
 from __future__ import annotations
 
@@ -23,7 +21,6 @@ from app.backtest import inputs as bi  # noqa: E402
 from app.backtest.runner import monthly_first, weekly_dates  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "data"
 
 # 데모 7종목
 DEMO_UNIVERSE = [
@@ -101,32 +98,6 @@ def test_demo_spec_assembles_into_the_script_shape(make_spec):
     assert got.rebalance_dates == monthly_first(got.valuation_dates)
     assert got.skipped_rebalance_dates == []  # 월초 간격은 27일 이상이라 20일에 걸리지 않는다
     assert got.data_snapshot_asof == got.valuation_dates[-1] <= PERIOD_END.isoformat()
-
-
-@pytest.mark.requires_backfill
-def test_demo_spec_matches_the_script_inputs_built_from_csv(make_spec):
-    # 스크립트와 같은 방법으로 data/ CSV 에서 만든 입력과 값까지 같아야 한다.
-    if not (SRC / "prices.csv").exists():
-        pytest.skip(f"{SRC} 가 없다 — -w /repo/backend 로 돌려야 한다")
-    got = _build(make_spec(DEMO_UNIVERSE, MONTHLY_FIRST))
-
-    uni = pd.read_csv(SRC / "universe.csv", dtype={"ticker": str}).set_index("ticker")
-    prices = pd.read_csv(SRC / "prices.csv", dtype={"ticker": str}, parse_dates=["date"])
-    wide = prices.pivot(index="date", columns="ticker", values="close").ffill()
-    wide.index = wide.index.strftime("%Y-%m-%d")
-    weekly = weekly_dates([d for d in wide[bi.MARKET_TICKER].dropna().index.tolist() if d >= "2023-01-01"])
-
-    assert got.valuation_dates == weekly
-    assert got.rebalance_dates == monthly_first(weekly)
-    for h in got.holdings:
-        row = uni.loc[h["ticker"]]
-        assert (h["asset_group"], h["sector_group"], h["country_group"]) == (
-            row["asset_group"], row["sector_group"], row["country_group"]
-        )
-    tickers = [h["ticker"] for h in got.holdings]
-    pd.testing.assert_frame_equal(
-        got.prices_wide.reindex(weekly)[tickers], wide.reindex(weekly)[tickers], check_names=False
-    )
 
 
 @pytest.mark.requires_backfill

@@ -1,156 +1,178 @@
-"""db/seeds/04_etf_master.csv 를 pykrx로 채운다.
+#!/usr/bin/env python3
+"""종목 원장 시드 db/seeds/04_etf_master.csv 를 만든다 (기반 정리 3단계, docs/pivot-plan.md 결정 2).
 
-주의: 이 스크립트는 아직 한 번도 실행된 적이 없다. pykrx 함수 시그니처
-(get_etf_ticker_list / get_etf_ticker_name / get_etf_ohlcv_by_date)는 이 세션에서
-검증하지 않았다 — 실행 전에 pykrx 버전에 맞는지 직접 확인할 것.
-graduation-project/CLAUDE.md 규칙: "모르는 건 지어내지 말 것".
+국내 상장 보통주와 ETF 전체를 담는다. 파일 이름은 2장 원칙(이름만 바꾸는 리팩터링은 하지 않는다)대로
+그대로 두었다 — 지금은 ETF 만이 아니다. 적재는 scripts/load_etf_master.py 가 한다.
 
-하는 일 (사용자 지시, 2026-09-08):
-  1. 오늘 시점 ETF 티커 목록을 긁어 (티커, 종목명)만 CSV에 채운다.
-  2. 과거 시점(기본 2023-01-02)과 오늘 시점의 티커 목록을 비교해, 과거엔 있었는데
-     오늘은 없는 티커를 "상장폐지 후보"로 찾는다.
-  3. 상장폐지 후보는 delisted_date(마지막 시세 조회일로 근사 — 실제 상장폐지일과
-     다를 수 있다, 사람이 검증할 것)와 active=false를 채운다.
-  4. risk_tag / group_id / sector / country는 절대 자동으로 채우지 않는다.
-     사람이 검토해서 채우는 컬럼이다 (infra-spec.md 4.5).
-  5. 기존 CSV에 이미 있는 행(수기로 채운 4종목 등)은 덮어쓰지 않고 보존한다.
+## 재료
 
-실행 방법 (지금은 실행하지 않는다 — 사용자 지시):
-    python scripts/build_etf_master.py --out db/seeds/04_etf_master.csv --delisted-asof 2023-01-02
+  data/listing.csv                 종목 목록 · 시장 · ETF 분류 · 보통주 업종
+                                   (scripts/fetch_prices.py 가 만든다)
+  db/seeds/industry_sector_map.csv 보통주 업종(KSIC) → 업종 묶음. 표에 없는 업종은 기타
+  db/seeds/etf_curated.csv         예전 ETF 76종목을 사람이 분류한 값. 이 종목들은 규칙 대신 이 값을 쓴다
+
+같은 재료면 같은 파일이 나온다(종목코드 순).
+
+## 분류 규칙
+
+종목 원장의 세 축 — 자산군(주식 · 채권 · 원자재), 업종 묶음 6개 + 기타, 국가(한국 · 미국 · 기타).
+전략서 만들기가 "채권 위주", "반도체" 같은 요청을 이 칸으로 고른다.
+
+- 보통주: 주식 · 한국. 업종은 industry_sector_map.csv. 레버리지 아님
+- ETF (etf_curated 에 없는 것)
+  - 자산군: 목록 분류가 채권이면 채권, 원자재면 원자재. 분류가 "기타" 이면서 이름이 머니마켓 · CD/KOFR/SOFR
+    금리 · 단기채 · 통안채이면 채권. 나머지(주식, 채권혼합, TDF, 리츠, 통화선물 등)는 주식 —
+    자산군이 셋뿐이라 근사다
+  - 국가: 이름에 미국 지수 · 미국 종목 표지가 있으면 미국, 해외를 가리키는 말이 있거나 분류가 해외 주식이면
+    기타, 아니면 한국
+  - 업종: 주식 ETF 만, 이름 키워드로. 걸리지 않으면 기타
+  - 레버리지: 이름에 레버리지 · 인버스 · 2X · 3X
+- 위험등급(risk_tag) · 변동성 칸은 비운다. 성향과 프리셋이 없어졌다(결정 3)
+- 상장폐지 종목은 넣지 않는다(목록이 받는 날 상장 종목). 모두 active
+
+사용:
+    python /repo/scripts/build_etf_master.py      # data/listing.csv → db/seeds/04_etf_master.csv
 """
 from __future__ import annotations
 
-import argparse
 import csv
+import re
 import sys
-from dataclasses import dataclass
-from datetime import date, datetime
+from collections import Counter
 from pathlib import Path
 
-CSV_COLUMNS = [
-    "ticker", "name", "sector", "group_id", "risk_tag",
-    "mdd_3y", "volatility_1y", "expense_ratio",
+ROOT = Path(__file__).resolve().parent.parent
+LISTING = ROOT / "data" / "listing.csv"
+INDUSTRY_MAP = ROOT / "db" / "seeds" / "industry_sector_map.csv"
+CURATED = ROOT / "db" / "seeds" / "etf_curated.csv"
+OUT = ROOT / "db" / "seeds" / "04_etf_master.csv"
+
+# load_etf_master.py 가 읽는 칸 순서
+COLUMNS = [
+    "ticker", "name", "sector", "group_id", "risk_tag", "mdd_3y", "volatility_1y", "expense_ratio",
     "listed_date", "delisted_date", "is_leveraged", "active", "country",
 ]
 
+# 업종 묶음 → load_etf_master.py 가 받는 한글 값 (db/seeds/03_asset_groups.sql 의 label)
+SECTOR_LABEL = {
+    "SECTOR_SEMICONDUCTOR": "반도체",
+    "SECTOR_BATTERY": "2차전지",
+    "SECTOR_BIOHEALTH": "바이오와헬스케어",
+    "SECTOR_FINANCE": "금융",
+    "SECTOR_INTERNET_PLATFORM": "인터넷과플랫폼",
+    "SECTOR_CONSUMER": "소비재",
+    "SECTOR_OTHER": "기타",
+}
 
-@dataclass
-class EtfRow:
-    ticker: str
-    name: str
-    sector: str = ""
-    group_id: str = ""
-    risk_tag: str = ""
-    mdd_3y: str = ""
-    volatility_1y: str = ""
-    expense_ratio: str = ""
-    listed_date: str = ""
-    delisted_date: str = ""
-    is_leveraged: str = ""
-    active: str = ""
-    country: str = ""
-
-    def as_dict(self) -> dict[str, str]:
-        return {col: getattr(self, col) for col in CSV_COLUMNS}
-
-
-def load_existing(csv_path: Path) -> dict[str, EtfRow]:
-    """이미 있는 CSV를 읽는다. 사람이 채운 값(risk_tag, group_id 등)을 보존하기 위함이다."""
-    if not csv_path.exists():
-        return {}
-    rows: dict[str, EtfRow] = {}
-    with csv_path.open(encoding="utf-8", newline="") as f:
-        for raw in csv.DictReader(f):
-            ticker = raw["ticker"].strip()
-            rows[ticker] = EtfRow(**{col: raw.get(col, "") or "" for col in CSV_COLUMNS})
-    return rows
+ETF_BOND_LIKE = re.compile(r"머니마켓|CD\d*년?금리|CD금리|KOFR|SOFR|금리액티브|단기채|통안채|단기통안")
+ETF_LEVERAGED = re.compile(r"레버리지|인버스|2X|3X", re.IGNORECASE)
+US = re.compile(
+    r"미국|S&P|나스닥|NASDAQ|다우|필라델피아|테슬라|애플|엔비디아|팔란티어|빅테크|FANG|MSCI US", re.IGNORECASE
+)
+FOREIGN = re.compile(
+    r"중국|차이나|일본|인도|베트남|유럽|글로벌|선진국|신흥국|대만|홍콩|항셍|니케이|독일|브라질|멕시코|인도네시아|월드|아시아",
+)
+# 순서가 우선순위다(반도체 2차전지 → … → 소비재). 둘 이상 걸리면 앞의 것
+ETF_SECTOR_KEYWORDS = (
+    ("SECTOR_SEMICONDUCTOR", re.compile(r"반도체|메모리|HBM")),
+    ("SECTOR_BATTERY", re.compile(r"2차전지|이차전지|배터리")),
+    ("SECTOR_BIOHEALTH", re.compile(r"바이오|헬스케어|제약|의료")),
+    ("SECTOR_FINANCE", re.compile(r"은행|증권|보험|금융")),
+    ("SECTOR_INTERNET_PLATFORM", re.compile(r"인터넷|플랫폼|소프트웨어")),
+    ("SECTOR_CONSUMER", re.compile(r"소비재|필수소비|경기소비|화장품|음식료|K-뷰티|뷰티")),
+)
 
 
-def fetch_current_tickers(as_of: date) -> dict[str, str]:
-    """as_of 시점의 {티커: 종목명}. pykrx.stock.get_etf_ticker_list / get_etf_ticker_name 사용.
-
-    -- TODO: pykrx 실제 함수 시그니처를 이 세션에서 검증하지 않았다. 실행 전 확인할 것.
-    """
-    from pykrx import stock  # 지연 임포트: 이 모듈을 import하지 않고도 --help 등은 동작하게
-
-    ymd = as_of.strftime("%Y%m%d")
-    tickers = stock.get_etf_ticker_list(ymd)
-    result: dict[str, str] = {}
-    for ticker in tickers:
-        try:
-            result[ticker] = stock.get_etf_ticker_name(ticker)
-        except Exception as exc:  # noqa: BLE001 - 개별 티커 조회 실패는 건너뛰고 계속 진행
-            print(f"[build_etf_master] {ticker} 이름 조회 실패, 건너뜀: {exc}", file=sys.stderr)
-    return result
+def read_csv(path: Path) -> list[dict]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
 
 
-def approximate_last_trade_date(ticker: str, since: date) -> str:
-    """상장폐지 후보 티커의 마지막 시세일을 근사 delisted_date로 쓴다.
+def classify_etf(row: dict) -> dict:
+    name, category = row["name"], row["category"]
+    if category == "채권" or (category == "기타" and ETF_BOND_LIKE.search(name)):
+        asset = "BOND"
+    elif category == "원자재":
+        asset = "COMMODITY"
+    else:
+        asset = "EQUITY"
 
-    실제 상장폐지 효력일이 아니라 "마지막으로 시세가 잡힌 날"이다. 근사치이므로
-    사람이 검증해야 한다는 것을 CSV 자체에 남기지는 못하니 README/커밋 메시지에 남길 것.
-    -- TODO: pykrx 실제 함수 시그니처를 이 세션에서 검증하지 않았다.
-    """
-    from pykrx import stock
+    if US.search(name):
+        country = "미국"
+    elif FOREIGN.search(name) or category == "해외 주식":
+        country = "기타"
+    else:
+        country = "한국"
 
-    today_str = date.today().strftime("%Y%m%d")
-    since_str = since.strftime("%Y%m%d")
-    try:
-        df = stock.get_etf_ohlcv_by_date(since_str, today_str, ticker)
-    except Exception as exc:  # noqa: BLE001
-        print(f"[build_etf_master] {ticker} 시세 조회 실패: {exc}", file=sys.stderr)
-        return ""
-    if df is None or df.empty:
-        return ""
-    last_date = df.index.max()
-    return last_date.strftime("%Y-%m-%d") if hasattr(last_date, "strftime") else str(last_date)
+    sector = "SECTOR_OTHER"
+    if asset == "EQUITY":
+        for group, pattern in ETF_SECTOR_KEYWORDS:
+            if pattern.search(name):
+                sector = group
+                break
+
+    return {
+        "sector": SECTOR_LABEL[sector],
+        "group_id": asset,
+        "country": country,
+        "is_leveraged": "true" if ETF_LEVERAGED.search(name) else "false",
+    }
 
 
-def build(csv_path: Path, delisted_asof: date) -> None:
-    existing = load_existing(csv_path)
+def main() -> int:
+    listing = read_csv(LISTING)
+    industry_map = {r["industry"]: r["sector_group_id"] for r in read_csv(INDUSTRY_MAP)}
+    unknown_groups = sorted(set(industry_map.values()) - set(SECTOR_LABEL))
+    if unknown_groups:
+        raise SystemExit(f"[build_etf_master] industry_sector_map.csv 에 모르는 묶음: {unknown_groups}")
+    curated = {r["ticker"]: r for r in read_csv(CURATED)}
 
-    today_tickers = fetch_current_tickers(date.today())
-    past_tickers = fetch_current_tickers(delisted_asof)
+    out: list[dict] = []
+    used_curated = 0
+    for row in sorted(listing, key=lambda r: r["ticker"]):
+        base = {c: "" for c in COLUMNS}
+        base.update(ticker=row["ticker"], name=row["name"], active="true")
+        if row["kind"] == "stock":
+            sector = industry_map.get(row["industry"], "SECTOR_OTHER")
+            base.update(
+                sector=SECTOR_LABEL[sector], group_id="EQUITY", country="한국", is_leveraged="false",
+                listed_date=row["listing_date"],
+            )
+        elif row["ticker"] in curated:
+            c = curated[row["ticker"]]
+            base.update(
+                sector=c["sector"],
+                group_id=c["group_id"],
+                country=c["country"],
+                is_leveraged=c["is_leveraged"],
+            )
+            used_curated += 1
+        else:
+            base.update(classify_etf(row))
+        out.append(base)
 
-    # 1) 오늘 시점 목록에 있는 티커 전부: 없으면 새로 추가(ticker+name만), 있으면 보존
-    for ticker, name in today_tickers.items():
-        if ticker not in existing:
-            existing[ticker] = EtfRow(ticker=ticker, name=name)
-
-    # 2) 과거엔 있었는데 오늘은 없는 티커: 상장폐지 후보
-    delisted_candidates = set(past_tickers) - set(today_tickers)
-    for ticker in delisted_candidates:
-        row = existing.get(ticker) or EtfRow(ticker=ticker, name=past_tickers[ticker])
-        if not row.delisted_date:
-            row.delisted_date = approximate_last_trade_date(ticker, delisted_asof)
-        row.active = "false"
-        existing[ticker] = row
-
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    with csv_path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+    with OUT.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=COLUMNS, lineterminator="\n")
         writer.writeheader()
-        for ticker in sorted(existing):
-            writer.writerow(existing[ticker].as_dict())
+        writer.writerows(out)
 
+    kinds = Counter(r["kind"] for r in listing)
     print(
-        f"[build_etf_master] {len(existing)}행 기록, "
-        f"상장폐지 후보 {len(delisted_candidates)}건 ({csv_path})"
+        f"[build_etf_master] {OUT.name}: {len(out):,}종목 "
+        f"(보통주 {kinds['stock']:,} · ETF {kinds['etf']:,}, 사람 분류 {used_curated} 유지)"
     )
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", type=Path, default=Path("db/seeds/04_etf_master.csv"))
-    parser.add_argument(
-        "--delisted-asof",
-        type=lambda s: datetime.strptime(s, "%Y-%m-%d").date(),
-        default=date(2023, 1, 2),
-        help="이 날짜의 티커 목록과 오늘 목록을 비교해 상장폐지 후보를 찾는다",
-    )
-    args = parser.parse_args()
-    build(args.out, args.delisted_asof)
+    print("  자산군", dict(Counter(r["group_id"] for r in out)))
+    print("  업종  ", dict(Counter(r["sector"] for r in out)))
+    print("  국가  ", dict(Counter(r["country"] for r in out)))
+    print("  레버리지", sum(r["is_leveraged"] == "true" for r in out))
+    missing_curated = sorted(set(curated) - {r["ticker"] for r in listing})
+    if missing_curated:
+        print(
+            f"  사람 분류 중 목록에 없는(상장폐지 등) 종목 {len(missing_curated)}: {missing_curated}",
+            file=sys.stderr,
+        )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

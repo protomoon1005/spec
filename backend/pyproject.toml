@@ -27,6 +27,8 @@ backtest = [
     "pandas>=2.2",
     "vectorbt>=1.1",
     "finance-datareader>=0.9",
+    # 가격 스냅샷이 Parquet 이다(scripts/fetch_prices.py · ingest_prices.py, 기반 정리 3단계)
+    "pyarrow>=15",
     # vectorbt 가 plotly 에 상한을 두지 않아 최신이 잡히는데, 7.x 는 import 자체가 깨진다:
     #   ValueError: Invalid property ... 'scattermapbox'
     # 상한이 없으면 Dockerfile 이 이 extra 를 깔아도 import vectorbt 가 실패한다.

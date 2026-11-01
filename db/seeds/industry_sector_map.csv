@@ -1,0 +1,49 @@
+industry,sector_group_id,basis
+반도체 제조업,SECTOR_SEMICONDUCTOR,확실
+일차전지 및 이차전지 제조업,SECTOR_BATTERY,확실
+의약품 제조업,SECTOR_BIOHEALTH,확실
+기초 의약물질 제조업,SECTOR_BIOHEALTH,확실
+의료용 기기 제조업,SECTOR_BIOHEALTH,확실
+의료용품 및 기타 의약 관련제품 제조업,SECTOR_BIOHEALTH,확실
+자연과학 및 공학 연구개발업,SECTOR_BIOHEALTH,검토 — 신약 개발 바이오가 대부분이지만 다른 연구개발 회사도 섞임
+기타 금융업,SECTOR_FINANCE,확실
+금융 지원 서비스업,SECTOR_FINANCE,확실
+은행 및 저축기관,SECTOR_FINANCE,확실
+보험업,SECTOR_FINANCE,확실
+재 보험업,SECTOR_FINANCE,확실
+신탁업 및 집합투자업,SECTOR_FINANCE,확실
+보험 및 연금관련 서비스업,SECTOR_FINANCE,확실
+"자료처리, 호스팅, 포털 및 기타 인터넷 정보매개 서비스업",SECTOR_INTERNET_PLATFORM,확실
+기타 정보 서비스업,SECTOR_INTERNET_PLATFORM,확실
+소프트웨어 개발 및 공급업,SECTOR_INTERNET_PLATFORM,검토 — 게임사와 기업용 소프트웨어가 섞임
+영상·오디오물 제공 서비스업,SECTOR_INTERNET_PLATFORM,검토 — 온라인 동영상·음원 플랫폼
+무점포 소매업,SECTOR_INTERNET_PLATFORM,검토 — 온라인 쇼핑. 소비재로 볼 수도 있음
+기타 식품 제조업,SECTOR_CONSUMER,확실
+알코올음료 제조업,SECTOR_CONSUMER,확실
+비알코올음료 및 얼음 제조업,SECTOR_CONSUMER,확실
+"떡, 빵 및 과자류 제조업",SECTOR_CONSUMER,확실
+도시락 및 식사용 조리식품 제조업,SECTOR_CONSUMER,확실
+"도축, 육류 가공 및 저장 처리업",SECTOR_CONSUMER,확실
+수산물 가공 및 저장 처리업,SECTOR_CONSUMER,확실
+"과실, 채소 가공 및 저장 처리업",SECTOR_CONSUMER,확실
+"곡물가공품, 전분 및 전분제품 제조업",SECTOR_CONSUMER,확실
+동·식물성 유지 및 낙농제품 제조업,SECTOR_CONSUMER,확실
+담배 제조업,SECTOR_CONSUMER,확실
+봉제의복 제조업,SECTOR_CONSUMER,확실
+편조의복 제조업,SECTOR_CONSUMER,확실
+의복 액세서리 제조업,SECTOR_CONSUMER,확실
+"가죽, 가방 및 유사제품 제조업",SECTOR_CONSUMER,확실
+신발 및 신발 부분품 제조업,SECTOR_CONSUMER,확실
+귀금속 및 장신용품 제조업,SECTOR_CONSUMER,확실
+가정용 기기 제조업,SECTOR_CONSUMER,확실
+가구 제조업,SECTOR_CONSUMER,확실
+운동 및 경기용구 제조업,SECTOR_CONSUMER,확실
+악기 제조업,SECTOR_CONSUMER,확실
+종합 소매업,SECTOR_CONSUMER,확실
+"섬유, 의복, 신발 및 가죽제품 소매업",SECTOR_CONSUMER,확실
+기타 상품 전문 소매업,SECTOR_CONSUMER,확실
+기타 생활용품 소매업,SECTOR_CONSUMER,확실
+음·식료품 및 담배 소매업,SECTOR_CONSUMER,확실
+가전제품 및 정보통신장비 소매업,SECTOR_CONSUMER,확실
+생활용품 도매업,SECTOR_CONSUMER,확실
+음·식료품 및 담배 도매업,SECTOR_CONSUMER,확실

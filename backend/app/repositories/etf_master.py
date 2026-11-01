@@ -8,7 +8,7 @@
 나온다. 모든 질의가 `ticker` 로 정렬해 끝난다.
 
 **아쉬운 점**: "대표적인 종목부터" 고르고 싶은데 순자산 칸이 표에 없다.
-원본 파일(frontend/data/universe.csv)에는 있지만 표에 칸이 없어 적재하지 못했다.
+종목 목록(data/listing.csv)에는 시가총액이 있지만 표에 칸이 없어 적재하지 못했다.
 지금은 종목코드 순이라 사실상 임의 순서다 — README 의 알려진 문제에 적어 뒀다.
 """
 from __future__ import annotations

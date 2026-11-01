@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """db/seeds/04_etf_master.csv 를 instruments 테이블(종목 원장)에 적재한다.
 
+원장은 국내 상장 보통주와 ETF 전체다(기반 정리 3단계, 결정 2). 시드는
+scripts/build_etf_master.py 가 data/listing.csv 에서 만든다 — 파일 이름은 2장 원칙대로 그대로 둔다.
+
 instruments 는 자산군/섹터/국가 세 축을 asset_group_id/sector_group_id/country_group_id
 컬럼으로 나눠 받는다. CSV의 group_id 컬럼값
 (EQUITY/BOND/COMMODITY)은 그대로 asset_group_id로 쓰고, sector/country 컬럼의
@@ -17,18 +20,12 @@ ticker 기준 UPSERT다(INSERT ... ON CONFLICT (ticker) DO UPDATE) — TRUNCATE�
 REFERENCING_TABLES 가 참조하는 행은 남기고 알린다.
 
 group_id가 비어 있는 행(risk_tag/group_id/sector를 사람이 아직 검토하지 않은
-행)은 FK NOT NULL을 만족 못 하므로 건너뛴다 — 지금은 76행 전부 채워져 있어
+행)은 FK NOT NULL을 만족 못 하므로 건너뛴다 — 지금은 전부 채워져 있어
 해당 없지만, 앞으로 CSV에 신규 종목이 그룹 미배정 상태로 추가될 경우를 대비한
 안전장치다(README "group_id를 FK NOT NULL로 둔 결과" 항목 참고).
 
-G1 <-> is_leveraged 일치 검사: 상세설계서 1.7.2가 "레버리지·인버스 ETF는
-안정투자형~위험중립형에게 생성 자체로 불가능"이라고 못박은 근거가 허용범위
-프리셋의 G1 등급(허용 상한이 가장 낮은 등급)이다. CSV의 is_leveraged는 사람이
-검토한 risk_tag와 별개로(종목명의 레버리지/인버스/2X/3X 키워드로) 채워진
-값이라, 이 스크립트는 매 실행마다 두 값이 정확히 같은 집합을 가리키는지
-재검사한다 — 둘 중 하나가 나중에 어긋나게 바뀌면(예: 새 종목 추가 시 실수로
-risk_tag만 바꾸고 is_leveraged를 안 바꾸는 경우) 조용히 잘못된 데이터가
-들어가는 대신 여기서 막는다.
+위험등급(risk_tag) · 변동성 칸은 비어 있다. 성향과 허용범위 프리셋이 없어져(결정 3) 예전의
+"G1 <-> is_leveraged 일치 검사" 도 뺐다. 레버리지 여부는 이름 키워드로 채운 is_leveraged 하나다.
 """
 from __future__ import annotations
 
@@ -98,29 +95,6 @@ def load_rows(csv_path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def check_g1_leveraged_consistency(rows: list[dict]) -> None:
-    """risk_tag='G1' 집합과 is_leveraged=true 집합이 정확히 일치하는지 검사한다.
-
-    어긋나면 적재하지 않고 즉시 중단한다 — 사용자 지시(2026-09-16): "G1 <->
-    is_leveraged 일치 검사를 넣어 나중에 어긋나면 잡히게 해라".
-    """
-    mismatches = []
-    for row in rows:
-        is_g1 = row["risk_tag"].strip() == "G1"
-        is_lev = _to_bool(row["is_leveraged"])
-        if is_g1 != is_lev:
-            mismatches.append((row["ticker"], row["name"], row["risk_tag"], row["is_leveraged"]))
-
-    if mismatches:
-        print(
-            "load_etf_master: risk_tag='G1'과 is_leveraged 불일치 발견 — 적재를 중단한다.",
-            file=sys.stderr,
-        )
-        for ticker, name, risk_tag, is_lev in mismatches:
-            print(f"  - {ticker} {name}: risk_tag={risk_tag!r} is_leveraged={is_lev!r}", file=sys.stderr)
-        raise SystemExit(1)
-
-
 def resolve_group_axes(rows: list[dict], known_group_ids: set[str]) -> list[dict]:
     """각 행의 group_id(자산군)/sector/country를 세 축 group_id로 변환한다.
 
@@ -183,9 +157,6 @@ def main() -> int:
     rows = load_rows(args.csv)
     print(f"load_etf_master: {args.csv}에서 {len(rows)}행 읽음")
 
-    check_g1_leveraged_consistency(rows)
-    print("load_etf_master: G1 <-> is_leveraged 일치 확인 완료")
-
     skipped = [r["ticker"] for r in rows if not r["group_id"].strip()]
     if skipped:
         print(
@@ -204,8 +175,8 @@ def main() -> int:
         print("load_etf_master: 자산군/섹터/국가 매핑 확인 완료")
 
         with engine.begin() as conn:
-            for row in loadable:
-                conn.execute(
+            # 3,850종목이라 한 행씩 왕복하지 않고 한 번에 보낸다
+            conn.execute(
                     text(
                         "INSERT INTO instruments "
                         "(ticker, name, sector, group_id, risk_tag, mdd_3y, volatility_1y, "
@@ -231,6 +202,7 @@ def main() -> int:
                         " sector_group_id = EXCLUDED.sector_group_id, "
                         " country_group_id = EXCLUDED.country_group_id"
                     ),
+                [
                     {
                         "ticker": row["ticker"],
                         "name": row["name"],
@@ -247,8 +219,10 @@ def main() -> int:
                         "asset_group_id": row["asset_group_id"],
                         "sector_group_id": row["sector_group_id"],
                         "country_group_id": row["country_group_id"],
-                    },
-                )
+                    }
+                    for row in loadable
+                ],
+            )
             # CSV 가 정본이다. 원장에서 빠진 종목은 지운다 — 남겨 두면 M1 이 가격 없는
             # 종목을 계속 고른다. 전략서·주문 등이 참조하는 종목은 지우지 않고 알린다.
             in_csv = {"tickers": [r["ticker"] for r in rows]}
