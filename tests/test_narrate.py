@@ -58,4 +58,4 @@ def test_default_tag():
     d = _samsung().model_dump(mode="json")
     d["defaults_applied"] = ["backtest"]
     text = narrate(Strategy.model_validate(d)).text
-    assert "(기본값)" in text
+    assert "(기본값 사용)" in text

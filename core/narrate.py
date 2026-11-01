@@ -1,7 +1,8 @@
 """전략서 v0.2 → 한국어 재서술. 문장 틀에 값을 끼운다 (LLM 금지).
 
 재서술은 "전략서가 실제로 무엇을 하는지"를 보여줘야 하므로 엔진(core/backtest.py)의 동작을 그대로 쓴다.
-기본값으로 채운 칸(defaults_applied)은 '(기본값)' 표시.
+기본값으로 채운 칸(defaults_applied)은 '(기본값 사용)' 표시 (v0.2 "사용자가 말하지 않은 빈칸 채우기").
+끝에 한계 문장을 붙인다: 손절·익절은 종가 기준, 배당 미반영, 생존 편향 (v0.2 "종목", demo-scope "배당").
 """
 from __future__ import annotations
 
@@ -12,10 +13,16 @@ from typing import Optional
 from core.backtest import slot_weights
 from core.dictionary import (INDICATORS, OF_LABELS, REBALANCE, TAX_CATEGORY_LABELS, UNIT_SUFFIX, indicator_label,
                              load_tickers, of_kind, tax_category)
-from core.schema import AllOf, AnyOf, Compare, Cond, Operand, Strategy, Value
+from core.schema import AllOf, AnyOf, Compare, Cond, Operand, Strategy, Value, iter_compares
 from core.tax import rate_history
 
-DEFAULT_TAG = "(기본값)"
+DEFAULT_TAG = "(기본값 사용)"
+SURVIVORSHIP_NOTE = ("상장폐지된 종목은 넣지 않아 지금까지 살아남은 종목만으로 백테스트합니다. "
+                     "그래서 성과가 실제보다 좋게 나올 수 있습니다(생존 편향).")
+DIVIDEND_NOTE_DEMO = "문장에 배당 이야기가 있지만, 데모에서는 배당 미반영입니다(배당 이력 데이터가 없음)."
+DIVIDEND_NOTE = "배당 수익은 반영하지 않았습니다."
+CLOSE_BASIS_NOTE = ("손절·익절은 그날 종가로 판단합니다. 장중에 그 가격을 지나도 바로 팔지 않고, "
+                    "종가가 조건에 맞으면 다음 거래일 시가에 팝니다. 그래서 실제 손실이 말한 %보다 클 수 있습니다.")
 
 # op → 관형형 ("~인" / "~는")
 _OP_ADN = {
@@ -153,6 +160,8 @@ def _rules_parts(spec: Strategy) -> list[NarrationPart]:
     if r.exit is not None:
         parts.append(NarrationPart("rules.exit",
                                    f"{_day(r.exit)}{_tag(spec, 'rules.exit')} 다음 거래일 시가에 그 종목을 모두 팝니다."))
+    else:
+        parts.append(NarrationPart("rules.exit", "팔 때 조건이 없어, 산 종목은 기간 끝까지 갖고 있습니다."))
     parts.append(NarrationPart("rules",
                                "조건은 종목마다 따로 봅니다. 같은 날 사는 조건과 파는 조건이 함께 맞으면 팔기를 우선합니다"
                                "(갖고 있으면 팔고, 없으면 사지 않습니다)."))
@@ -201,15 +210,32 @@ def _tax_part(spec: Strategy) -> NarrationPart:
         else:
             bits.append(f"{label}는 팔아서 남은 차익의 15.4%(손해 본 거래는 없음)")
     body = ", ".join(bits) if bits else "종목 목록에 없는 종목이라 세율을 정할 수 없음"
-    return NarrationPart("tax", f"세금은 거래한 날짜의 세율을 씁니다: {body}. 배당 수익은 반영하지 않습니다(데모).")
+    return NarrationPart("tax", f"세금은 거래한 날짜의 세율을 씁니다: {body}.")
 
 
-def narrate(spec: Strategy) -> Narration:
-    """검사를 통과한 전략서를 한국어로 다시 씁니다."""
+def _uses_entry_return(spec: Strategy) -> bool:
+    if spec.rules is None:
+        return False
+    return any(isinstance(op, Operand) and op.indicator == "entry_return"
+               for _, c in iter_compares(spec.rules.exit, "rules.exit") for op in (c.left, c.right))
+
+
+def _limit_parts(spec: Strategy, dividend_mentioned: bool) -> list[NarrationPart]:
+    parts = []
+    if _uses_entry_return(spec):
+        parts.append(NarrationPart("limits.close_basis", CLOSE_BASIS_NOTE))
+    parts.append(NarrationPart("limits.dividend", DIVIDEND_NOTE_DEMO if dividend_mentioned else DIVIDEND_NOTE))
+    parts.append(NarrationPart("limits.survivorship", SURVIVORSHIP_NOTE))
+    return parts
+
+
+def narrate(spec: Strategy, *, dividend_mentioned: bool = False) -> Narration:
+    """검사를 통과한 전략서를 한국어로 다시 씁니다. dividend_mentioned: 문장에 배당 낱말이 있었나."""
     parts = [_assets_part(spec)]
     if spec.rules is not None:
         parts += _rules_parts(spec)
     elif spec.rebalance is not None:
         parts.append(_allocation_part(spec))
     parts += [_settle_part(), _backtest_part(spec), _tax_part(spec)]
-    return Narration(parts=parts)
+    limits = _limit_parts(spec, dividend_mentioned)
+    return Narration(parts=parts + limits, notes=[p.text for p in limits])
