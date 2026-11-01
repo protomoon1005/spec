@@ -26,27 +26,29 @@ docker compose up -d --build
 - http://localhost:8000/health — 서버와 붙어 있는 것들 상태
 - http://localhost:3000 — 프론트 화면
 
-### 데이터 넣기
+### DB 와 데이터 넣기
 
 ```sh
-docker compose exec api python /repo/scripts/seed_all.py           # 분류표 + 종목 원장 + 전략 요소 사전
-docker compose exec -w /repo api python scripts/ingest_prices.py   # ETF 가격(data/prices.csv)
+scripts/build_db.sh      # 볼륨 삭제, 기동, 스키마, 기준 시드 · 종목 원장 · 가격 스냅샷 적재 (개발 DB · 테스트 DB)
 ```
 
-- `seed_all` 은 빈 DB 에 한 번만 넣는다. 분류표(`03`)를 두 번 넣으면 기본키 충돌로 실패한다
-- 테스트는 테스트 전용 DB(`spec_test`)를 쓰고, 시드는 테스트가 처음 돌 때 알아서 넣는다
-- 기반 정리 3단계에서 위 두 줄이 빌드 명령에 붙고, 가격은 국내 상장 개별주와 ETF 의 3년치 스냅샷으로 바뀐다
+- 처음 받았을 때와 `db/init/` 이 바뀌었을 때 이 명령 하나로 DB 를 새로 만든다. 계정과 전략서는 같이 사라진다(시험용이라 다시 만들면 된다)
+- 공용 데이터는 빌드 때 한 번에 들어간다
+  - 기준 시드: 분류표, 종목 원장(국내 상장 보통주와 ETF), 전략 요소 사전
+  - 가격: 5년치 일봉 스냅샷. `data/snapshot/` 에 파일이 없으면 `data/prices_snapshot.json` 의 url(GitHub Release)에서 받는다
+- 빌드가 스냅샷 파일 해시와 적재한 가격의 내용 해시를 메타와 맞춰 본다. 해시가 같으면 누가 빌드해도 같은 가격이다
+- `db/migrate/` 에 새 파일만 들어왔다면 빌드 대신 `apply_migrations.py` 를 돌린다
+- 테스트는 테스트 전용 DB(`spec_test`)를 쓴다
 
-### 표 구조가 바뀌었을 때
-
-- `db/migrate/` 에 새 파일이 들어왔다면 `apply_migrations.py` 만 돌리면 된다
-- `db/init/` 이 바뀌었다면 DB 를 새로 빌드한다. 계정과 전략서는 같이 사라진다(시험용이라 다시 만들면 된다)
+### 가격 스냅샷을 새로 만들 때 (한 사람만)
 
 ```sh
-scripts/build_db.sh      # 볼륨 삭제, 기동, 스키마 생성 확인
+docker compose exec api python /repo/scripts/fetch_prices.py                      # API 에서 받기
+docker compose exec api python /repo/scripts/fetch_prices.py --from-raw /repo/data/raw --version 2026-11-02
+docker compose exec api python /repo/scripts/build_etf_master.py                  # 종목 원장 시드 다시 만들기
 ```
 
-- 그 뒤 위 "데이터 넣기" 를 다시 한다
+- 새 버전 파일을 GitHub Release 에 올리고 `data/prices_snapshot.json` 의 url 을 채워 커밋한다. 옛 버전 파일은 지우지 않는다(수정주가 재계산으로 과거 값이 바뀔 수 있다)
 
 ### 자주 겪는 문제
 

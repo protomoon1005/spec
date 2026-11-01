@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# DB 를 처음부터 다시 만든다 (기반 정리 2단계: 볼륨 삭제, 기동, 스키마 생성).
+# DB 를 처음부터 다시 만든다 (기반 정리 2 · 3단계: 볼륨 삭제, 기동, 스키마 생성, 공용 데이터 적재).
 #
 # - 이 compose 프로젝트의 볼륨을 전부 지운다. 개발 DB(spec)와 테스트 DB(spec_test)의 데이터가 사라진다
 # - 스키마는 빈 볼륨에서 postgres 가 처음 뜰 때 db/init/ 이 만든다. 이 스크립트는 그걸 기다렸다가
 #   두 DB 의 테이블 목록을 확인한다
-# - 공용 데이터(기준 시드, 종목 원장, 가격 스냅샷) 적재는 기반 정리 3단계에서 붙인다.
-#   그전까지는 끝난 뒤 scripts/seed_all.py 와 scripts/ingest_prices.py 를 따로 돌린다(CLAUDE.md)
+# - 이어서 두 DB 에 공용 데이터를 넣는다: 기준 시드(분류표 · 종목 원장 · 전략 요소 사전, scripts/seed_all.py)와
+#   가격 스냅샷(scripts/ingest_prices.py). 스냅샷 파일은 data/snapshot/ 에 있으면 그걸, 없으면
+#   data/prices_snapshot.json 의 url(GitHub Release)에서 받는다. 파일 해시와 적재한 내용 해시를 맞춰 본다
+#   — 누가 빌드해도 같은 DB 가 나온다(docs/pivot-plan.md 3.2)
 # - 프로젝트 이름과 포트는 .env(COMPOSE_PROJECT_NAME 등)를 따른다
 #
 # 사용 (저장소 루트에서):
@@ -22,15 +24,15 @@ if [[ "${1:-}" != "-y" ]]; then
     [[ "$answer" == "y" || "$answer" == "Y" ]] || { echo "build_db: 그만둠"; exit 1; }
 fi
 
-echo "build_db: 1/3 컨테이너와 볼륨 삭제"
+echo "build_db: 1/5 컨테이너와 볼륨 삭제"
 docker compose down -v --remove-orphans
 
-echo "build_db: 2/3 기동 (빈 볼륨이라 db/init/ 이 스키마를 만든다)"
+echo "build_db: 2/5 기동 (빈 볼륨이라 db/init/ 이 스키마를 만든다)"
 docker compose up -d --build
 
 # pg_isready 는 초기화 중인 임시 서버에도 준비됐다고 답할 수 있어서, 두 DB 의 테이블 수가
 # 맞을 때까지 기다린다.
-echo "build_db: 3/3 스키마 확인"
+echo "build_db: 3/5 스키마 확인"
 count_tables() {
     docker compose exec -T postgres sh -c \
         "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB$1\" -tAc \"SELECT count(*) FROM pg_tables WHERE schemaname = 'public'\"" \
@@ -48,5 +50,17 @@ for db_suffix in "" "_test"; do
     fi
     echo "build_db: DB 접미사 '${db_suffix:-없음}' 테이블 ${found}개 확인"
 done
+
+# 컨테이너 안의 DATABASE_URL(개발 DB) 끝에 _test 를 붙이면 테스트 DB 다(db/init/03_test_db.sh).
+load_public_data() {
+    local db_suffix="$1"
+    docker compose exec -T api sh -c "DATABASE_URL=\"\${DATABASE_URL}${db_suffix}\" python /repo/scripts/seed_all.py"
+    docker compose exec -T api sh -c "DATABASE_URL=\"\${DATABASE_URL}${db_suffix}\" python /repo/scripts/ingest_prices.py"
+}
+
+echo "build_db: 4/5 공용 데이터 — 개발 DB"
+load_public_data ""
+echo "build_db: 5/5 공용 데이터 — 테스트 DB"
+load_public_data "_test"
 
 echo "build_db: 완료"

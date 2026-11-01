@@ -41,7 +41,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SEEDS_DIR = REPO_ROOT / "db" / "seeds"
 
 # (파일명, 설명). 순서가 곧 적재 순서다.
-# 01(하드캡) · 02(성향 프리셋)는 지운 테이블용이라 적재하지 않는다. 파일은 기반 정리 3단계에서 지운다.
 SQL_SEEDS: tuple[tuple[str, str], ...] = (
     ("03_asset_groups.sql", "자산군·업종·국가 묶음(분류표)"),
 )

@@ -333,6 +333,30 @@
   - 파일 형식(CSV 압축, Parquet 등)과 올릴 곳
 - 끝난 기준: 빈 볼륨에서 빌드 명령 한 번으로 스키마와 공용 데이터가 다 들어감, 두 번 연속 빌드해도 같은 DB, 두 사람이 빌드한 DB 의 가격이 같음(해시 일치), 로컬 테스트 전부 통과, 테스트를 돌려도 개발 DB 의 행이 바뀌지 않음, 문장 입력부터 백테스트 결과까지 한 번 끝까지 돎, 개별주 하나와 ETF 하나로 백테스트가 돎, 상장폐지 종목의 가격이 폐지일까지 있음, `as_of` 경계 테스트 통과
 
+- 3단계 결과 (2026-11-02, 진행 중)
+  - 시작 때 정한 것
+    - 가격 소스: 네이버 금융 차트 API(FinanceDataReader 가 국내 종목에 쓰는 소스). 수정주가임을 확인했다(에코프로 2024-04 5:1 분할 전후가 이어짐). 공공데이터포털 · 증권사 API 는 재지 않았다
+    - 기간: 5년(2021-11-02 ~ 2026-10-30). 백테스트 3년 앞에 이동평균 같은 지표의 준비 기간 2년을 둔다
+    - 상장폐지 종목: 이번 스냅샷은 뺀다. 목록이 받는 날 상장된 종목이라 기간 중 폐지된 종목이 없다(생존편향). 메타의 excluded 에 적었다. 끝난 기준의 "상장폐지 종목의 가격이 폐지일까지 있음" 은 채우지 못한다
+    - 파일 형식: Parquet(zstd). 올릴 곳은 GitHub Release
+    - 스냅샷 밖의 요청(5년보다 앞선 기간, 없는 종목)은 아직 정하지 않았다. 판정기를 만들 때 실행 불가 사유로 다룬다
+  - 만든 것
+    - `scripts/fetch_prices.py`: 수집과 스냅샷 만들기. 이미 받은 원천 CSV 가 있으면 `--from-raw` 로 API 없이 만든다. 같은 입력이면 같은 파일이 나온다(두 번 만들어 파일 해시 · 내용 해시 동일)
+    - 스냅샷 2026-11-02: 보통주 2,667 · ETF 1,183 · 3,925,500행 · 45.4MB. 거래정지일(시가 · 고가 · 저가 0) 40,097행의 시가 · 고가 · 저가를 빈 값으로 바꿨다
+    - `data/prices_snapshot.json`: 버전, 소스, 기간, 종목 수, 파일 해시, 내용 해시, 정리 규칙, 뺀 것
+    - `scripts/ingest_prices.py`: 스냅샷을 내려받거나 로컬에서 찾아 파일 해시를 맞추고, COPY 로 한 번에 적재한 뒤 DB 의 내용 해시를 메타와 맞춘다(`price_daily.copy_price_bars`, `stored_price_content_sha256`)
+    - 종목 원장 3,850종목: `scripts/build_etf_master.py` 가 `data/listing.csv` 로 `db/seeds/04_etf_master.csv` 를 만든다
+      - 보통주 업종은 KRX 상장법인 업종(KSIC 158가지)을 `db/seeds/industry_sector_map.csv` 로 업종 묶음 6개에 매핑하고 나머지는 기타. 매핑 중 "검토" 로 표시한 4줄은 팀 확인이 필요하다
+      - ETF 는 예전에 사람이 분류한 73종목(`db/seeds/etf_curated.csv`)은 그 값을, 나머지는 목록 분류와 이름 키워드로 자산군 · 국가 · 업종 · 레버리지를 정한다. 분류가 "기타" 인 ETF 는 근사다
+      - 위험등급 · 변동성 칸은 비운다(결정 3). `load_etf_master.py` 의 G1 과 레버리지 일치 검사를 뺐다
+    - `scripts/build_db.sh` 에 두 DB 의 공용 데이터 적재(seed_all, ingest_prices)를 붙였다
+    - 지운 것: `db/seeds/01_hardcap_v0_1.sql`, `02_preset_v0_1.sql`, `delisted_candidates.csv`, `scripts/build_universe.py`, `merge_universe.py`, `data/universe.csv`, `prices.csv`, `prices.meta.json`, `meta.json`, CSV 대조 테스트 1개
+    - pyproject 의 backtest extra 에 pyarrow 를 더했다(이미지 재빌드 필요)
+  - 남은 것
+    - 빈 볼륨 빌드 두 번, 테스트 전체, 개별주 하나와 ETF 하나 백테스트, as_of 경계 테스트 확인
+    - 스냅샷 파일을 GitHub Release 에 올리고 메타의 url 을 채운다
+    - 팀원 전원 볼륨 삭제 후 새로 빌드
+
 ---
 
 ## 7. 주의할 점

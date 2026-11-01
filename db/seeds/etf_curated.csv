@@ -1,0 +1,77 @@
+ticker,name,sector,group_id,country,is_leveraged
+069500,KODEX 200,기타,EQUITY,한국,false
+122630,KODEX 레버리지,기타,EQUITY,한국,true
+102110,TIGER 200,기타,EQUITY,한국,false
+360750,TIGER 미국S&P500,기타,EQUITY,미국,false
+114800,KODEX 인버스,기타,EQUITY,한국,true
+133690,TIGER 미국나스닥100,기타,EQUITY,미국,false
+379810,KODEX 미국나스닥100,기타,EQUITY,미국,false
+252670,KODEX 200선물인버스2X,기타,EQUITY,한국,true
+379800,KODEX 미국S&P500,기타,EQUITY,미국,false
+233740,KODEX 코스닥150레버리지,기타,EQUITY,한국,true
+229200,KODEX 코스닥150,기타,EQUITY,한국,false
+396500,TIGER 반도체TOP10,반도체,EQUITY,한국,false
+091160,KODEX 반도체,반도체,EQUITY,한국,false
+232080,TIGER 코스닥150,기타,EQUITY,한국,false
+395160,KODEX AI반도체TOP2플러스,반도체,EQUITY,한국,false
+251340,KODEX 코스닥150선물인버스,기타,EQUITY,한국,true
+148020,RISE 200,기타,EQUITY,한국,false
+381180,TIGER 미국필라델피아반도체나스닥,반도체,EQUITY,미국,false
+395270,HANARO Fn K-반도체,반도체,EQUITY,한국,false
+305720,KODEX 2차전지산업,2차전지,EQUITY,한국,false
+442580,PLUS 글로벌HBM반도체,반도체,EQUITY,기타,false
+139260,TIGER 200 IT,반도체,EQUITY,한국,false
+152100,PLUS 200,기타,EQUITY,한국,false
+243880,TIGER 200IT레버리지,반도체,EQUITY,한국,true
+278530,KODEX 200TR,기타,EQUITY,한국,false
+228790,TIGER 화장품,소비재,EQUITY,한국,false
+226490,KODEX 코스피,기타,EQUITY,한국,false
+364980,TIGER 2차전지TOP10,2차전지,EQUITY,한국,false
+426030,TIME 미국나스닥100액티브,기타,EQUITY,미국,false
+390390,KODEX 미국반도체,반도체,EQUITY,미국,false
+411060,ACE KRX금현물,기타,COMMODITY,기타,false
+248260,TIGER 일본TOPIX헬스케어(합성),바이오와헬스케어,EQUITY,기타,false
+098560,TIGER 방송통신,기타,EQUITY,한국,false
+301410,PLUS 코스닥150선물인버스,기타,EQUITY,한국,true
+148070,KIWOOM 국고채10년,기타,BOND,한국,false
+114260,KODEX 국고채3년,기타,BOND,한국,false
+273130,KODEX 종합채권(AA-이상)액티브,기타,BOND,한국,false
+438330,TIGER 우량회사채액티브,기타,BOND,한국,false
+305080,TIGER 미국채10년선물,기타,BOND,미국,false
+132030,KODEX 골드선물(H),기타,COMMODITY,기타,false
+310970,TIGER MSCI Korea TR,기타,EQUITY,한국,false
+360200,ACE 미국S&P500,기타,EQUITY,미국,false
+381170,TIGER 미국테크TOP10 INDXX,인터넷과플랫폼,EQUITY,미국,false
+423160,KODEX KOFR금리액티브(합성),기타,BOND,한국,false
+367380,ACE 미국나스닥100,기타,EQUITY,미국,false
+357870,TIGER CD금리투자KIS(합성),기타,BOND,한국,false
+102780,KODEX 삼성그룹,기타,EQUITY,한국,false
+278540,KODEX MSCI Korea TR,기타,EQUITY,한국,false
+161510,PLUS 고배당주,기타,EQUITY,한국,false
+385540,RISE 종합채권(A-이상)액티브,기타,BOND,한국,false
+284430,KODEX 200미국채혼합50,기타,BOND,미국,false
+292150,TIGER 코리아TOP10,기타,EQUITY,한국,false
+214980,KODEX 단기채권PLUS,기타,BOND,한국,false
+294400,KIWOOM 200TR,기타,EQUITY,한국,false
+105190,ACE 200,기타,EQUITY,한국,false
+368590,RISE 미국나스닥100,기타,EQUITY,미국,false
+329200,TIGER 리츠부동산인프라,기타,EQUITY,한국,false
+379780,RISE 미국S&P500,기타,EQUITY,미국,false
+091230,TIGER 반도체,반도체,EQUITY,한국,false
+157450,TIGER 단기통안채,기타,BOND,한국,false
+356540,ACE 종합채권(AA-이상)액티브,기타,BOND,한국,false
+295040,SOL 200TR,기타,EQUITY,한국,false
+402970,ACE 미국배당다우존스,기타,EQUITY,미국,false
+315930,KODEX Top5PlusTR,기타,EQUITY,한국,false
+237350,KODEX 코스피100,기타,EQUITY,한국,false
+305540,TIGER 2차전지테마,2차전지,EQUITY,한국,false
+153130,KODEX 단기채권,기타,BOND,한국,false
+144600,KODEX 은선물(H),기타,COMMODITY,기타,false
+272580,TIGER 단기채권액티브,기타,BOND,한국,false
+069660,KIWOOM 200,기타,EQUITY,한국,false
+434730,HANARO 원자력iSelect,기타,EQUITY,한국,false
+329750,TIGER 미국달러단기채권액티브,기타,BOND,미국,false
+367760,RISE 네트워크인프라,기타,EQUITY,한국,false
+290130,RISE ESG사회책임투자,기타,EQUITY,한국,false
+371460,TIGER 차이나전기차SOLACTIVE,2차전지,EQUITY,기타,false
+314250,KODEX 미국빅테크10(H),인터넷과플랫폼,EQUITY,미국,false

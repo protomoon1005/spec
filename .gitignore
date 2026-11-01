@@ -15,6 +15,10 @@ node_modules/
 next-env.d.ts
 frontend/dist/
 
+# 가격 스냅샷 (GitHub Release 로 공유, scripts/fetch_prices.py · ingest_prices.py)과 수집 원천
+data/snapshot/
+data/raw/
+
 # Docker 볼륨 로컬 마운트 잔여물
 *.log
 
