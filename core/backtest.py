@@ -26,6 +26,7 @@ import pandas as pd
 import yaml
 
 from core.data import frame_hash, load_ohlcv
+from core.dictionary import asset_types as dictionary_asset_types
 from core.indicators import compute_indicators
 from core.schema import Condition, DemoSpec, EntryRule, ExitRule, RefMul
 
@@ -218,11 +219,18 @@ def _benchmark(df: pd.DataFrame, mask: pd.Series, cash0: float, bps: float) -> p
 def run_backtest(spec: DemoSpec, data: Optional[dict[str, pd.DataFrame]] = None,
                  asset_types: Optional[dict[str, str]] = None,
                  costs_config: Optional[dict] = None) -> BacktestResult:
-    """명세 실행. data 를 주면 그 OHLCV 를 쓰고(테스트용), 없으면 data/cache 를 쓴다."""
+    """명세 실행. data 를 주면 그 OHLCV 를 쓰고(테스트용), 없으면 data/cache 를 쓴다.
+
+    asset_types 를 주지 않으면 data/tickers.json 의 asset_type(stock/etf)으로 세율을 고른다.
+    사전에 없는 종목은 costs.yaml default_asset_type 을 쓰고 notes 에 남긴다.
+    검증기(core.validate)를 통과한 명세만 넣는 것이 전제다.
+    """
+    if spec.entry is None or spec.exit is None or not spec.universe:
+        raise ValueError("실행할 수 없는 명세입니다 (universe/entry/exit 없음). 검증기를 먼저 통과시키세요.")
     costs_cfg = costs_config or load_costs()
     profile = costs_cfg["tax_profiles"][spec.costs.tax_profile]
     default_type = costs_cfg.get("default_asset_type", "stock")
-    asset_types = asset_types or {}
+    asset_types = dictionary_asset_types() if asset_types is None else asset_types
     notes: list[str] = []
     if costs_cfg.get("slippage_bps", 0):
         raise NotImplementedError("슬리피지는 데모에서 미지원 (costs.yaml slippage_bps=0 이어야 함)")

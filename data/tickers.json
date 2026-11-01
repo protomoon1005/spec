@@ -1,0 +1,33 @@
+{
+  "version": "demo-0.1",
+  "note": "종목 별칭 시드 (docs/demo-spec.md §B3). 대형주 10 + 대표 ETF 10. 여기 없는 종목은 clarify. asset_type(stock/etf)이 백테스트 세율(config/costs.yaml tax_profiles)을 결정한다. aliases 는 관용 표현 시드라 사실 검증 대상이 아니다.",
+  "verification": {
+    "checked": "ticker, name, asset_type",
+    "method": "FinanceDataReader StockListing('KRX') / StockListing('ETF/KR') 대조. stock 은 KRX 목록(market 열), etf 는 ETF/KR 목록에서 확인",
+    "date": "2026-11-02",
+    "not_checked": "상장일·과거 이름 변경 이력, 2021-01-01 이전부터 데이터가 있는지"
+  },
+  "tickers": [
+    { "ticker": "005930", "name": "삼성전자",         "asset_type": "stock", "market": "KOSPI", "aliases": ["삼성전자", "삼전"] },
+    { "ticker": "000660", "name": "SK하이닉스",       "asset_type": "stock", "market": "KOSPI", "aliases": ["SK하이닉스", "하이닉스", "하닉"] },
+    { "ticker": "207940", "name": "삼성바이오로직스", "asset_type": "stock", "market": "KOSPI", "aliases": ["삼성바이오로직스", "삼성바이오", "삼바"] },
+    { "ticker": "005380", "name": "현대차",           "asset_type": "stock", "market": "KOSPI", "aliases": ["현대차", "현대자동차"] },
+    { "ticker": "000270", "name": "기아",             "asset_type": "stock", "market": "KOSPI", "aliases": ["기아", "기아차"] },
+    { "ticker": "068270", "name": "셀트리온",         "asset_type": "stock", "market": "KOSPI", "aliases": ["셀트리온"] },
+    { "ticker": "035420", "name": "NAVER",            "asset_type": "stock", "market": "KOSPI", "aliases": ["NAVER", "네이버"] },
+    { "ticker": "105560", "name": "KB금융",           "asset_type": "stock", "market": "KOSPI", "aliases": ["KB금융", "KB금융지주"] },
+    { "ticker": "005490", "name": "POSCO홀딩스",      "asset_type": "stock", "market": "KOSPI", "aliases": ["POSCO홀딩스", "포스코홀딩스", "포스코"] },
+    { "ticker": "035720", "name": "카카오",           "asset_type": "stock", "market": "KOSPI", "aliases": ["카카오"] },
+
+    { "ticker": "069500", "name": "KODEX 200",              "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 200", "KODEX200", "코덱스 200", "코덱스200"] },
+    { "ticker": "102110", "name": "TIGER 200",              "asset_type": "etf", "market": "ETF", "aliases": ["TIGER 200", "TIGER200", "타이거 200", "타이거200"] },
+    { "ticker": "229200", "name": "KODEX 코스닥150",        "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 코스닥150", "코덱스 코스닥150"] },
+    { "ticker": "122630", "name": "KODEX 레버리지",         "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 레버리지", "코덱스 레버리지"] },
+    { "ticker": "114800", "name": "KODEX 인버스",           "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 인버스", "코덱스 인버스"] },
+    { "ticker": "252670", "name": "KODEX 200선물인버스2X",  "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 200선물인버스2X", "곱버스"] },
+    { "ticker": "233740", "name": "KODEX 코스닥150레버리지", "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 코스닥150레버리지", "코스닥 레버리지"] },
+    { "ticker": "091160", "name": "KODEX 반도체",           "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 반도체", "코덱스 반도체"] },
+    { "ticker": "091170", "name": "KODEX 은행",             "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 은행", "코덱스 은행"] },
+    { "ticker": "153130", "name": "KODEX 단기채권",         "asset_type": "etf", "market": "ETF", "aliases": ["KODEX 단기채권", "코덱스 단기채권"] }
+  ]
+}

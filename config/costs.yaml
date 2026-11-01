@@ -12,5 +12,6 @@ tax_profiles:
 # 슬리피지: 데모는 미반영(0). B1 에 따라 넣게 되면 고정 bps 만 허용.
 slippage_bps: 0
 
-# 종목 유형을 모를 때 적용할 기본값 (2단계 data/tickers.json 이 생기면 거기서 유형을 받는다)
+# 종목 유형(stock/etf)은 data/tickers.json 의 asset_type 에서 받는다.
+# 사전에 없는 종목일 때만 아래 기본값을 쓰고 백테스트 결과 notes 에 기록한다.
 default_asset_type: stock
