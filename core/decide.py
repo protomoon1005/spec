@@ -23,6 +23,7 @@ LLM 의 상태는 출발점일 뿐이고, 값은 규칙이 사전과 다시 대�
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -106,8 +107,12 @@ class State:
     dropped: set[str] = field(default_factory=set)      # "빼고 진행"
     derived: dict[str, str] = field(default_factory=dict)   # {"exit": "negate"} 조건이 반대가 되면
     hold: bool = False                                   # 언제 팔까요 → 계속 갖고 있기
-    start_holding: bool = False                          # 언제 살까요 → 처음부터 갖고 시작
+    text: str = ""                                       # 원문 (조건 구절을 찾을 때 근거 뒤 낱말까지 본다)
     answered: list[dict] = field(default_factory=list)
+
+    def answers_for(self, prefix: str) -> list[str]:
+        """질문 id 가 prefix 로 시작하는 질문에 사용자가 한 답들."""
+        return [a["answer"] for a in self.answered if a["question"].startswith(prefix)]
 
 
 @dataclass
@@ -117,6 +122,9 @@ class ResolvedCompare:
     right: dict
     evidence: str
     defaults: list[str] = field(default_factory=list)   # 비교 안에서 기본값을 쓴 자리: "left.window", "right.value", ""(전체)
+    source: str = "text"        # 값의 출처: text(LLM 이 원문 근거로 채움) | answer(되묻기 답을 규칙이 적용) | negate(반대 조건)
+    op_source: str = "llm"      # 연산자 출처: phrase | direction (표현 표) | llm (동사 구절 없음 → 4단계 근거 검사 대상)
+    answer: str = ""            # source == answer 일 때 그 답
 
 
 @dataclass
@@ -141,6 +149,10 @@ class Resolved:
     slippage_rate: float = DEFAULTS["slippage_rate"]
     dividend_mentioned: bool = False
     defaults: list[str] = field(default_factory=list)    # 빈칸 단위 기본값: assets.weight, rebalance, backtest.*
+    # 4단계 근거 검사용 출처. 키: "max_weight" · "rebalance" · "backtest.period" · "backtest.initial_cash" ·
+    # "backtest.costs" → (근거, 출처 text|answer). 종목 근거는 assets[i]["evidence"]·["source"], 비교는 ResolvedCompare.
+    evidence: dict[str, tuple[str, str]] = field(default_factory=dict)
+    handled: list[str] = field(default_factory=list)     # 전략서 값은 아니지만 처리한 근거 (배당, 빼고 진행한 내용)
 
 
 @dataclass
@@ -153,6 +165,8 @@ class Decision:
     rejections: list[Rejection] = field(default_factory=list)  # 찾은 거절 사유 전부 (첫 번째가 rejection)
     round: int = 0                            # clarify 면 몇 번째 되묻기인지 (1|2)
     resolved: Optional[Resolved] = None
+    # 표현 표로 정한 연산자가 LLM 이 적은 op 와 다른 경우 (평가용 기록. 판정에는 영향 없음)
+    op_log: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------- 한국어 헬퍼
@@ -294,6 +308,77 @@ def op_by_direction(text: str) -> Optional[str]:
     return best[1]
 
 
+def direction_ops(text: str) -> set[str]:
+    """근거에 들어 있는 동사 구절들이 가리키는 연산자 전부."""
+    return {r["op"] for r in load_expressions()["direction_rules"]["rules"] if any(p in text for p in r["patterns"])}
+
+
+def _pattern_re(pat: str) -> re.Pattern:
+    """표현 표 구절 → 정규식. {n} 은 정수, {p} 는 소수까지. 공백은 있어도 없어도 된다."""
+    out = ""
+    for tok in re.split(r"(\{n\}|\{p\}|\s+)", pat):
+        if tok == "{n}":
+            out += r"(?P<n>\d+)"
+        elif tok == "{p}":
+            out += r"(?P<p>\d+(?:\.\d+)?)"
+        elif tok and tok.isspace():
+            out += r"\s*"
+        elif tok:
+            out += re.escape(tok)
+    return re.compile(out)
+
+
+@lru_cache(maxsize=None)
+def _condition_phrases() -> list[tuple[re.Pattern, str, dict]]:
+    return [(_pattern_re(pat), pat, p) for p in load_expressions()["phrases"]
+            if p.get("condition") for pat in p["patterns"]]
+
+
+def phrase_condition(text: str) -> Optional[tuple[dict, dict]]:
+    """표현 표의 조건 구절('{n}일선 깨지면', '손절 {p}%', '과매도' …) 중 근거에 있는 가장 긴 것.
+    (phrase, 숫자 자리를 채운 condition). 없으면 None."""
+    best = None
+    for rx, pat, p in _condition_phrases():
+        m = rx.search(text)
+        if m and (best is None or len(m.group(0)) > len(best[0].group(0))):
+            best = (m, p)
+    if best is None:
+        return None
+    m, p = best
+    raw = json.dumps(p["condition"], ensure_ascii=False)
+    for k, v in m.groupdict().items():
+        if v is not None:
+            raw = raw.replace(f'"-{{{k}}}"', f"-{v}").replace(f'"{{{k}}}"', v)
+    return p, json.loads(raw)
+
+
+def with_next_word(evidence: str, text: str) -> str:
+    """근거 + 원문에서 바로 뒤따르는 낱말 하나 (쉼표·마침표 전까지).
+    LLM 은 비교 근거를 '10% 떨어지면'까지만 적는 일이 많아, '10% 떨어지면 손절' 같은 조건 구절을 찾을 때 쓴다.
+    근거가 원문에 없으면 근거 그대로."""
+    if not evidence or not text:
+        return evidence
+    k = text.find(evidence)
+    if k < 0:
+        return evidence
+    m = re.match(r"\s*[^\s,.;]+", text[k + len(evidence):])
+    return evidence + (m.group(0) if m else "")
+
+
+def op_from_table(text: str, context: str = "") -> tuple[Optional[str], str]:
+    """연산자는 규칙이 정한다 (2026-11-02). (연산자, 출처).
+    출처: phrase(조건 구절 — 더 구체적이라 먼저) | direction(동사 구절) | conflict(동사가 서로 다른 연산자를 가리킴) | none.
+    phrase·direction 이면 LLM 이 적은 op 대신 이 값을 쓴다. conflict·none 이면 LLM 값을 쓰고 4단계 근거 검사 대상이다.
+    context: 조건 구절을 찾을 때만 쓰는 넓힌 근거 (with_next_word). 동사 구절은 근거 자체에서만 찾는다."""
+    pc = phrase_condition(context or text)
+    if pc is not None:
+        return pc[1]["op"], "phrase"
+    ops = direction_ops(text)
+    if len(ops) == 1:
+        return next(iter(ops)), "direction"
+    return None, ("conflict" if ops else "none")
+
+
 def _window_label(ind: str, w: int) -> str:
     return {"ma": f"{w}일선", "rsi": f"{w}일 RSI", "ret": f"{w}일 수익률", "vol": f"{w}일 변동성",
             "volume_ratio": f"{w}일 거래량 비율"}.get(ind, f"{w}일")
@@ -339,6 +424,13 @@ class _Found:
     rejections: list[Rejection] = field(default_factory=list)
     questions: list[Question] = field(default_factory=list)
     resolved: Resolved = field(default_factory=Resolved)
+    op_log: list[dict] = field(default_factory=list)
+
+
+def _src(st: State, prefix: str, evidence: str) -> tuple[str, str]:
+    """(근거, 출처). 되묻기 답으로 정해진 값이면 답이 근거다."""
+    ans = st.answers_for(prefix)
+    return (ans[-1], "answer") if ans else (evidence, "text")
 
 
 def _items(cs: CondSlot, side: str, st: State) -> list[tuple[int, Comparison]]:
@@ -367,7 +459,7 @@ def _reject_for(status: str, kind: Optional[str], evidence: str) -> Optional[str
 
 # ---- 종목
 
-def _asset_questions(st: State, f: _Found, has_rules: bool) -> None:
+def _asset_questions(st: State, f: _Found, has_rules: bool, text: str = "") -> None:
     s = st.slots.assets
     items = list(enumerate(s.value))
     if not items:
@@ -386,8 +478,15 @@ def _asset_questions(st: State, f: _Found, has_rules: bool) -> None:
         if t is not None:
             if it.status in ("ambiguous", "unsupported") and sid not in st.confirmed:
                 f.questions.append(_q_confirm_asset(sid, it, t))
+            ev, source = it.evidence, "text"
+            if sid in st.confirmed:
+                ans = st.answers_for("assets")
+                hit = [a for a in ans if any(_norm(x) in _norm(a) for x in (t.name, *t.aliases))]
+                if hit or ans:
+                    ev, source = (hit or ans)[-1], "answer"
             resolved.append({"ticker": t.ticker, "name": t.name, "weight_pct": it.weight_pct,
-                             "evidence": it.evidence})
+                             "evidence": ev, "source": source,
+                             "weight_evidence": f"{s.evidence} {it.evidence}".strip()})
             continue
         code = _reject_for("unsupported", it.kind, f"{it.said} {it.evidence}")
         if code:
@@ -399,10 +498,38 @@ def _asset_questions(st: State, f: _Found, has_rules: bool) -> None:
         else:
             f.questions.append(_q_asset_name(sid, it, category=False))
     if len(resolved) == len(items):
+        if _half_with_one_asset(st, f, resolved, text):
+            return
         _weight_questions(st, f, resolved)
         f.resolved.assets = [{"ticker": r["ticker"], "name": r["name"],
                               "weight": None if r["weight_pct"] is None else r["weight_pct"] / 100,
-                              "evidence": r["evidence"]} for r in resolved]
+                              "evidence": r["evidence"], "source": r["source"],
+                              "weight_evidence": r["weight_evidence"]} for r in resolved]
+
+
+def _half_with_one_asset(st: State, f: _Found, resolved: list[dict], text: str) -> bool:
+    """'반반'인데 종목이 1개 (같은 종목을 두 번 적은 경우 포함) → '반반으로 나눌 다른 종목은 무엇인가요?'"""
+    p = phrase_by_id("half_one_asset")
+    s = st.slots.assets
+    said = " ".join([s.evidence, text, *(it.evidence for it in s.value)])
+    if "half" in st.confirmed or not any(w in said for w in p["words"]):
+        return False
+    if len({r["ticker"] for r in resolved}) != 1:
+        return False
+    first = resolved[0]
+
+    def apply(st: State, ans: str) -> None:
+        names = _parse_names(ans)
+        if len(names) == 1 and names[0].ticker != first["ticker"]:
+            old = st.slots.assets.value[0]
+            st.slots.assets.value = [
+                AssetItem(status="filled", said=first["name"], evidence=old.evidence, weight_pct=50),
+                AssetItem(status="filled", said=names[0].name, evidence=ans, weight_pct=50)]
+            st.slots.assets.status = "filled"
+            st.confirmed.update({"half", "assets[1]"})
+    f.questions.append(Question("assets:half", "assets", p["question"], [DIRECT], s.evidence,
+                                hint=f"데모 종목: {ticker_names()}", apply=apply))
+    return True
 
 
 def _q_no_asset(has_rules: bool) -> Question:
@@ -505,6 +632,7 @@ def _max_weight(st: State, f: _Found) -> None:
         return
     if s.status == "filled" and s.value is not None and 0 < s.value <= 100:
         f.resolved.max_weight = s.value / 100
+        f.resolved.evidence["max_weight"] = _src(st, "max_weight:", s.evidence)
     elif "max_weight" not in st.confirmed:
         def apply(st: State, ans: str) -> None:
             nums = _numbers(ans)
@@ -541,11 +669,9 @@ def _rebalance(st: State, f: _Found, has_rules: bool) -> None:
             f.resolved.rebalance = DEFAULTS["rebalance_allocation"]
             f.resolved.defaults.append("rebalance")
         return
-    if s.status == "filled" and s.value in REBALANCE:
+    if s.status == "filled" and s.value in REBALANCE or s.value in REBALANCE and "rebalance" in st.confirmed:
         f.resolved.rebalance = s.value
-        return
-    if s.value in REBALANCE and "rebalance" in st.confirmed:
-        f.resolved.rebalance = s.value
+        f.resolved.evidence["rebalance"] = _src(st, "rebalance:", s.evidence)
         return
     ev = s.evidence or (s.value or "")
     days = None
@@ -631,7 +757,7 @@ def _phrase_patch(pid: str, k: int, c: Comparison) -> Optional[tuple[dict, str, 
             right = {"indicator": "ma", "window": w, "of": left.get("of") or "self"}
             if left.get("indicator") in (None, "ma"):
                 left = {"indicator": "close", "window": None, "of": right["of"]}
-        return left, c.op or op_by_direction(c.evidence) or "cross_above", right
+        return left, op_from_table(c.evidence)[0] or c.op or "cross_above", right
     opts = table.get(pid)
     return opts[k] if opts and k < len(opts) else None
 
@@ -711,7 +837,7 @@ def _q_missing_window(side: str, i: int, c: Comparison, ind: str, where: str) ->
 
 
 def _q_threshold(side: str, i: int, c: Comparison, ind: str) -> Question:
-    low = (c.op or op_by_direction(c.evidence) or "<") in _LOW
+    low = (op_from_table(c.evidence)[0] or c.op or "<") in _LOW
     if ind == "rsi":
         if low:
             return _q_phrase(side, i, c, phrase_by_id("rsi_low_vague"))
@@ -739,7 +865,7 @@ def _q_threshold(side: str, i: int, c: Comparison, ind: str) -> Question:
         cur = _item(st, side, i)
         cur.right = RightSide(value=x)
         if cur.op is None:
-            cur.op = op_by_direction(cur.evidence) or ("<=" if low else ">=")
+            cur.op = op_from_table(cur.evidence)[0] or ("<=" if low else ">=")
         cur.status = "filled"
         st.confirmed.add(f"{side}[{i}]")
     return Question(f"{side}[{i}]:value", side, text, opts, c.evidence, apply=apply)
@@ -804,7 +930,8 @@ def _compare(st: State, side: str, i: int, c: Comparison, f: _Found) -> Optional
             p = phrase_by_id(pid)
             if any(pat in ev for pat in p["patterns"]):
                 cond = p["condition"]
-                return ResolvedCompare(dict(cond["left"]), cond["op"], dict(cond["right"]), ev, defaults=[""])
+                return ResolvedCompare(dict(cond["left"]), cond["op"], dict(cond["right"]), ev, defaults=[""],
+                                       op_source="phrase")
 
     # 4) 지표·기간·누구의 값
     defaults: list[str] = []
@@ -838,8 +965,15 @@ def _compare(st: State, side: str, i: int, c: Comparison, f: _Found) -> Optional
             return None
         ops[where] = {"indicator": ind, "window": w, "of": of}
 
-    # 5) 연산자: '~인 동안 / ~하는 순간' 표 (동사로 정하고 되묻지 않는다)
-    op = c.op or op_by_direction(ev)
+    # 5) 연산자: 표현 표가 정한다 (조건 구절 → '~인 동안 / ~하는 순간' 동사 구절). 동사로 정하고 되묻지 않는다.
+    #    LLM 이 적은 op 는 표에 해당 구절이 없을 때만 쓰고, 그 값은 4단계 근거 검사가 다시 본다.
+    table_op, how = op_from_table(ev, with_next_word(ev, st.text))
+    if table_op is not None:
+        op, op_source = table_op, how
+        if c.op is not None and c.op != table_op:
+            f.op_log.append({"compare": cid, "evidence": ev, "llm_op": c.op, "table_op": table_op, "source": how})
+    else:
+        op, op_source = c.op, "llm"
     if op is None:
         f.questions.append(_q_generic(f"{cid}:op", side, ev, "사고파는 동사를 찾지 못했습니다"))
         return None
@@ -857,13 +991,15 @@ def _compare(st: State, side: str, i: int, c: Comparison, f: _Found) -> Optional
     if c.status in ("ambiguous", "unsupported") and not confirmed:
         f.questions.append(_q_confirm_cmp(side, i, c, _clause(ops["left"], op, right)))
         return None
-    return ResolvedCompare(ops["left"], op, right, ev, defaults)
+    ans = st.answers_for(f"{cid}:") if confirmed else []
+    return ResolvedCompare(ops["left"], op, right, ev, defaults, source="answer" if ans else "text",
+                           op_source=op_source, answer=ans[-1] if ans else "")
 
 
 def _negate(cond: ResolvedCond) -> Optional[ResolvedCond]:
     """조건이 반대가 되면: 비교마다 연산자를 뒤집고 all ↔ any. 산 뒤에만 있는 값(손절·보유 일수)은 뺀다."""
-    items = [ResolvedCompare(c.left, _NEGATE[c.op], c.right, c.evidence) for c in cond.items
-             if not INDICATORS[c.left["indicator"]].get("position")]
+    items = [ResolvedCompare(c.left, _NEGATE[c.op], c.right, c.evidence, source="negate", op_source="negate")
+             for c in cond.items if not INDICATORS[c.left["indicator"]].get("position")]
     if not items:
         return None
     return ResolvedCond("any" if cond.logic == "all" else "all", items, source="negate")
@@ -910,13 +1046,11 @@ def _q_no_exit(st: State) -> Question:
 def _q_no_entry(st: State, exit_cond: Optional[ResolvedCond]) -> Question:
     text, opts = split_question(phrase_by_id("no_entry")["question"])
     if exit_cond is not None and _negate(exit_cond) is None:
-        opts = opts[:1]            # 손절·보유 일수만 있으면 '반대가 되면 다시 사기'를 만들 수 없다
+        opts = [RESTATE]           # 손절·보유 일수만 있으면 '반대가 되면 다시 사기'를 만들 수 없다
+    # v0.2 의 '처음부터 갖고 시작'은 데모에서 뺐다 (전략서에 적을 칸이 없음. docs/demo-scope.md 팀 안건)
 
     def apply(st: State, ans: str) -> None:
-        k = _pick(ans, opts)
-        if k == 0:
-            st.start_holding = True
-        elif k == 1:
+        if ans.strip() == "조건이 반대가 되면 다시 사기" and opts != [RESTATE]:
             st.derived["entry"] = "negate"
     return Question("entry:none", "entry", text, opts, apply=apply)
 
@@ -924,11 +1058,6 @@ def _q_no_entry(st: State, exit_cond: Optional[ResolvedCond]) -> Question:
 def _rules_questions(st: State, f: _Found) -> None:
     has_entry = bool(_items(st.slots.entry, "entry", st))
     has_exit = bool(_items(st.slots.exit, "exit", st))
-    if st.start_holding:
-        f.rejections.append(Rejection("UNSUPPORTED_ACTION",
-                                      "'처음부터 갖고 시작'은 v0.2 전략서에 적을 칸이 없어 데모에서 실행할 수 없습니다.",
-                                      "", "entry"))
-        return
     if has_entry and not has_exit:
         if st.derived.get("exit") == "negate":
             if f.resolved.entry is not None:
@@ -955,6 +1084,7 @@ def _backtest(st: State, f: _Found, text: str) -> None:
     if p.status == "unspecified":
         r.defaults.append("backtest.period")
     else:
+        r.evidence["backtest.period"] = _src(st, "period:", p.evidence)
         ok = True
         for k in ("start", "end"):
             v = getattr(p.value, k)
@@ -990,6 +1120,7 @@ def _backtest(st: State, f: _Found, text: str) -> None:
         r.defaults.append("backtest.initial_cash")
     elif c.status == "filled" and c.value and c.value > 0:
         r.initial_cash = c.value
+        r.evidence["backtest.initial_cash"] = _src(st, "initial_cash:", c.evidence)
     else:
         opts = ["1,000만 원", DIRECT]
 
@@ -1004,6 +1135,7 @@ def _backtest(st: State, f: _Found, text: str) -> None:
     if k.status == "unspecified" or (k.value.commission_pct is None and k.value.slippage_pct is None):
         r.defaults.append("backtest.costs")
     else:
+        r.evidence["backtest.costs"] = (k.evidence, "text")
         if k.value.commission_pct is not None and 0 <= k.value.commission_pct < 10:
             r.commission_rate = k.value.commission_pct / 100
         else:
@@ -1015,12 +1147,17 @@ def _backtest(st: State, f: _Found, text: str) -> None:
     # 배당: 문장에 배당 낱말이 있을 때만. "배당은 빼줘"처럼 부정이면 LLM 이 false 로 적는다.
     word = any(w in text for w in DIVIDEND_WORDS) if text else False
     r.dividend_mentioned = (s.dividend.value is True) or (word and s.dividend.value is not False)
+    if s.dividend.status != "unspecified" and s.dividend.evidence:
+        r.handled.append(s.dividend.evidence)
 
 
 def _others(st: State, f: _Found) -> None:
     for i, o in enumerate(st.slots.others):
         oid = f"others[{i}]"
-        if oid in st.dropped or o.status in ("filled", "unspecified"):
+        if oid in st.dropped:
+            f.resolved.handled.append(o.evidence)       # 사용자가 '빼고 진행'이라고 답함
+            continue
+        if o.status in ("filled", "unspecified"):
             continue
         code = _reject_for(o.status, o.kind, o.evidence)
         if code:
@@ -1052,7 +1189,7 @@ def analyze(st: State, text: str = "") -> _Found:
                                       text, ""))
         return f
     has_rules = _has_cond(st.slots.entry, "entry", st) or _has_cond(st.slots.exit, "exit", st)
-    _asset_questions(st, f, has_rules)
+    _asset_questions(st, f, has_rules, text)
     _max_weight(st, f)
     _conditions(st, f)
     _rules_questions(st, f)
@@ -1080,27 +1217,31 @@ def _normalize(st: State) -> None:
 
 def decide(slots: SlotFill, answers: Optional[list[dict[str, str]]] = None, text: str = "") -> Decision:
     """빈칸 상태(+ 되묻기 답) → 진행 / 되묻기 / 거절. text 는 원문 (배당 낱말·근거 표시용)."""
-    st = State(slots.model_copy(deep=True))
+    st = State(slots.model_copy(deep=True), text=text)
     _normalize(st)
     answers = list(answers or [])
     for k, round_answers in enumerate(answers):
         f = analyze(st, text)
         if f.rejections:
-            return Decision("reject", st, rejection=f.rejections[0], rejections=f.rejections, round=k)
+            return Decision("reject", st, rejection=f.rejections[0], rejections=f.rejections, round=k,
+                            op_log=f.op_log)
         for q in f.questions[:MAX_QUESTIONS]:
             if q.id in round_answers and q.apply is not None:
                 _record(st, q.id, round_answers[q.id])
                 q.apply(st, round_answers[q.id])
     f = analyze(st, text)
+    log = f.op_log
     if f.rejections:
-        return Decision("reject", st, rejection=f.rejections[0], rejections=f.rejections, round=len(answers))
+        return Decision("reject", st, rejection=f.rejections[0], rejections=f.rejections, round=len(answers),
+                        op_log=log)
     if f.questions:
         if len(answers) >= MAX_ROUNDS:
             left = " / ".join(q.text for q in f.questions)
             rej = Rejection("UNRESOLVED", f"{MAX_ROUNDS}번 물었는데도 정하지 못한 빈칸이 남았습니다: {left}",
                             "; ".join(q.evidence for q in f.questions if q.evidence),
                             ", ".join(dict.fromkeys(q.slot for q in f.questions)))
-            return Decision("reject", st, pending=f.questions, rejection=rej, rejections=[rej], round=len(answers))
+            return Decision("reject", st, pending=f.questions, rejection=rej, rejections=[rej], round=len(answers),
+                            op_log=log)
         return Decision("clarify", st, questions=f.questions[:MAX_QUESTIONS], pending=f.questions,
-                        round=len(answers) + 1)
-    return Decision("proceed", st, resolved=f.resolved, round=len(answers))
+                        round=len(answers) + 1, op_log=log)
+    return Decision("proceed", st, resolved=f.resolved, round=len(answers), op_log=log)

@@ -12,7 +12,7 @@
 {"id": "ok-12", "text": "삼성전자에 70%만 넣고 RSI 30 아래면 사고 20거래일 지나면 팔아", "verdict": "ok", "expected_spec": "TODO"}
 {"id": "clarify-01", "text": "눌림목에서 사서 10% 오르면 팔아", "verdict": "clarify"}
 {"id": "clarify-02", "text": "RSI 낮을 때 사고 높을 때 팔아", "verdict": "clarify"}
-{"id": "clarify-03", "text": "바닥에서 사서 고점에서 팔아", "verdict": "clarify"}
+{"id": "clarify-03", "text": "바닥에서 사서 고점에서 팔아", "verdict": "reject", "reject_code": "UNKNOWN_INDICATOR", "label_change": "2026-11-02 팀 결정: clarify→reject. 바닥·고점은 정량 정의가 없는 말 (UNKNOWN_INDICATOR)"}
 {"id": "clarify-04", "text": "LG에너지솔루션 20일선 돌파하면 사고 20일선 깨지면 팔아", "verdict": "clarify"}
 {"id": "clarify-05", "text": "삼성전자 반반으로 RSI 30 아래면 사고 5일선 깨지면 팔아", "verdict": "clarify"}
 {"id": "clarify-06", "text": "이평선 돌파하면 사고 이평선 깨지면 팔아", "verdict": "clarify"}

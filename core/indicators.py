@@ -91,3 +91,15 @@ def align_us_to_kr(us: pd.Series, kr_calendar: pd.DatetimeIndex) -> pd.Series:
     vals = np.where(pos >= 0, us.to_numpy()[np.clip(pos, 0, None)], np.nan) if len(us) else \
         np.full(len(kr_calendar), np.nan)
     return pd.Series(vals.astype(float), index=kr_calendar, name=us.name)
+
+
+def lookback(name: str, window: Optional[int]) -> int:
+    """그날 값이 나오려면 그날 앞에 있어야 하는 거래일 수 (위 계산식 그대로).
+    ma w: w-1 · rsi n: n · ret·vol·volume_ratio w: w · close: 0 · vix: 미국 t-1일 1. 보유 상태 지표는 0."""
+    if name == "ma":
+        return window - 1
+    if name in ("rsi", "ret", "vol", "volume_ratio"):
+        return window
+    if name == "vix":
+        return 1
+    return 0

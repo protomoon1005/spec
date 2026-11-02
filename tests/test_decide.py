@@ -22,7 +22,8 @@ def test_proceed_basic():
     d = decide(basic())
     assert d.verdict == "proceed" and d.questions == [] and d.rejection is None
     r = d.resolved
-    assert r.assets == [{"ticker": "005930", "name": "삼성전자", "weight": None, "evidence": "삼성전자"}]
+    assert r.assets == [{"ticker": "005930", "name": "삼성전자", "weight": None, "evidence": "삼성전자",
+                         "source": "text", "weight_evidence": "삼성전자 삼성전자"}]
     assert r.entry.items[0].left == {"indicator": "rsi", "window": 14, "of": "self"}
     assert r.entry.items[0].op == "cross_below" and r.entry.items[0].right == {"value": 30}
     assert r.exit.items[0].right == {"indicator": "ma", "window": 5, "of": "self"}
@@ -283,17 +284,18 @@ def test_vague_exit_asks_when_to_sell():
 def test_row_exit_only_asks_entry():
     s = basic(entry=cond())
     q = only_q(decide(s))
-    assert q.id == "entry:none" and q.options == ["처음부터 갖고 시작", "조건이 반대가 되면 다시 사기"]
+    # '처음부터 갖고 시작'은 데모에서 뺐다 (docs/demo-scope.md 팀 안건)
+    assert q.id == "entry:none" and q.options == ["조건이 반대가 되면 다시 사기"]
     d = decide(s, [{q.id: "조건이 반대가 되면 다시 사기"}])
     assert d.verdict == "proceed" and d.resolved.entry.items[0].op == "cross_above"
-    # v0.2 전략서에 '처음부터 갖고 시작'을 적을 칸이 없음
-    d = decide(s, [{q.id: "처음부터 갖고 시작"}])
-    assert d.verdict == "reject" and d.rejection.code == "UNSUPPORTED_ACTION"
+    assert d.resolved.entry.source == "negate" and d.resolved.entry.items[0].source == "negate"
+    d = decide(s, [{q.id: "처음부터 갖고 시작"}])        # 선택지에 없는 답 → 적용하지 않고 다시 묻는다
+    assert d.verdict == "clarify" and ids(d) == ["entry:none"]
 
 
 def test_exit_only_stop_loss_cannot_negate():
     s = basic(entry=cond(), exit=cond(cmp("10% 손실이면", op("entry_return"), "<=", val(-10))))
-    assert only_q(decide(s)).options == ["처음부터 갖고 시작"]
+    assert only_q(decide(s)).options == ["문장을 고쳐서 다시 입력"]
 
 
 def test_row_rsi_window_default_14():

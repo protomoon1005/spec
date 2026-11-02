@@ -1,4 +1,4 @@
-"""v0.2 검사 1~3단계 (모양 · 존재 · 말이 되는지). 4·5단계는 다음 단계에서 넣는다."""
+"""v0.2 검사 1~3단계 (모양 · 존재 · 말이 되는지). 4·5단계·NO_DATA·단계 끄기는 tests/test_validate_45.py."""
 import copy
 
 import pytest
@@ -22,8 +22,9 @@ def _codes(rep):
 def test_v02_sample_passes_stages_1_to_3():
     rep = validate(_samsung())
     assert rep.verdict == "ok", [str(i) for i in rep.issues]
-    assert [(s.stage, s.status) for s in rep.stages] == [(1, "passed"), (2, "passed"), (3, "passed"),
-                                                          (4, "not_implemented"), (5, "not_implemented")]
+    assert [(s.stage, s.status, s.note) for s in rep.stages] == [
+        (1, "passed", ""), (2, "passed", ""), (3, "passed", ""),
+        (4, "skipped", "근거 정보 없음"), (5, "skipped", "가격 데이터 없음")]
 
 
 # ---------------------------------------------------------------- 1. 모양

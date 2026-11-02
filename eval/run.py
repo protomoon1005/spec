@@ -3,9 +3,11 @@
   python -m eval.run              # 캐시 없이 실제 LLM 호출 (응답 시간 측정)
   python -m eval.run --use-cache  # 캐시 사용
   python -m eval.run --compare eval/out/verdict_run_step3.jsonl   # 이전 실행 결과와 나란히 비교
+  python -m eval.run --use-cache --ab   # 4단계 근거 검사를 켰을 때와 껐을 때 비교 (각각 저장)
+  python -m eval.run --no-prices        # 가격 데이터 없이 (2단계 NO_DATA·5단계 시험 실행 안 함)
 
 입력: eval/dev_sentences.jsonl (개발용 세트). 결과 원본은 eval/out/verdict_run.jsonl (git 제외).
-판정은 규칙(core.decide + 검사 1~3단계)이 정한 최종 판정 하나뿐이다 (LLM 은 판정하지 않는다).
+판정은 규칙(core.decide + 검사 1~5단계)이 정한 최종 판정 하나뿐이다 (LLM 은 판정하지 않는다).
   proceed → ok, clarify → clarify, reject → reject, error → error
 첫 입력 1회 기준 판정이다 (되묻기 답변은 넣지 않는다).
 "틀린 전략이 통과" = 정답이 ok 가 아닌데 최종 판정이 ok(=백테스트로 진행)인 건수.
@@ -24,11 +26,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.pipeline import run  # noqa: E402
+from core.pipeline import load_prices, run  # noqa: E402
 from core.slot_fill import MODEL, OllamaUnavailable, _ollama_chat, ollama_status  # noqa: E402
+from core.validate import Stages  # noqa: E402
 
 SENTENCES = ROOT / "eval" / "dev_sentences.jsonl"
 OUT = ROOT / "eval" / "out" / "verdict_run.jsonl"
+OUT_NO4 = ROOT / "eval" / "out" / "verdict_run_no4.jsonl"
 LABELS = ["ok", "clarify", "reject"]
 TO_LABEL = {"proceed": "ok", "confirm": "ok", "clarify": "clarify", "reject": "reject", "invalid": "invalid",
             "error": "error"}
@@ -102,10 +106,73 @@ def compare(prev: list[dict], cur: list[dict], gold: dict[str, str]) -> None:
         print(f"| {r['id']} | {gold[r['id']]} | {mark(final_of(o))} | {mark(final_of(r))} | {r['text']} |")
 
 
+def run_all(sentences: list[dict], use_cache: bool, stages: Stages, prices, label: str) -> list[dict]:
+    print(f"\n## 실행: {label}\n")
+    rows = []
+    for s in sentences:
+        r = run(s["text"], use_cache=use_cache, stages=stages, prices=prices)
+        f = r.fill
+        retry = r.retry or {}
+        row = {"id": s["id"], "text": s["text"], "gold": s["verdict"], "verdict": r.verdict,
+               "questions": [q.to_dict() for q in r.questions],
+               "rejection": r.rejection.to_dict() if r.rejection else None,
+               "spec": r.spec if r.verdict == "proceed" else None,
+               "issues": [f"{i} ({i.kind})" for i in (r.report.issues if r.report else [])],
+               "stage4_first": [str(i) for i in retry.get("issues", [])],     # 첫 시도에서 4단계가 잡은 것
+               "stage4_first_spec": retry.get("first_spec"),
+               "stage4_kept_first": retry.get("kept_first"),   # 다시 채우기가 더 나빠져 처음 결과를 유지한 이유
+               "op_log": r.op_log,
+               "elapsed_s": round(f.elapsed_s, 2), "attempts": f.attempts, "cached": f.cached,
+               "error": r.error, "raw": f.raw, "meta": f.meta}
+        rows.append(row)
+        mark = "✓" if row["gold"] == final_of(row) else "✗"
+        why = (r.rejection.code if r.rejection else "") + " ".join(q.id for q in r.questions)
+        print(f"{mark} {s['id']:11s} {row['elapsed_s']:6.1f}s 정답={row['gold']:7s} 최종={final_of(row):8s} "
+              f"{'[4단계]' if retry else '':7s} {why[:70]:70s} {s['text']}", flush=True)
+    return rows
+
+
+def save(rows: list[dict], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as fp:
+        for row in rows:
+            fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def ab_report(on: list[dict], off: list[dict], gold: dict[str, str]) -> None:
+    """4단계 근거 검사를 켰을 때와 껐을 때."""
+    p = {r["id"]: r for r in off}
+
+    def acc(rows):
+        return sum(final_of(r) == gold[r["id"]] for r in rows)
+    print("\n## 4단계 근거 검사 켜기 / 끄기\n")
+    print("| | 4단계 끔 | 4단계 켬 |\n|---|---|---|")
+    print(f"| 정확도 | {acc(off)}/{len(off)} | {acc(on)}/{len(on)} |")
+    print(f"| 틀린 진행 (정답≠ok 인데 최종 ok) | {len(passed_wrong(off, gold))} | {len(passed_wrong(on, gold))} |")
+    print(f"| 진행(ok) 건수 | {sum(final_of(r) == 'ok' for r in off)} | {sum(final_of(r) == 'ok' for r in on)} |")
+    caught = [r for r in on if r["stage4_first"]]
+    print(f"\n4단계가 첫 시도에서 잡은 문장: {len(caught)}건 (→ LLM 1회 다시 채움)")
+    for r in caught:
+        o = p[r["id"]]
+        print(f"- {r['id']} 정답={gold[r['id']]} 끔={final_of(o)} → 켬={final_of(r)} | {r['text']}")
+        for x in r["stage4_first"]:
+            print(f"    · {x}")
+        if r.get("stage4_kept_first"):
+            print(f"    → 다시 채운 결과를 버리고 처음 결과 유지: {r['stage4_kept_first']}")
+        if r["verdict"] == "clarify":
+            print(f"    → 다시 채운 뒤에도 걸려 되묻기: {[q['text'] for q in r['questions']]}")
+    changed = [r["id"] for r in on if final_of(r) != final_of(p[r["id"]])]
+    print(f"\n최종 판정이 바뀐 문장: {len(changed)}건 {changed}")
+    stop = [(r["id"], gold[r["id"]]) for r in on if final_of(p[r["id"]]) == "ok" and final_of(r) != "ok"]
+    print(f"끄면 진행되는데 켜면 멈춘 문장(잡아낸 건수): {len(stop)}건 {stop}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--use-cache", action="store_true")
     ap.add_argument("--compare", type=Path, help="이전 실행 결과 jsonl (같은 id 로 나란히 비교, 정답은 현재 라벨)")
+    ap.add_argument("--ab", action="store_true", help="4단계 근거 검사를 켰을 때와 껐을 때 둘 다 돌려 비교")
+    ap.add_argument("--no-prices", action="store_true", help="가격 데이터 없이 (NO_DATA·시험 실행 안 함)")
     args = ap.parse_args(argv)
 
     ok, msg = ollama_status()
@@ -117,31 +184,18 @@ def main(argv=None) -> int:
 
     sentences = load_sentences()
     gold = {s["id"]: s["verdict"] for s in sentences}
-    rows = []
-    for s in sentences:
-        try:
-            r = run(s["text"], use_cache=args.use_cache)
-        except OllamaUnavailable as e:
-            print(e)
-            return 1
-        f = r.fill
-        row = {"id": s["id"], "text": s["text"], "gold": s["verdict"], "verdict": r.verdict,
-               "questions": [q.to_dict() for q in r.questions],
-               "rejection": r.rejection.to_dict() if r.rejection else None,
-               "spec": r.spec if r.verdict == "proceed" else None,
-               "issues": [f"{i} ({i.kind})" for i in (r.report.issues if r.report else [])],
-               "elapsed_s": round(f.elapsed_s, 2), "attempts": f.attempts, "cached": f.cached,
-               "error": r.error, "raw": f.raw, "meta": f.meta}
-        rows.append(row)
-        mark = "✓" if row["gold"] == final_of(row) else "✗"
-        why = (r.rejection.code if r.rejection else "") + " ".join(q.id for q in r.questions)
-        print(f"{mark} {s['id']:11s} {row['elapsed_s']:6.1f}s 정답={row['gold']:7s} 최종={final_of(row):8s} "
-              f"{why:32s} {s['text']}", flush=True)
-
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUT, "w", encoding="utf-8", newline="\n") as fp:
-        for row in rows:
-            fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+    prices = None if args.no_prices else load_prices
+    off = None
+    try:
+        rows = run_all(sentences, args.use_cache, Stages.ALL, prices, "검사 1~5단계")
+        if args.ab:
+            off = run_all(sentences, True, Stages.ALL & ~Stages.GROUNDING, prices, "4단계 끔 (빈칸 채우기는 캐시)")
+    except OllamaUnavailable as e:
+        print(e)
+        return 1
+    save(rows, OUT)
+    if off is not None:
+        save(off, OUT_NO4)
 
     report(rows, gold, f"현재 ({MODEL}, {len(rows)}문장)")
     if args.compare:
@@ -160,7 +214,13 @@ def main(argv=None) -> int:
     print(f"재시도 발생: {sum(r['attempts'] > 1 for r in rows)}건")
     dist = {k: sum(r["verdict"] == k for r in rows) for k in ("proceed", "clarify", "reject", "error")}
     print(f"판정 분포: {dist}")
-    print(f"원본 저장: {OUT.relative_to(ROOT)}")
+    ops = [(r["id"], x) for r in rows for x in r["op_log"]]
+    print(f"\n연산자: 표현 표 값이 LLM 값과 다른 경우 {len(ops)}건 (표 값을 씀, 기록만)")
+    for rid, x in ops:
+        print(f"- {rid} {x['evidence']!r}: LLM {x['llm_op']} → 표 {x['table_op']} ({x['source']})")
+    if off is not None:
+        ab_report(rows, off, gold)
+    print(f"원본 저장: {OUT.relative_to(ROOT)}" + (f", {OUT_NO4.relative_to(ROOT)}" if off is not None else ""))
     return 0
 
 

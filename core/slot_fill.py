@@ -458,10 +458,28 @@ def _sha(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def cache_key(text: str, system_prompt: str, schema: dict) -> str:
-    return _sha(json.dumps({"model": MODEL, "options": OPTIONS, "think": THINK,
-                            "system": _sha(system_prompt), "schema": _sha(_j(schema)),
-                            "input": text.strip()}, sort_keys=True))
+def cache_key(text: str, system_prompt: str, schema: dict, retry: Optional[tuple[str, str]] = None) -> str:
+    d = {"model": MODEL, "options": OPTIONS, "think": THINK, "system": _sha(system_prompt),
+         "schema": _sha(_j(schema)), "input": text.strip()}
+    if retry is not None:                 # 4단계 근거 검사 뒤 다시 채우기: (이전 출력, 걸린 내용)
+        d["retry"] = [_sha(retry[0]), _sha(retry[1])]
+    return _sha(json.dumps(d, sort_keys=True))
+
+
+def retry_message(feedback: str) -> str:
+    """4단계 근거 검사에서 걸린 뒤 다시 채우게 하는 메시지.
+    2026-11-02 관찰: 걸린 내용 문구("…에 해당하는 말이 없습니다")를 LLM 이 reason 에 옮겨 적고 사전에 있는 지표를
+    unknown_indicator 로 바꿔 거절로 끝났다(ok-08). 그래서 이 문구는 검사 프로그램의 메모일 뿐 값·상태가 아니라고 못박는다."""
+    rules = [
+        "- 메모는 판단 근거가 아니다. 메모 문구를 reason·kind·값에 옮겨 적지 마라.",
+        "- 메모 때문에 status 를 unsupported 나 ambiguous 로 바꾸지 마라. 사전에 있는 지표·종목·숫자면 filled 그대로 둔다.",
+        "- 값이 원문과 맞으면 값은 그대로 두고, 그 값을 가리키는 원문 구절을 더 넓게 evidence 에 글자 그대로 적어라 "
+        "(예: '10% 떨어지면' → '10% 떨어지면 손절').",
+        "- 원문에 없는 값을 적었으면 원문대로 고치고, 원문의 낱말·숫자를 빠뜨렸으면 해당 빈칸에 채워라.",
+    ]
+    return "\n".join(["아래는 검사 프로그램이 남긴 메모다. 위 출력의 값과 원문 근거(evidence)가 서로 맞는지 "
+                      "확인하지 못한 곳을 가리킨다.", "[검사 메모 시작]", feedback, "[검사 메모 끝]", "규칙:", *rules,
+                      "같은 스키마로 처음부터 다시 출력하라."])
 
 
 def _cache_read(key: str, cache_dir: Path) -> Optional[dict]:
@@ -483,12 +501,14 @@ def parse(raw: Optional[str]) -> tuple[Optional[SlotFill], Optional[str]]:
 
 
 def slot_fill(text: str, *, use_cache: bool = True, chat_fn: Optional[ChatFn] = None,
-              cache_dir: Path | str = CACHE_DIR) -> SlotFillResult:
-    """한국어 전략 문장 → 빈칸별 상태·값·근거. 형식이 맞지 않으면 오류를 알려 주고 1회만 다시 시킨다."""
+              cache_dir: Path | str = CACHE_DIR, retry: Optional[tuple[str, str]] = None) -> SlotFillResult:
+    """한국어 전략 문장 → 빈칸별 상태·값·근거. 형식이 맞지 않으면 오류를 알려 주고 1회만 다시 시킨다.
+    retry=(이전 출력 원문, 걸린 내용): 4단계 근거 검사에서 걸린 내용을 알려 주고 한 번 다시 채운다
+    (온도 0·시드 고정이라 같은 입력이면 늘 같은 결과. 캐시 키에 둘 다 들어간다)."""
     text = text.strip()
     system = build_system_prompt()
     schema = build_json_schema()
-    key = cache_key(text, system, schema)
+    key = cache_key(text, system, schema, retry)
     cache_dir = Path(cache_dir)
 
     if use_cache and (hit := _cache_read(key, cache_dir)):
@@ -498,6 +518,8 @@ def slot_fill(text: str, *, use_cache: bool = True, chat_fn: Optional[ChatFn] = 
 
     chat = chat_fn or _ollama_chat
     messages = [{"role": "system", "content": system}, {"role": "user", "content": text}]
+    if retry is not None:
+        messages += [{"role": "assistant", "content": retry[0]}, {"role": "user", "content": retry_message(retry[1])}]
     elapsed, attempts, raw, slots, err, meta = 0.0, 0, None, None, None, {"calls": []}
     try:
         for attempt in range(2):
@@ -523,7 +545,7 @@ def slot_fill(text: str, *, use_cache: bool = True, chat_fn: Optional[ChatFn] = 
     if prompt_tokens and prompt_tokens >= OPTIONS["num_ctx"]:
         meta["warning"] = f"프롬프트({prompt_tokens} 토큰)가 num_ctx({OPTIONS['num_ctx']})에 닿아 잘렸을 수 있습니다."
     if use_cache and slots is not None:
-        _cache_write(key, cache_dir, {"input": text, "raw": raw, "elapsed_s": elapsed, "attempts": attempts,
+        _cache_write(key, cache_dir, {"input": text, "retry_feedback": retry[1] if retry else None, "raw": raw, "elapsed_s": elapsed, "attempts": attempts,
                                       "meta": meta, "model": MODEL,
                                       "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     return SlotFillResult(text, raw, slots, elapsed, attempts, False, key, meta, err)

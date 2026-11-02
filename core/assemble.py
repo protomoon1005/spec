@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Optional
 
 from core.decide import Resolved, ResolvedCond
+from core.grounding import GroundItem, Grounding
 from core.schema import SCHEMA_VERSION
 
 
@@ -35,6 +36,27 @@ def _cond(rc: Optional[ResolvedCond], base: str, defaults: list[str]) -> Optiona
             defaults.append(f"{path}.{d}" if d else path)
         out.append({"left": _operand(c.left), "op": c.op, "right": _operand(c.right)})
     return out[0] if single else {rc.logic: out}
+
+
+def grounding(r: Resolved, text: str, answers: Optional[list[dict]] = None) -> Grounding:
+    """4단계 근거 검사 입력: 전략서 값마다 LLM 이 적은 근거와 출처 (경로는 assemble 결과와 같다)."""
+    items: list[GroundItem] = []
+    for i, a in enumerate(r.assets):
+        src = a.get("source", "text")
+        items.append(GroundItem(f"assets[{i}]", a.get("evidence", ""), src,
+                                answer=a.get("evidence", "") if src == "answer" else "",
+                                extra=a.get("weight_evidence", "")))
+    for base, rc in (("rules.entry", r.entry), ("rules.exit", r.exit)):
+        if rc is None or not rc.items:
+            continue
+        single = len(rc.items) == 1
+        for i, c in enumerate(rc.items):
+            items.append(GroundItem(base if single else f"{base}.{rc.logic}[{i}]", c.evidence, c.source,
+                                    answer=c.answer, op_source=c.op_source, defaults=list(c.defaults)))
+    for path, (ev, src) in r.evidence.items():
+        items.append(GroundItem(path, ev if src == "text" else "", src, answer=ev if src == "answer" else ""))
+    flat = [v for d in (answers or []) for v in d.values()]
+    return Grounding(text=text, answers=flat, items=items, handled=list(r.handled), hold=r.hold)
 
 
 def assemble(r: Resolved) -> dict:

@@ -40,7 +40,7 @@ def test_examples_cover_each_verdict_twice_and_do_not_leak_into_eval():
 
 def test_eval_set_shape():
     counts = {v: sum(s["verdict"] == v for s in EVAL) for v in ("ok", "clarify", "reject")}
-    assert counts == {"ok": 10, "clarify": 12, "reject": 8}
+    assert counts == {"ok": 10, "clarify": 11, "reject": 9}   # 2026-11-02 clarify-03 → reject
     assert all(s["expected_spec"] == "TODO" for s in EVAL if s["verdict"] == "ok")
     assert len({s["text"] for s in EVAL}) == 30
 

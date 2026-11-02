@@ -9,6 +9,7 @@ from core.schema import Strategy
 from slots import MA5_BREAK, RSI30_CROSS, asset, assets, basic, cmp, cond, op, val
 
 ROOT = Path(__file__).resolve().parents[1]
+BASIC = "삼성전자 RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔아줘"     # basic() 빈칸의 원문
 
 
 def fake_chat(*outputs):
@@ -68,14 +69,14 @@ def test_run_proceed(tmp_path):
 
 def test_run_uses_cache(tmp_path):
     chat = fake_chat(basic())
-    run("문장", chat_fn=chat, cache_dir=tmp_path)
-    r = run("문장", chat_fn=chat, cache_dir=tmp_path)
+    run(BASIC, chat_fn=chat, cache_dir=tmp_path)
+    r = run(BASIC, chat_fn=chat, cache_dir=tmp_path)
     assert len(chat.calls) == 1 and r.fill.cached and r.verdict == "proceed"
 
 
 def test_run_retries_once_on_bad_format(tmp_path):
     chat = fake_chat("{not json", basic())
-    r = run("문장", chat_fn=chat, cache_dir=tmp_path)
+    r = run(BASIC, chat_fn=chat, cache_dir=tmp_path)
     assert len(chat.calls) == 2 and r.fill.attempts == 2 and r.verdict == "proceed"
 
 
@@ -106,18 +107,19 @@ def test_run_validation_block(tmp_path):
 def test_run_validation_clarify_counts_rounds(tmp_path):
     """사는 조건이면 파는 조건도 늘 참 → 3단계 되묻기. 2번 물어도 남으면 UNRESOLVED."""
     s = basic(entry=cond(cmp("RSI 30 밑이면", op("rsi", 14), "<", val(30))),
-              exit=cond(cmp("40 밑이면 팔아", op("rsi", 14), "<", val(40))))
+              exit=cond(cmp("RSI 40 밑이면", op("rsi", 14), "<", val(40))))
     chat = fake_chat(s)
-    r = run("x", chat_fn=chat, cache_dir=tmp_path)
-    assert r.verdict == "clarify" and r.questions[0].id == "validate:ALWAYS_BOTH"
+    text = "삼성전자 RSI 30 밑이면 사고 RSI 40 밑이면 팔아"
+    r = run(text, chat_fn=chat, cache_dir=tmp_path)
+    assert r.verdict == "clarify" and [q.id for q in r.questions] == ["validate:ALWAYS_BOTH:rules.exit"]
     assert r.questions[0].options == ["문장을 고쳐서 다시 입력"]
-    r = run("x", [{}, {}], chat_fn=chat, cache_dir=tmp_path)
+    r = run(text, [{}, {}], chat_fn=chat, cache_dir=tmp_path)
     assert r.verdict == "reject" and r.rejection.code == "UNRESOLVED"
 
 
 def test_run_hold_answer_drops_no_exit(tmp_path):
     chat = fake_chat(basic(exit=cond()))
-    r = run("x", [{"exit:none": "계속 갖고 있기"}], chat_fn=chat, cache_dir=tmp_path)
+    r = run("삼성전자 RSI 30 아래로 떨어지면 사줘", [{"exit:none": "계속 갖고 있기"}], chat_fn=chat, cache_dir=tmp_path)
     assert r.verdict == "proceed" and r.strategy.rules.exit is None
     assert "기간 끝까지 갖고 있습니다" in r.narration.text
 
@@ -137,7 +139,8 @@ def test_run_dividend_note(tmp_path):
 
 def test_stop_loss_close_basis_note(tmp_path):
     s = basic(exit=cond(MA5_BREAK, cmp("10% 손실이면", op("entry_return"), "<=", val(-10)), logic="any"))
-    r = run("x", chat_fn=fake_chat(s), cache_dir=tmp_path)
+    r = run("삼성전자 RSI 30 아래로 떨어지면 사고, 5일선 깨지면 팔고 10% 손실이면 팔아", chat_fn=fake_chat(s),
+            cache_dir=tmp_path)
     assert "손절·익절은 그날 종가로 판단합니다" in r.narration.text
-    r = run("y", chat_fn=fake_chat(basic(entry=cond(RSI30_CROSS))), cache_dir=tmp_path)
+    r = run(BASIC, chat_fn=fake_chat(basic(entry=cond(RSI30_CROSS))), cache_dir=tmp_path)
     assert "손절·익절" not in r.narration.text
