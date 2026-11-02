@@ -174,3 +174,47 @@ def test_vix_strategy_backtest_fails_with_a_demo_reason(client, account, fake_ll
     run_id = client.post(f"/v2/strategies/{result['strategy_id']}/backtest", headers=headers).json()["run_id"]
     run = client.get(f"/v2/backtests/{run_id}", headers=headers).json()
     assert run["status"] == "failed" and "데모에 데이터가 없어" in run["reason"]
+
+
+class CodeClient(FakeClient):
+    # 비교 대상(LLM 코드 생성)이 부르는 generate_text 도 가짜로 둔다
+    def generate_text(self, prompt, *, system=None, options=None):
+        return (
+            "```python\nimport pandas as pd\n\ndef strategy(prices, start, end):\n"
+            "    df = prices[\"005930\"]\n"
+            "    before = df.index[df.index < start][-1]\n"
+            "    return [{\"date\": before.strftime(\"%Y-%m-%d\"), \"ticker\": \"005930\", "
+            "\"side\": \"buy\", \"weight\": 1.0}]\n```"
+        )
+
+
+@pytest.mark.requires_backfill
+def test_backtest_result_has_trade_chart_and_reproducibility(client, account, fake_llm):
+    user_id, headers = account
+    fake_llm(copy.deepcopy(pairing.EXAMPLE_OUTPUT))
+    strategy_id = _compile(user_id, REPRESENTATIVE)["strategy_id"]
+    run_id = client.post(f"/v2/strategies/{strategy_id}/backtest", headers=headers).json()["run_id"]
+    run = client.get(f"/v2/backtests/{run_id}", headers=headers).json()
+    chart = run["trade_chart"][0]
+    assert chart["ticker"] == "005930" and len(chart["close"]) == len(run["series"])
+    assert [ln["label"] for ln in chart["price_lines"]] == ["5일 이평"]
+    assert [p["title"] for p in chart["panels"]] == ["RSI(14)"]
+    assert run["repro"]["match"] is True and run["repro"]["hash"] == run["repro"]["first_hash"]
+
+
+@pytest.mark.requires_backfill
+def test_baseline_compare(client, account, monkeypatch, tmp_path):
+    user_id, headers = account
+    client_ = CodeClient(copy.deepcopy(pairing.EXAMPLE_OUTPUT))
+    monkeypatch.setattr("app.llm.client.get_llm_client", lambda: client_)
+    monkeypatch.setattr("app.baseline.compare.CACHE", tmp_path)
+    strategy_id = _compile(user_id, REPRESENTATIVE)["strategy_id"]
+    assert client.post(f"/v2/strategies/{strategy_id}/baseline", headers=headers).status_code == 202
+    result = tasks.compare_baseline({"user_id": user_id, "strategy_id": strategy_id})
+    assert result["status"] == "done" and result["outcome"] == "code", result
+    assert result["tickers"] == ["005930"]
+    assert [o["side"] for o in result["base"]["orders"]] == ["buy"]
+    assert result["same_orders"] is False and result["ours"]["orders"]
+    assert result["series"][0].keys() == {"date", "ours", "base"}
+    other = tasks.compare_baseline({"user_id": user_id + 10_000, "strategy_id": strategy_id})
+    assert other["status"] == "failed"

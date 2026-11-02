@@ -502,3 +502,71 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 매매 지점 · LLM 비교 */
+.chat-root .chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.chat-root .toggle {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chat-root .tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+  overflow-x: auto;
+}
+.chat-root .tab {
+  border: 0;
+  background: none;
+  padding: 6px 10px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.chat-root .tab.on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.chat-root .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.chat-root .badge.green {
+  background: #dcfce7;
+  color: #15803d;
+}
+.chat-root .badge.blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.chat-root .badge.amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+.chat-root .badge.gray {
+  background: #f1f2f4;
+  color: var(--muted);
+}
+.chat-root .metrics.two {
+  grid-template-columns: 1fr 1fr;
+}
+.chat-root .two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 760px) {
+  .chat-root .two-col {
+    grid-template-columns: 1fr;
+  }
+}
