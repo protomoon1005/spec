@@ -1,0 +1,17 @@
+# 거래 비용 설정 (docs/demo-spec.md §B7)
+# 수수료는 명세의 costs.commission_bps 를 쓰고, 세금은 여기 tax_profile 에서 찾는다.
+# 세금은 매도 시에만 매도금액 × 세율로 부과한다.
+
+tax_profiles:
+  kr_default:
+    # 주식 매도 시 0.20% — 2026 코스피 기준. ★ 팀 확인 필요 (§E). 코스닥 세율 구분은 데모 범위 밖.
+    stock: 0.0020
+    # 국내 ETF 거래세 0 — ★ 팀 확인 필요 (§E). 분배금·보유기간 과세는 반영하지 않음.
+    etf: 0.0
+
+# 슬리피지: 데모는 미반영(0). B1 에 따라 넣게 되면 고정 bps 만 허용.
+slippage_bps: 0
+
+# 종목 유형(stock/etf)은 data/tickers.json 의 asset_type 에서 받는다.
+# 사전에 없는 종목일 때만 아래 기본값을 쓰고 백테스트 결과 notes 에 기록한다.
+default_asset_type: stock

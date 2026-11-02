@@ -1,0 +1,567 @@
+{
+  "$defs": {
+    "BacktestConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "default": "2021-01-01",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "default": "2025-12-31",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "End",
+          "type": "string"
+        },
+        "initial_cash": {
+          "default": 10000000,
+          "title": "Initial Cash",
+          "type": "number"
+        }
+      },
+      "title": "BacktestConfig",
+      "type": "object",
+      "required": [
+        "start",
+        "end",
+        "initial_cash"
+      ]
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "enum": [
+            "CLOSE",
+            "OPEN",
+            "HIGH",
+            "LOW",
+            "VOLUME",
+            "SMA_5",
+            "SMA_10",
+            "SMA_20",
+            "SMA_60",
+            "SMA_120",
+            "EMA_12",
+            "EMA_26",
+            "RSI_14",
+            "BB_UPPER_20",
+            "BB_LOWER_20",
+            "VOL_SMA_20",
+            "HIGH_N_20",
+            "LOW_N_20",
+            "UNSUPPORTED"
+          ],
+          "title": "Left",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "lt",
+            "gt",
+            "cross_above",
+            "cross_below"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "right": {
+          "anyOf": [
+            {
+              "enum": [
+                "CLOSE",
+                "OPEN",
+                "HIGH",
+                "LOW",
+                "VOLUME",
+                "SMA_5",
+                "SMA_10",
+                "SMA_20",
+                "SMA_60",
+                "SMA_120",
+                "EMA_12",
+                "EMA_26",
+                "RSI_14",
+                "BB_UPPER_20",
+                "BB_LOWER_20",
+                "VOL_SMA_20",
+                "HIGH_N_20",
+                "LOW_N_20",
+                "UNSUPPORTED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/RefMul"
+            }
+          ],
+          "title": "Right"
+        }
+      },
+      "required": [
+        "left",
+        "op",
+        "right"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
+    "CostConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "commission_bps": {
+          "default": 1.5,
+          "title": "Commission Bps",
+          "type": "number"
+        },
+        "tax_profile": {
+          "const": "kr_default",
+          "default": "kr_default",
+          "title": "Tax Profile",
+          "type": "string"
+        }
+      },
+      "title": "CostConfig",
+      "type": "object",
+      "required": [
+        "commission_bps",
+        "tax_profile"
+      ]
+    },
+    "EntryRule": {
+      "additionalProperties": false,
+      "properties": {
+        "logic": {
+          "default": "all",
+          "enum": [
+            "all",
+            "any"
+          ],
+          "title": "Logic",
+          "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "logic",
+        "conditions"
+      ],
+      "title": "EntryRule",
+      "type": "object"
+    },
+    "ExitRule": {
+      "additionalProperties": false,
+      "properties": {
+        "logic": {
+          "default": "any",
+          "enum": [
+            "all",
+            "any"
+          ],
+          "title": "Logic",
+          "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "stop_loss": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Loss"
+        },
+        "take_profit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Take Profit"
+        },
+        "max_hold_days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Hold Days"
+        }
+      },
+      "title": "ExitRule",
+      "type": "object",
+      "required": [
+        "logic",
+        "conditions",
+        "stop_loss",
+        "take_profit",
+        "max_hold_days"
+      ]
+    },
+    "Mapping": {
+      "additionalProperties": false,
+      "properties": {
+        "phrase": {
+          "title": "Phrase",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string",
+          "enum": [
+            "universe",
+            "universe[0]",
+            "universe[1]",
+            "universe[2]",
+            "entry",
+            "entry.conditions[0]",
+            "entry.conditions[1]",
+            "entry.conditions[2]",
+            "entry.conditions[3]",
+            "exit",
+            "exit.conditions[0]",
+            "exit.conditions[1]",
+            "exit.conditions[2]",
+            "exit.conditions[3]",
+            "exit.stop_loss",
+            "exit.take_profit",
+            "exit.max_hold_days",
+            "backtest",
+            "backtest.start",
+            "backtest.end",
+            "backtest.initial_cash",
+            "costs"
+          ]
+        }
+      },
+      "required": [
+        "phrase",
+        "field"
+      ],
+      "title": "Mapping",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "input_text": {
+          "title": "Input Text",
+          "type": "string"
+        },
+        "mappings": {
+          "items": {
+            "$ref": "#/$defs/Mapping"
+          },
+          "title": "Mappings",
+          "type": "array"
+        },
+        "defaults_applied": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "entry",
+              "entry.conditions[0]",
+              "entry.conditions[1]",
+              "entry.conditions[2]",
+              "entry.conditions[3]",
+              "exit",
+              "exit.conditions[0]",
+              "exit.conditions[1]",
+              "exit.conditions[2]",
+              "exit.conditions[3]",
+              "exit.stop_loss",
+              "exit.take_profit",
+              "exit.max_hold_days",
+              "backtest",
+              "backtest.start",
+              "backtest.end",
+              "backtest.initial_cash",
+              "costs"
+            ]
+          },
+          "title": "Defaults Applied",
+          "type": "array"
+        }
+      },
+      "required": [
+        "input_text",
+        "mappings",
+        "defaults_applied"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "RefMul": {
+      "additionalProperties": false,
+      "description": "지표 × 배수. 예: {\"ref\": \"VOL_SMA_20\", \"mul\": 2} = 거래량 20일 평균의 2배.",
+      "properties": {
+        "ref": {
+          "enum": [
+            "CLOSE",
+            "OPEN",
+            "HIGH",
+            "LOW",
+            "VOLUME",
+            "SMA_5",
+            "SMA_10",
+            "SMA_20",
+            "SMA_60",
+            "SMA_120",
+            "EMA_12",
+            "EMA_26",
+            "RSI_14",
+            "BB_UPPER_20",
+            "BB_LOWER_20",
+            "VOL_SMA_20",
+            "HIGH_N_20",
+            "LOW_N_20",
+            "UNSUPPORTED"
+          ],
+          "title": "Ref",
+          "type": "string"
+        },
+        "mul": {
+          "title": "Mul",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ref",
+        "mul"
+      ],
+      "title": "RefMul",
+      "type": "object"
+    },
+    "RejectReason": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "FUTURE_REF",
+            "UNSUPPORTED_CONCEPT",
+            "UNSUPPORTED_ACTION",
+            "NO_EXIT_RULE"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "detail"
+      ],
+      "title": "RejectReason",
+      "type": "object"
+    },
+    "UniverseItem": {
+      "additionalProperties": false,
+      "properties": {
+        "ticker": {
+          "title": "Ticker",
+          "type": "string",
+          "enum": [
+            "005930",
+            "000660",
+            "207940",
+            "005380",
+            "000270",
+            "068270",
+            "035420",
+            "105560",
+            "005490",
+            "035720",
+            "069500",
+            "102110",
+            "229200",
+            "122630",
+            "114800",
+            "252670",
+            "233740",
+            "091160",
+            "091170",
+            "153130",
+            "UNKNOWN"
+          ]
+        },
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "enum": [
+            "삼성전자",
+            "SK하이닉스",
+            "삼성바이오로직스",
+            "현대차",
+            "기아",
+            "셀트리온",
+            "NAVER",
+            "KB금융",
+            "POSCO홀딩스",
+            "카카오",
+            "KODEX 200",
+            "TIGER 200",
+            "KODEX 코스닥150",
+            "KODEX 레버리지",
+            "KODEX 인버스",
+            "KODEX 200선물인버스2X",
+            "KODEX 코스닥150레버리지",
+            "KODEX 반도체",
+            "KODEX 은행",
+            "KODEX 단기채권",
+            "UNKNOWN"
+          ]
+        },
+        "weight": {
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ticker",
+        "name",
+        "weight"
+      ],
+      "title": "UniverseItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "verdict 가 clarify/reject 이면 universe/entry/exit 를 비워 둘 수 있다.\n실행 가능 여부(verdict=ok, 조건 존재 등)는 검증기 3단계가 판정한다.",
+  "properties": {
+    "schema_version": {
+      "const": "demo-0.1",
+      "default": "demo-0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "verdict": {
+      "default": "ok",
+      "enum": [
+        "ok",
+        "clarify",
+        "reject"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    },
+    "questions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "title": "Questions",
+      "type": "array"
+    },
+    "reject_reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RejectReason"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "universe": {
+      "items": {
+        "$ref": "#/$defs/UniverseItem"
+      },
+      "title": "Universe",
+      "type": "array"
+    },
+    "entry": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EntryRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "exit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExitRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "backtest": {
+      "$ref": "#/$defs/BacktestConfig"
+    },
+    "costs": {
+      "$ref": "#/$defs/CostConfig"
+    },
+    "provenance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Provenance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "unmapped_phrases": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unmapped Phrases",
+      "type": "array"
+    }
+  },
+  "title": "DemoSpec",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "verdict",
+    "questions",
+    "reject_reason",
+    "universe",
+    "entry",
+    "exit",
+    "backtest",
+    "costs",
+    "provenance",
+    "unmapped_phrases"
+  ],
+  "$comment": "generated by `python -m core.schema` — 직접 수정 금지. 지표·연산자·종목은 사전(docs/demo-spec.md §B3, data/tickers.json) 값만 허용."
+}
