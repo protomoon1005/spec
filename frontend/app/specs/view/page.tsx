@@ -1,14 +1,17 @@
 "use client";
 
-// 전략서 보기 — 전략 관리 목록에서 고른 전략서 하나의 내용(GET /specs/{strategy_id}).
+// 전략서 보기 — 전략 관리 목록에서 고른 전략서 하나의 내용.
+// v0.2 전략서면 전략서 확인 화면(/compile/done)으로 보낸다. 아니면 v0.1 내용(GET /specs/{strategy_id})을 그린다.
+// v0.1 화면은 v0.1 을 지울 때(docs/v0.2-plan.md 9단계) 같이 지운다.
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
 import SpecContents from "@/components/spec-contents";
+import { api } from "@/lib/api";
 
 export default function SpecViewPage() {
   return (
@@ -33,7 +36,17 @@ export default function SpecViewPage() {
 }
 
 function View() {
+  const router = useRouter();
   const specId = useSearchParams().get("id");
+  const [version, setVersion] = useState<"v0.2" | "v0.1" | null>(null);
+
+  useEffect(() => {
+    if (!specId) return;
+    api(`/v2/strategies/${encodeURIComponent(specId)}`)
+      .then(() => router.replace(`/compile/done?strategy=${encodeURIComponent(specId)}`))
+      .catch(() => setVersion("v0.1"));
+  }, [specId, router]);
+
   if (!specId) {
     return (
       <div className="flow-empty">
@@ -42,6 +55,7 @@ function View() {
       </div>
     );
   }
+  if (version !== "v0.1") return <p className="flow-state">불러오는 중…</p>;
   // 번호는 SpecContents 머리에 있다.
   return <SpecContents specId={specId} />;
 }

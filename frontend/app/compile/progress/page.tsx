@@ -2,14 +2,13 @@
 
 // 전략 진행 상황.
 //
-// 작업 번호로 스트림을 열어 상태가 바뀔 때마다 한 줄씩 쌓는다. 2분 넘게 걸려서
+// 작업 번호로 스트림을 열어 상태가 바뀔 때마다 한 줄씩 쌓는다. 10~30초 걸려서
 // 줄이 쌓이는 게 보여야 멈춘 게 아니란 걸 안다.
-// 끝나면 결과에 따라 완료 / 되묻기 화면으로 넘기고, 실패와 시간 초과는 여기서 보여 준다.
+// 끝나면 결과(ok · ask · reject)에 따라 완료 / 되묻기 화면으로 넘기고, 거절 · 실패 · 시간 초과는 여기서 보여 준다.
 //
 // 서버는 도는 동안 PENDING 한 줄과 끝 결과만 보낸다 — 지금 몇 번째 단계인지는 모른다.
 // 그래서 만드는 순서는 설명으로만 보여 주고 현재 단계에 불을
-// 켜지 않는다. 지어낸 진행률보다 흐르는 막대와 경과 시간이 정직하다. 단계를 켜려면
-// m1/pipeline.py 가 단계마다 작업 상태를 남겨야 한다.
+// 켜지 않는다. 지어낸 진행률보다 흐르는 막대와 경과 시간이 정직하다.
 // 서버가 보낸 줄(작업 번호 · PENDING …)은 개발용이라 "연결 기록" 으로 접어 둔다.
 // 실패하면 "다시 요청" 이 전략 요청 화면에 방금 쓴 문장을 되채운다(?retry=1).
 
@@ -19,13 +18,9 @@ import { Suspense, useEffect, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import {
-  loadCompileRequest,
-  saveCompileResult,
-  streamJob,
-  type CompileResult,
-  type StreamEvent,
-} from "@/lib/api";
+import { RejectBox } from "@/components/v2/outcome-parts";
+import { loadCompileRequest, streamJob, type StreamEvent } from "@/lib/api";
+import { nextPath, saveOutcome, type Outcome } from "@/lib/v2";
 
 export default function ProgressPage() {
   return (
@@ -53,6 +48,7 @@ function Progress() {
   const [ended, setEnded] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [request, setRequest] = useState<string | null>(null);
+  const [rejected, setRejected] = useState<Extract<Outcome, { status: "reject" }> | null>(null);
 
   useEffect(() => setRequest(loadCompileRequest()), []);
 
@@ -76,7 +72,7 @@ function Progress() {
     };
 
     function onEvent({ event, data }: StreamEvent) {
-      const d = data as { state?: string; result?: CompileResult; error?: string };
+      const d = data as { state?: string; result?: Outcome; error?: string };
       if (event === "status") {
         log(`상태: ${d.state}`);
       } else if (event === "complete") {
@@ -87,12 +83,17 @@ function Progress() {
           return;
         }
         const result = d.result;
-        if (result.status === "failed") {
-          end(`전략서를 만들 수 없습니다: ${result.reason}`);
+        saveOutcome(result);
+        const next = nextPath(result);
+        if (next) {
+          router.push(next);
           return;
         }
-        saveCompileResult(result);
-        router.push(result.status === "completed" ? "/compile/done" : "/compile/answer");
+        if (result.status === "reject") {
+          clearInterval(tick);
+          setRejected(result);
+          setEnded("reject");
+        }
       } else if (event === "timeout") {
         log("시간 초과");
         end("시간 초과로 연결이 끊겼습니다. 서버에서는 계속 돌고 있을 수 있습니다.");
@@ -135,7 +136,9 @@ function Progress() {
         </p>
       )}
 
-      {ended ? (
+      {rejected ? (
+        <RejectBox outcome={rejected} />
+      ) : ended ? (
         <>
           <p className="flow-msg err" role="alert">
             {ended}
@@ -158,7 +161,7 @@ function Progress() {
             ))}
           </ol>
           <p className="flow-hint" style={{ marginTop: 12 }}>
-            보통 2분 넘게 걸려요. 이 화면을 닫지 마세요.
+            보통 10~30초 걸려요. 이 화면을 닫지 마세요.
           </p>
         </section>
       )}
@@ -175,13 +178,13 @@ function Progress() {
   );
 }
 
-// 처리 순서(backend/app/m1/pipeline.py). AI 가 쓰이는 단계에 표시한다.
+// 처리 순서(backend/app/m1/compile_v0_2.py, 설계 문서 "입력 판정 흐름"). AI 가 쓰이는 단계에 표시한다.
 const STEPS = [
-  { name: "요청 이해", ai: true },
-  { name: "되물을 게 있는지 판단", ai: false },
-  { name: "담을 수 있는 종목 고르기", ai: false },
-  { name: "전략서 작성", ai: true },
-  { name: "규칙 검사 후 저장", ai: false },
+  { name: "문장을 조각으로 나누기", ai: false },
+  { name: "다룰 수 없는 말이 있는지 보기", ai: false },
+  { name: "조각을 빈칸에 짝짓기", ai: true },
+  { name: "말한 대로 짝지었는지 근거 검사", ai: false },
+  { name: "전략서 조립과 검사, 되물을지 판정", ai: false },
 ];
 
 // 87 → 01:27
