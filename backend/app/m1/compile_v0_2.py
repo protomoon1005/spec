@@ -114,10 +114,11 @@ def start(user_id: int, text: str, client, *, store=None) -> CompileResult:
     return _continue(state, store)
 
 
-def answer(session_id: str, answers: list[dict], *, store=None) -> CompileResult:
+def answer(session_id: str, answers: list[dict], *, user_id: int | None = None, store=None) -> CompileResult:
     store = store or RedisStore()
     state = store.load(session_id)
-    if state is None:
+    if state is None or (user_id is not None and state["user_id"] != user_id):
+        # 남의 대화도 없는 것처럼 답한다
         raise LookupError("대화가 만료됐어요. 처음부터 다시 요청해 주세요.")
     questions = [_question_from(q) for q in state["questions"]]
     added = decide.overrides_from_answers(
@@ -320,3 +321,23 @@ def _redis():
     from app.core.config import get_settings
 
     return redis.Redis.from_url(get_settings().redis_url, decode_responses=True)
+
+
+def with_explanation(result: CompileResult) -> dict:
+    # 응답에 "AI가 이해한 전략" 설명을 더한다(app/m1/explain.py). ok 일 때만
+    from app.contracts.strategy_v0_2 import StrategyV0_2
+    from app.m1 import explain
+
+    public = result.public()
+    if result.status == "ok" and result.spec is not None:
+        spec = StrategyV0_2.model_validate(result.spec)
+        public["explanation"] = explain.explain(spec, names_for(spec))
+    return public
+
+
+def names_for(spec) -> dict[str, str]:
+    tickers = list(spec.universe.held_tickers() or [])
+    for rule in spec.rules:
+        if rule.target != "each":
+            tickers.append(rule.target)
+    return {t: r.name for t, r in etf_master.get_by_tickers(tickers).items()}
