@@ -105,7 +105,7 @@
 
 ### 3.7 instruments
 
-- 종목 원장. 지금은 ETF 76종목이다. 3단계에서 국내 상장 개별주와 ETF 전체로 넓힌다
+- 종목 원장. 국내 상장 보통주 2,667종목과 ETF 1,183종목, 모두 3,850종목이다(3단계, `db/seeds/04_etf_master.csv`)
 - ticker: varchar, 기본키
 - name: varchar, 필수
 - sector: varchar. 한글 섹터 라벨(예: 반도체). 코드는 sector_group_id 를 읽는다
@@ -115,7 +115,8 @@
 - listed_date, delisted_date: date
 - is_leveraged: boolean, 필수, 기본값 false
 - active: boolean, 필수, 기본값 true
-- asset_group_id, sector_group_id, country_group_id: varchar, asset_groups 외래키. 자산군, 섹터, 국가 세 축. 국가는 주식과 채권에 모두 걸쳐 있어 트리가 아니라 칸을 나눴다(옛 `db/migrate/001` 을 흡수)
+- kind: varchar, stock(주식) 또는 etf(ETF)(`db/migrate/002`). 백테스트 세금 계산이 주식과 ETF 를 구분하는 데 쓴다. 이미 종목이 들어 있는 DB 에도 적용되게 NOT NULL 은 걸지 않았고, `scripts/load_etf_master.py` 가 빈 값을 막는다
+- asset_group_id, sector_group_id, country_group_id: varchar, asset_groups 외래키. 자산군, 섹터, 국가 세 축. 국가는 주식과 채권에 모두 걸쳐 있어 트리가 아니라 칸을 나눴다(옛 주제의 `db/migrate/001` 을 흡수. 지금의 `db/migrate/001` 과 다른 파일이다)
 
 ### 3.8 asset_groups
 
