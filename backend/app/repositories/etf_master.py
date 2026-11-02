@@ -25,7 +25,7 @@ from app.core.db import get_engine
 # `group_id` 는 자산군만 담던 자리라, 둘을 섞어 쓰면 어느 쪽을 보는지 헷갈린다.
 _COLUMNS = """
     ticker, name, asset_group_id, sector_group_id, country_group_id,
-    risk_tag, is_leveraged, active, delisted_date
+    risk_tag, is_leveraged, active, delisted_date, kind
 """
 
 
@@ -40,6 +40,7 @@ class EtfRecord:
     is_leveraged: bool
     active: bool
     delisted_date: date | None
+    kind: str | None  # stock · etf. 백테스트 세금 구분에 쓴다(db/migrate/002)
 
 
 def get_by_tickers(tickers: list[str]) -> dict[str, EtfRecord]:

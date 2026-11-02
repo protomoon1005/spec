@@ -50,7 +50,7 @@ OUT = ROOT / "db" / "seeds" / "04_etf_master.csv"
 # load_etf_master.py 가 읽는 칸 순서
 COLUMNS = [
     "ticker", "name", "sector", "group_id", "risk_tag", "mdd_3y", "volatility_1y", "expense_ratio",
-    "listed_date", "delisted_date", "is_leveraged", "active", "country",
+    "listed_date", "delisted_date", "is_leveraged", "active", "country", "kind",
 ]
 
 # 업종 묶음 → load_etf_master.py 가 받는 한글 값 (db/seeds/03_asset_groups.sql 의 label)
@@ -131,7 +131,7 @@ def main() -> int:
     used_curated = 0
     for row in sorted(listing, key=lambda r: r["ticker"]):
         base = {c: "" for c in COLUMNS}
-        base.update(ticker=row["ticker"], name=row["name"], active="true")
+        base.update(ticker=row["ticker"], name=row["name"], active="true", kind=row["kind"])
         if row["kind"] == "stock":
             sector = industry_map.get(row["industry"], "SECTOR_OTHER")
             base.update(

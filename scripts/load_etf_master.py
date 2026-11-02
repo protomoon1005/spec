@@ -42,9 +42,12 @@ DEFAULT_CSV = REPO_ROOT / "db" / "seeds" / "04_etf_master.csv"
 DB_COLUMNS = [
     "ticker", "name", "sector", "group_id", "risk_tag",
     "mdd_3y", "volatility_1y", "expense_ratio",
-    "listed_date", "delisted_date", "is_leveraged", "active",
+    "listed_date", "delisted_date", "is_leveraged", "active", "kind",
     "asset_group_id", "sector_group_id", "country_group_id",
 ]
+
+# 상품 종류. 백테스트 세금 계산이 주식과 ETF 를 이 값으로 구분한다(db/migrate/002)
+KINDS = {"stock", "etf"}
 
 # CSV의 sector 한글값 -> asset_groups.group_id (db/seeds/03_asset_groups.sql 레벨2 섹터)
 SECTOR_GROUP_MAP = {
@@ -164,6 +167,14 @@ def main() -> int:
             file=sys.stderr,
         )
     loadable = [r for r in rows if r["group_id"].strip()]
+    bad_kind = [r["ticker"] for r in loadable if r.get("kind", "").strip() not in KINDS]
+    if bad_kind:
+        print(
+            f"load_etf_master: kind 가 stock · etf 가 아닌 {len(bad_kind)}건 — 원장을 다시 만들어야 한다"
+            f" (scripts/build_etf_master.py): {bad_kind[:10]}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     engine = create_engine(_database_url(), pool_pre_ping=True)
     try:
@@ -180,11 +191,11 @@ def main() -> int:
                     text(
                         "INSERT INTO instruments "
                         "(ticker, name, sector, group_id, risk_tag, mdd_3y, volatility_1y, "
-                        " expense_ratio, listed_date, delisted_date, is_leveraged, active, "
+                        " expense_ratio, listed_date, delisted_date, is_leveraged, active, kind, "
                         " asset_group_id, sector_group_id, country_group_id) "
                         "VALUES "
                         "(:ticker, :name, :sector, :group_id, :risk_tag, :mdd_3y, :volatility_1y, "
-                        " :expense_ratio, :listed_date, :delisted_date, :is_leveraged, :active, "
+                        " :expense_ratio, :listed_date, :delisted_date, :is_leveraged, :active, :kind, "
                         " :asset_group_id, :sector_group_id, :country_group_id) "
                         "ON CONFLICT (ticker) DO UPDATE SET "
                         " name = EXCLUDED.name, "
@@ -198,6 +209,7 @@ def main() -> int:
                         " delisted_date = EXCLUDED.delisted_date, "
                         " is_leveraged = EXCLUDED.is_leveraged, "
                         " active = EXCLUDED.active, "
+                        " kind = EXCLUDED.kind, "
                         " asset_group_id = EXCLUDED.asset_group_id, "
                         " sector_group_id = EXCLUDED.sector_group_id, "
                         " country_group_id = EXCLUDED.country_group_id"
@@ -216,6 +228,7 @@ def main() -> int:
                         "delisted_date": _to_null(row["delisted_date"]),
                         "is_leveraged": _to_bool(row["is_leveraged"]),
                         "active": _to_bool(row["active"]),
+                        "kind": row["kind"].strip(),
                         "asset_group_id": row["asset_group_id"],
                         "sector_group_id": row["sector_group_id"],
                         "country_group_id": row["country_group_id"],
