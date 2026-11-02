@@ -1,0 +1,454 @@
+# 표현 표와 거절 사전 (전략서 v0.2, 조각 찾기)
+#
+# 설계 문서 "문장을 빈칸으로 나누는 방법", "표현 표와 거절 사전"(2026-11-02).
+# DB 에 넣지 않고 앱이 시작할 때 읽는다(backend/app/m1/spans.py). 파일 해시가 사전 버전이다.
+# 첫 내용은 eval/GUIDE.md 의 표현 표 · 동사 표와 평가 데이터셋 개발용(dev) 문장에서 채웠다. 최종 평가용(test)은 보지 않았다.
+#
+# 항목 다섯 칸
+#   id        항목 이름. 겹치지 않는다
+#   kind      indicator number verb action subject weight rebalance period capital dividend
+#             selection sector product negation reject
+#   pattern   정규식. 대소문자를 가리지 않는다. 이름 붙은 묶음((?P<w>...))은 meaning 의 "$w" 로 들어간다
+#             {L} 은 "앞이 한글 · 영문 · 숫자가 아님" 이다. "회사" 의 "사" 를 사기로 읽지 않게 한다
+#   meaning   무엇으로 바뀌는지. 조각 찾기는 값을 옮겨 적기만 하고, 뜻을 해석하는 일(기본값, 단위 환산)은 값 바꾸기 단계가 한다
+#   examples  이 항목 하나로 통째로 잡혀야 하는 말. 테스트가 확인한다
+#
+# 겹치면 가장 긴 조각이 이긴다. 그래서 "아래로 떨어지면" 은 움직임 하나로, "KODEX 골드선물(H)" 은 종목 하나로 잡힌다.
+# 종목 정식 이름은 종목 원장(instruments)에서 읽는다. 여기에는 줄임말과 운용사 한글 표기만 적는다.
+
+brand_aliases:
+  KODEX: [코덱스]
+  TIGER: [타이거]
+  RISE: [라이즈]
+  ACE: [에이스]
+  PLUS: [플러스]
+  SOL: [쏠]
+  KIWOOM: [키움]
+  HANARO: [하나로]
+
+instrument_aliases:
+  하이닉스: "000660"
+  삼전: "005930"
+  네이버: "035420"
+  현대자동차: "005380"
+  기아차: "000270"
+  포스코홀딩스: "005490"
+  포스코: "005490"
+  엘지에너지솔루션: "373220"
+  엘지엔솔: "373220"
+  한화에어로: "012450"
+  카뱅: "323410"
+
+# 종목 이름이지만 전략 문장에서 흔한 낱말이라 종목으로 읽지 않는다
+instrument_stopwords: [대상, 태양, 남성, 노을, 씨앗, 아하, 레몬, 배럴, 핑거, 레이, 캐리, 무학, 전방, 동방, 성우, 우성, 서원, 신원, 오아, 대교, 동양, 코디, 진도, 선진, 혜인]
+
+entries:
+  # ── 지표 ──────────────────────────────────────────────────────────
+  - id: ma_n
+    kind: indicator
+    pattern: '(?P<w>\d+)\s*일\s*(?:이동\s*평균선?|이평선?|선)'
+    meaning: {indicator: ma, window: $w}
+    examples: [5일선, 20일 이평, 120일 이동평균, 7일선, 60일 이평선]
+  - id: ma_bare
+    kind: indicator
+    pattern: '{L}(?:이동\s*평균선?|이평선?)'
+    meaning: {indicator: ma, window: null}
+    examples: [이평선, 이동평균]
+  - id: golden_cross
+    kind: indicator
+    pattern: '골든\s*크로스|골크'
+    meaning: {cross: golden}
+    examples: [골든크로스, 골크]
+  - id: dead_cross
+    kind: indicator
+    pattern: '데드\s*크로스|데크'
+    meaning: {cross: dead}
+    examples: [데드크로스]
+  - id: rsi_paren
+    kind: indicator
+    pattern: 'RSI\s*\(\s*(?P<w>\d+)\s*\)'
+    meaning: {indicator: rsi, window: $w}
+    examples: [RSI(9), rsi(14)]
+  - id: rsi_days_after
+    kind: indicator
+    pattern: 'RSI\s*(?P<w>\d+)\s*일'
+    meaning: {indicator: rsi, window: $w}
+    examples: [RSI 9일]
+  - id: rsi_days_before
+    kind: indicator
+    pattern: '(?P<w>\d+)\s*일\s*RSI'
+    meaning: {indicator: rsi, window: $w}
+    examples: [14일 RSI]
+  - id: rsi
+    kind: indicator
+    pattern: 'RSI|알에스아이'
+    meaning: {indicator: rsi, window: null}
+    examples: [RSI]
+  - id: oversold
+    kind: indicator
+    pattern: '과매도'
+    meaning: {indicator: rsi, window: null, value: 30, op: '<'}
+    examples: [과매도]
+  - id: overbought
+    kind: indicator
+    pattern: '과매수'
+    meaning: {indicator: rsi, window: null, value: 70, op: '>'}
+    examples: [과매수]
+  - id: close
+    kind: indicator
+    pattern: '{L}(?:종가|주가)'
+    meaning: {indicator: close}
+    examples: [종가, 주가]
+  - id: ret_n
+    kind: indicator
+    pattern: '(?P<w>\d+)\s*(?:거래)?일\s*(?:간\s*|동안\s*)?(?:수익률|상승률|등락률)'
+    meaning: {indicator: ret, window: $w}
+    examples: [20일 수익률, 5일간 상승률]
+  - id: ret_word
+    kind: indicator
+    pattern: '(?P<p>하루|일주일|한\s*달|석\s*달)\s*(?:새|동안|만에|사이에?)?'
+    meaning: {indicator: ret, period_word: $p}
+    examples: [한 달 새, 일주일 동안, 하루 만에]
+  - id: vol_n
+    kind: indicator
+    pattern: '(?P<w>\d+)\s*일\s*변동성'
+    meaning: {indicator: vol, window: $w}
+    examples: [20일 변동성]
+  - id: vol_bare
+    kind: indicator
+    pattern: '{L}변동성'
+    meaning: {indicator: vol, window: null}
+    examples: [변동성]
+  - id: volume_ratio_n
+    kind: indicator
+    pattern: '거래량이?\s*(?P<w>\d+)\s*일\s*평균(?:의|보다)?\s*(?P<v>\d+(?:\.\d+)?)\s*배'
+    meaning: {indicator: volume_ratio, window: $w, value: $v}
+    examples: [거래량이 20일 평균의 3배, 거래량 20일 평균 2배]
+  - id: volume_ratio_usual
+    kind: indicator
+    pattern: '거래량이?\s*평소(?:의|보다)?\s*(?P<v>\d+(?:\.\d+)?)\s*배'
+    meaning: {indicator: volume_ratio, window: null, value: $v}
+    examples: [거래량이 평소의 3배]
+  - id: volume_bare
+    kind: indicator
+    pattern: '{L}거래량'
+    meaning: {indicator: volume_ratio, window: null}
+    examples: [거래량]
+  - id: vix
+    kind: indicator
+    pattern: 'VIX|빅스|공포\s*지수'
+    meaning: {indicator: vix, of: VIX}
+    examples: [VIX, 공포지수]
+  - id: entry_return
+    kind: indicator
+    pattern: '{L}(?:산|매수한)\s*(?:가격|값|가|단가)\s*(?:보다|대비|에서|기준)?|매수\s*(?:가격|단가|가)\s*(?:보다|대비|기준)?'
+    meaning: {indicator: entry_return}
+    examples: [산 가격보다, 산 가격 대비, 매수가 대비]
+  - id: holding_days
+    kind: indicator
+    pattern: '(?:산\s*(?:지|뒤|후)\s*)?(?P<n>\d+)\s*(?:거래일|일)\s*(?:이\s*)?(?:지나면|지나서|뒤에?|후에?|동안\s*들고)'
+    meaning: {indicator: holding_days, value: $n, op: '>='}
+    examples: [5거래일 뒤에, 산 지 10거래일 지나면, 3일 후]
+  - id: next_day
+    kind: indicator
+    pattern: '다음\s*날|이튿날'
+    meaning: {indicator: holding_days, value: 1, op: '>='}
+    examples: [다음날, 다음 날]
+
+  # ── 숫자 ──────────────────────────────────────────────────────────
+  - id: percent_point
+    kind: number
+    pattern: '(?P<v>[+-]?\d+(?:\.\d+)?)\s*%\s*(?:p|포인트)'
+    meaning: {value: $v, unit: percent_point}
+    examples: [5%p, 5%포인트]
+  - id: percent
+    kind: number
+    pattern: '(?P<v>[+-]?\d+(?:\.\d+)?)\s*(?:%|퍼센트|프로)'
+    meaning: {value: $v, unit: percent}
+    examples: [50%, -5%, +15%, 10퍼센트]
+  - id: fraction
+    kind: number
+    pattern: '(?<![\d.])(?P<a>\d+)\s*/\s*(?P<b>\d+)(?![\d.])'
+    meaning: {numerator: $a, denominator: $b, unit: fraction}
+    examples: [1/3]
+  - id: ratio
+    kind: number
+    pattern: '(?<![\d.])(?P<a>\d+)\s*:\s*(?P<b>\d+)(?![\d.])'
+    meaning: {left: $a, right: $b, unit: ratio}
+    examples: ['7:3']
+  - id: money_scaled
+    kind: capital
+    pattern: '(?P<v>\d[\d,]*(?:\.\d+)?)\s*(?P<s>억|천만|백만|만)\s*원?'
+    meaning: {value: $v, scale: $s, unit: won}
+    examples: [1억, 1000만원, '1,000만 원', 5천만]
+  - id: money_won
+    kind: capital
+    pattern: '(?P<v>\d[\d,]*)\s*원'
+    meaning: {value: $v, scale: null, unit: won}
+    examples: ['10,000,000원']
+  - id: count
+    kind: number
+    pattern: '(?P<v>\d+)\s*(?:개|종목)'
+    meaning: {value: $v, unit: count}
+    examples: [10개, 5종목]
+  - id: times
+    kind: number
+    pattern: '(?P<v>\d+(?:\.\d+)?)\s*배'
+    meaning: {value: $v, unit: times}
+    examples: [3배]
+  - id: plain_number
+    kind: number
+    pattern: '(?<![\d.])(?P<v>[+-]?\d+(?:\.\d+)?)(?![\d.])'
+    meaning: {value: $v, unit: none}
+    examples: ['30', '0.5']
+
+  # ── 동사: 비교 방향 ───────────────────────────────────────────────
+  # eval/GUIDE.md "동사와 연산자". 움직임 말(사건)이 위치 말(상태)보다 길게 잡혀서 이긴다
+  - id: move_down
+    kind: verb
+    pattern: '(?:(?:아래|밑)\s*으?로\s*)?(?:떨어(?:지|졌|질|져)|깨(?:지|졌|질|져)|깨(?=면)|내려(?:가|오|갔|왔|간|온|감)|이탈(?:하)?|빠(?:지|졌|질|져)|하락\s*돌파(?:하)?|하향\s*돌파(?:하)?)(?:면서|면|고|서|는|을\s*때|을)?'
+    meaning: {op: cross_below}
+    examples: [떨어지면, 깨지면, 아래로 떨어지면, 밑으로 빠지면, 아래로 내려가면, 이탈하면, 깨면, 빠졌을 때]
+  - id: move_up
+    kind: verb
+    pattern: '(?:위\s*로\s*)?(?:넘(?:어가|어서|으|어|게|는|었|을)|뚫(?:으|고|는|었|을|리)|상향\s*돌파(?:하)?|돌파(?:하)?|올라(?:서|오|가|갔|왔|온|간|섰)|터지)(?:면서|면|고|서|는|을\s*때|을)?'
+    meaning: {op: cross_above}
+    examples: [넘으면, 뚫으면, 돌파하면, 위로 올라오면, 올라서면, 터지고, 넘어가면, 넘게]
+  - id: rise_state
+    kind: verb
+    pattern: '오르(?:면|고|ㄹ\s*때)|오를\s*때|올랐(?:으면|을\s*때)'
+    meaning: {op: '>=', move: up}
+    examples: [오르면, 오를 때]
+  - id: below_state
+    kind: verb
+    pattern: '(?:보다\s*)?(?:밑|아래)(?:이면|일\s*때|에서|면|인\s*동안|일\s*동안)(?:만|에만)?|(?:보다\s*)?(?:밑|아래)(?![가-힣])|(?:보다\s*)?낮(?:으면|을\s*때|은\s*동안|아지면|아질\s*때)'
+    meaning: {op: '<'}
+    examples: [밑이면, 아래면, 밑에서, 보다 낮으면, 낮아지면, 아래일 때, 밑일 때만]
+  - id: at_most
+    kind: verb
+    pattern: '이하(?:이면|면|에서|일\s*때|인\s*동안)?'
+    meaning: {op: '<='}
+    examples: [이하면, 이하에서]
+  - id: above_state
+    kind: verb
+    pattern: '(?:보다\s*)?위(?:이면|일\s*때|에서|면|인\s*동안|일\s*동안)(?:만|에만)?|(?:보다\s*)?위(?![가-힣])|(?:보다\s*)?높(?:으면|을\s*때|은\s*동안|아지면|아질\s*때)'
+    meaning: {op: '>'}
+    examples: [위면, 위일 때, 보다 높으면, 위에서, 위일 때만]
+  - id: at_least
+    kind: verb
+    pattern: '이상(?:이면|면|에서|일\s*때|인\s*동안)?'
+    meaning: {op: '>='}
+    examples: [이상이면, 이상]
+  - id: bare_if
+    kind: verb
+    pattern: '(?<=[%\d])\s*(?:이?면|일\s*때)'
+    meaning: {op: null}
+    examples: []
+
+  # ── 사기 · 팔기 ───────────────────────────────────────────────────
+  - id: buy
+    kind: action
+    pattern: '{L}(?:다시\s*)?(?:사(?:고|서|줘|자|요|라|면|는|두고|둬|둔)?|매수(?:해|하고|하면|해줘)?|담(?:고|아|아줘|아서|아두고)|들어가(?:고|면)?|보유(?:하고|하면|해)?|진입(?:하고|하면)?)(?![가-힣])'
+    meaning: {side: entry}
+    examples: [사고, 사, 사서, 다시 사, 매수, 담고, 보유, 사두고]
+  - id: sell
+    kind: action
+    pattern: '{L}(?:다\s*|전부\s*|모두\s*)?(?:팔(?:아|고|기|면|자|아줘|아라|래)?|파는|판다|매도(?:해|하고|하면)?|청산(?:하고|해)?|정리(?:하고|해)?)(?![가-힣])'
+    meaning: {side: exit}
+    examples: [팔아, 팔고, 팔기, 다 팔고, 매도, 청산, 파는]
+  - id: to_cash
+    kind: action
+    pattern: '{L}현금(?:으로|화)?(?![가-힣])'
+    meaning: {side: exit, weak: true}
+    examples: [현금, 현금으로]
+  - id: take_profit
+    kind: action
+    pattern: '익절'
+    meaning: {side: exit, exit_kind: take_profit, op: '>='}
+    examples: [익절]
+  - id: stop_loss
+    kind: action
+    pattern: '손절'
+    meaning: {side: exit, exit_kind: stop_loss, op: '<='}
+    examples: [손절]
+
+  # ── 누구의 값 · 시장 ──────────────────────────────────────────────
+  - id: kospi
+    kind: subject
+    pattern: '코스피\s*(?:200|지수)?'
+    meaning: {of: KOSPI200, market: KOSPI}
+    examples: [코스피, 코스피200, 코스피 지수]
+  - id: kosdaq
+    kind: subject
+    pattern: '코스닥\s*(?:150|지수)?'
+    meaning: {of: KOSDAQ, market: KOSDAQ}
+    examples: [코스닥, 코스닥 지수]
+
+  # ── 비중 ──────────────────────────────────────────────────────────
+  - id: half
+    kind: weight
+    pattern: '반반'
+    meaning: {weights: half}
+    examples: [반반]
+  - id: equal
+    kind: weight
+    pattern: '똑같이|균등(?:하게)?|같은\s*비중|동일\s*비중|비중\s*같게|1\s*/\s*N'
+    meaning: {weights: equal}
+    examples: [똑같이, 균등, 같은 비중, 1/N]
+  - id: each
+    kind: weight
+    pattern: '각각|종목마다'
+    meaning: {each: true}
+    examples: [각각]
+  - id: rest_cash
+    kind: weight
+    pattern: '나머지(?:는)?\s*현금'
+    meaning: {rest: cash}
+    examples: [나머지는 현금]
+  - id: max_weight
+    kind: weight
+    pattern: '한\s*종목에\s*(?P<v>\d+(?:\.\d+)?)\s*%\s*(?:넘게는?|이상은?|초과는?)\s*(?:싫|안|말)'
+    meaning: {max_weight: $v}
+    examples: [한 종목에 30% 넘게는 싫]
+
+  # ── 리밸런싱 ──────────────────────────────────────────────────────
+  - id: rb_monthly_first
+    kind: rebalance
+    pattern: '(?:매달|매월)\s*(?:초|1일|첫\s*(?:거래일|날))?|한\s*달에\s*한\s*번|월\s*1회'
+    meaning: {rebalance: RB_MONTHLY_FIRST}
+    examples: [매달 초, 매월 1일, 매달, 한 달에 한 번]
+  - id: rb_monthly_mid
+    kind: rebalance
+    pattern: '(?:매달|매월)\s*(?:중순|15일)|15일\s*쯤'
+    meaning: {rebalance: RB_MONTHLY_MID}
+    examples: [매달 중순, 매월 15일]
+  - id: rb_quarterly
+    kind: rebalance
+    pattern: '분기(?:마다|별|에\s*한\s*번)?'
+    meaning: {rebalance: RB_QUARTERLY}
+    examples: [분기, 분기마다]
+  - id: rb_weekly
+    kind: rebalance
+    pattern: '매주|주\s*1회|일주일에\s*한\s*번|주마다'
+    meaning: {rebalance: RB_WEEKLY}
+    examples: [매주, 일주일에 한 번]
+  - id: rb_drift
+    kind: rebalance
+    pattern: '(?:비중이\s*)?(?P<v>\d+(?:\.\d+)?)\s*%\s*(?:p|포인트)?\s*(?:이상\s*)?(?:틀어지|벗어나|차이\s*나)'
+    meaning: {rebalance: drift, value: $v}
+    examples: [비중이 5%포인트 이상 틀어지, 5%p 벗어나]
+  - id: rb_half_year
+    kind: rebalance
+    pattern: '반기(?:마다|에\s*한\s*번)?|6\s*개월(?:마다|에\s*한\s*번)'
+    meaning: {rebalance: null, not_allowed: half_year}
+    examples: [반기마다, 6개월마다]
+  - id: rb_yearly
+    kind: rebalance
+    pattern: '(?:1|일|한)\s*년에\s*한\s*번|매년|연\s*1회'
+    meaning: {rebalance: null, not_allowed: yearly}
+    examples: [1년에 한 번, 매년]
+  - id: rb_word
+    kind: rebalance
+    pattern: '리밸(?:런싱)?|비중\s*(?:을\s*)?(?:다시\s*)?맞(?:춰|추|춤|추기)'
+    meaning: {rebalance_word: true}
+    examples: [리밸런싱, 리밸, 비중 다시 맞춰]
+
+  # ── 기간 · 시작 금액 ──────────────────────────────────────────────
+  - id: year
+    kind: period
+    pattern: '(?P<y>20\d\d)\s*년\s*(?:한\s*해|1년|동안)?\s*(?:만|에만)?'
+    meaning: {year: $y}
+    examples: [2024년 한 해만, 2023년]
+  - id: date
+    kind: period
+    pattern: '(?P<d>20\d\d-\d\d-\d\d)'
+    meaning: {date: $d}
+    examples: [2023-01-01]
+  - id: last_years
+    kind: period
+    pattern: '최근\s*(?P<n>\d+)\s*년'
+    meaning: {last_years: $n}
+    examples: [최근 3년]
+  - id: capital_word
+    kind: capital
+    pattern: '시작\s*(?:금액|자금|돈)|원금|투자\s*금액'
+    meaning: {capital_word: true}
+    examples: [시작금액, 시작 금액]
+
+  # ── 배당 ──────────────────────────────────────────────────────────
+  - id: dividend
+    kind: dividend
+    pattern: '월배당|고배당(?:주)?|배당(?:금|주)?|분배금'
+    meaning: {dividends: true}
+    examples: [월배당, 고배당주, 배당, 분배금]
+
+  # ── 종류로 고르기 (데모 범위 밖, 되묻기용) ───────────────────────
+  - id: sector
+    kind: sector
+    pattern: '(?P<s>[가-힣·]{1,10})\s*업종'
+    meaning: {sector: $s}
+    examples: [반도체 업종, 전기가스 업종]
+  - id: by_market_cap
+    kind: selection
+    pattern: '시총|시가\s*총액'
+    meaning: {method: market_cap}
+    examples: [시총, 시가총액]
+  - id: by_trading_value
+    kind: selection
+    pattern: '거래\s*대금'
+    meaning: {method: trading_value}
+    examples: [거래대금]
+  - id: by_low_vol
+    kind: selection
+    pattern: '덜\s*출렁이는|변동성\s*(?:이\s*)?(?:낮은|작은)'
+    meaning: {method: low_vol}
+    examples: [덜 출렁이는]
+  - id: by_momentum
+    kind: selection
+    pattern: '(?:최근\s*)?많이\s*오른'
+    meaning: {method: momentum}
+    examples: [최근 많이 오른]
+  - id: top_order
+    kind: selection
+    pattern: '상위|큰\s*(?:순|순서)(?:으로|대로)?'
+    meaning: {order: top}
+    examples: [상위, 큰 순으로]
+  - id: product_etf
+    kind: product
+    pattern: 'ETF'
+    meaning: {product: etf}
+    examples: [ETF]
+
+  # ── 부정 ──────────────────────────────────────────────────────────
+  - id: negation
+    kind: negation
+    pattern: '말고|빼고|빼줘|제외(?:하고|해)?|신경\s*쓰지\s*마'
+    meaning: {negate: previous}
+    examples: [말고, 빼고, 제외하고]
+
+  # ── 거절 사전 (eval/GUIDE.md "거절 판정") ─────────────────────────
+  - id: reject_indicator
+    kind: reject
+    pattern: 'MACD|맥디|볼린저(?:\s*밴드)?|일목(?:\s*균형표)?(?:\s*구름대)?|구름대|스토캐스틱|OBV|ATR|CCI|피보나치|엘리어트|세력|바닥|고점|꼭지'
+    meaning: {reject: UNKNOWN_INDICATOR}
+    examples: [MACD, 볼린저밴드, 일목균형표 구름대, 스토캐스틱]
+  - id: reject_asset
+    kind: reject
+    pattern: '비트\s*코인|이더리움|코인|가상\s*화폐|암호\s*화폐|선물|옵션|ETN|애플|테슬라|해외\s*주식|개별\s*채권'
+    meaning: {reject: UNSUPPORTED_ASSET}
+    examples: [비트코인, 코인, 선물, ETN, 테슬라]
+  - id: reject_action
+    kind: reject
+    pattern: '공매도|대주|신용\s*(?:매수|거래|으로)|미수|빚\s*내서|대출\s*받아|물타기|분할\s*(?:매수|매도)|(?:\d+|한|두|세|네)\s*번\s*(?:에\s*)?나눠서|(?<![\d.])\d+\s*/\s*\d+\s*씩|피라미딩'
+    meaning: {reject: UNSUPPORTED_ACTION}
+    examples: [공매도, 물타기, 분할매수, 세 번 나눠서, 1/3씩]
+  - id: reject_intraday
+    kind: reject
+    pattern: '장\s*(?:시작|중|초반|마감\s*(?:전|직전))|시초가|분봉|틱\s*(?:차트|단위)|갭\s*(?:상승|하락)|(?:오전|오후)\s*\d+\s*시|\d+\s*시\s*\d+\s*분|\d+\s*분\s*(?:뒤|후)|단타|당일'
+    meaning: {reject: INTRADAY}
+    examples: [장 시작, 시초가, 분봉, 갭상승, 오후 3시, 단타]
+  - id: reject_future
+    kind: reject
+    pattern: '내일|다음\s*(?:날|주|달)\s*(?:종가|시가|가격|주가|실적)|오를\s*것\s*같|떨어질\s*것\s*같|오를까|떨어질까|예측|실적\s*발표\s*전|(?P<n>\d+)\s*일\s*뒤\s*(?:수익률|가격|종가)'
+    meaning: {reject: FUTURE_REF}
+    examples: [내일, 다음 달 실적, 오를 것 같, 실적 발표 전, 20일 뒤 수익률]
