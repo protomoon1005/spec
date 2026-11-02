@@ -1,4 +1,4 @@
-// 흐름 화면(가입, 로그인, 전략 만들기 …)이 공통으로 쓰는 바닥.
+// 화면(채팅, 전략 만들기 …)이 공통으로 쓰는 바닥.
 //
 // 네 가지만 한다.
 //   1) 토큰 보관       브라우저 저장소에 access · refresh · username
@@ -29,33 +29,10 @@ export function loadSession(): Session | null {
 
 export function saveSession(session: Session): void {
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  rememberToken(session.username, session.access);
-}
-
-// 로그아웃은 로그인 상태(SESSION_KEY)만 지운다. 인증받은 토큰은 아이디별로 따로
-// 기억해 두어, 유효기간 안이면 로그인 화면에서 토큰 없이 다시 들어올 수 있게 한다.
-const TOKENS_KEY = "spec.tokens";
-
-function loadTokens(): Record<string, string> {
-  try {
-    const raw = window.localStorage.getItem(TOKENS_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function rememberToken(username: string, access: string): void {
-  window.localStorage.setItem(TOKENS_KEY, JSON.stringify({ ...loadTokens(), [username]: access }));
-}
-
-export function loadRememberedToken(username: string): string | null {
-  return loadTokens()[username] ?? null;
 }
 
 // JWT 가운데 조각의 exp(초)를 읽어 밀리초로 낸다. 서명은 서버가 본다 — 여기선 만료
 // 안내용일 뿐이다. 모양이 JWT 가 아니면 null(만료 판단은 서버에 맡긴다).
-// 로그인 화면에만 있던 것을 RequireLogin 도 쓰도록 여기로 옮겼다.
 export function tokenExpiry(token: string): number | null {
   try {
     const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -101,12 +78,57 @@ type ApiOptions = {
   token?: string | null;
 };
 
+// 로그인 화면은 없다(2026-11-02). 화면이 열리면 공용 시연 계정으로 알아서 들어간다.
+// 서버는 전략서마다 주인 계정이 필요해서 계정은 남긴다. 계정이 없으면 만들고, 토큰이 만료되면 다시 받는다.
+export const DEMO_USER = "demo";
+
+let pending: Promise<Session> | null = null;
+
+export function ensureSession(force = false): Promise<Session> {
+  const s = loadSession();
+  if (!force && s && !isExpired(s.access)) return Promise.resolve(s);
+  pending ??= signIn().finally(() => {
+    pending = null;
+  });
+  return pending;
+}
+
+async function signIn(): Promise<Session> {
+  const post = (path: string) =>
+    fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: DEMO_USER }),
+    });
+  let res = await post("/auth/login");
+  if (res.status === 401) res = await post("/auth/signup");
+  if (res.status === 409) res = await post("/auth/login"); // 다른 탭이 방금 만들었다
+  if (!res.ok) throw new ApiError(res.status, safeJson(await res.text()));
+  const t = (await res.json()) as { access_token: string; refresh_token: string };
+  const session = { access: t.access_token, refresh: t.refresh_token, username: DEMO_USER };
+  saveSession(session);
+  return session;
+}
+
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  if (options.token === undefined && !path.startsWith("/auth/") && path !== "/health") await ensureSession();
+  let res = await send(path, options);
+  if (res.status === 401 && options.token === undefined && !path.startsWith("/auth/")) {
+    await ensureSession(true); // 토큰이 서버에서 무효가 됐다. 새로 받아 한 번만 다시 보낸다
+    res = await send(path, options);
+  }
+  return read<T>(res);
+}
+
+function send(path: string, options: ApiOptions): Promise<Response> {
+  return fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? (options.body === undefined ? "GET" : "POST"),
     headers: headers(options.token, options.body !== undefined),
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
+}
+
+async function read<T>(res: Response): Promise<T> {
   const text = await res.text();
   const data: unknown = text ? safeJson(text) : null;
   if (!res.ok) {
@@ -148,6 +170,7 @@ export async function streamJob(
   onEvent: (e: StreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  await ensureSession();
   const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/stream`, { headers: headers(undefined, false), signal });
   if (!res.ok || !res.body) {
     throw new ApiError(res.status, safeJson(await res.text()));

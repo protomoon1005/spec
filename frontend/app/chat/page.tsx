@@ -8,10 +8,9 @@
 // 대화 기록은 브라우저 저장소에 사용자별로 둔다(lib/chat.ts).
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, clearSession, isExpired, loadSession, streamJob, type Session, type StreamEvent } from "@/lib/api";
+import { api, ensureSession, streamJob, type Session, type StreamEvent } from "@/lib/api";
 import {
   EXAMPLES,
   loadConversations,
@@ -30,21 +29,27 @@ import { AskCard, RejectCard, ResultCard, UnderstoodCard, UserBubble } from "./p
 const POLL_MS = 2000;
 
 export default function ChatPage() {
-  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // 로그인 화면은 없다. 공용 시연 계정으로 알아서 들어간다(lib/api.ts ensureSession)
   useEffect(() => {
-    const s = loadSession();
-    if (!s || isExpired(s.access)) router.replace("/login");
-    else setSession(s);
-  }, [router]);
+    ensureSession()
+      .then(setSession)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, []);
 
+  if (error)
+    return (
+      <div className="chat-root" style={{ display: "block", padding: 24 }}>
+        <div className="error-box">서버에 연결하지 못했어요: {error}</div>
+      </div>
+    );
   if (!session) return <div className="chat-root" />;
   return <Chat session={session} />;
 }
 
 function Chat({ session }: { session: Session }) {
-  const router = useRouter();
   const [history, setHistory] = useState<Conversation[]>([]);
   const [conv, setConv] = useState<Conversation>(newConversation);
   const [input, setInput] = useState("");
@@ -224,11 +229,6 @@ function Chat({ session }: { session: Session }) {
     if (c) setConv(c);
   }
 
-  function logout() {
-    clearSession();
-    router.replace("/login");
-  }
-
   const lastAsk = conv.messages.reduce((acc, m, i) => (m.role === "ai" && m.kind === "ask" ? i : acc), -1);
 
   return (
@@ -253,10 +253,7 @@ function Chat({ session }: { session: Session }) {
             <code>qwen3:8b</code>
           </div>
           <div className="muted" style={{ marginTop: 8 }}>
-            {session.username} · <Link href="/specs">전략 관리</Link> ·{" "}
-            <button className="link" onClick={logout}>
-              로그아웃
-            </button>
+            <Link href="/specs">전략 관리</Link>
           </div>
         </div>
       </aside>
