@@ -32,3 +32,4 @@
 - 실행: streamlit run app.py
 - 테스트: pytest -q
 - 평가: python -m eval.run
+- 비교 대상(LLM 코드 직접 생성)과 나란히: python -m eval.run --baseline → eval/report_baseline.md

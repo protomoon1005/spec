@@ -543,6 +543,122 @@ def result_view(res: PipelineResult, first_hash: Optional[str]) -> dict:
     }
 
 
+# ---------------------------------------------------------------- LLM 코드 생성과 비교 (baseline)
+
+BASELINE_REPEATS = 3
+BaselineFn = Callable[..., dict]       # baseline.compare.trial 과 같은 모양 (테스트에서 바꿔 끼운다)
+
+
+def _default_baseline_trial(*a, **kw) -> dict:
+    from baseline.compare import trial
+    return trial(*a, **kw)
+
+
+def _default_baseline_data(end: str):
+    from baseline.compare import load_data
+    return load_data(end)
+
+
+def baseline_compare(conv: dict, idx: int, run_fn: RunFn, on_step: Optional[StepFn] = None, *,
+                     trial_fn: Optional[BaselineFn] = None, data_fn=None) -> dict:
+    """결과 카드(idx) 아래 'LLM 코드 생성과 비교'. 같은 문장으로 baseline 을 3회(캐시 없이) 돌리고,
+    첫 회 코드의 주문을 우리 엔진과 같은 비용·세금으로 체결해 자산 곡선을 우리 결과와 나란히 둔다.
+    baseline 에는 우리 방식이 읽은 기간이 아니라 기본 기간을 넘긴다 (eval 과 같음). 자산 곡선은 우리 결과 기간으로 자른다."""
+    from baseline.orders import execute_orders, orders_from_fills
+    from core.decide import DEFAULTS
+
+    m = conv["messages"][idx]
+    if m.get("kind") != "result" or m.get("baseline_done"):
+        return conv
+    c = source_card(conv, idx)
+    if c is None:
+        return conv
+    card = conv["messages"][c]
+    m["baseline_done"] = True
+    step = on_step or (lambda _: None)
+    res = run_fn(card["text"], card["answers"], None)      # 우리 쪽 (빈칸 채우기는 캐시) — 주문 목록을 얻으려고
+    trial = res.report.trial if res.report else None
+    if res.verdict != "proceed" or trial is None:
+        _say(conv, "error", text="우리 쪽 결과를 다시 만들지 못해 비교하지 못했습니다.")
+        return conv
+    spec = res.report.spec
+    step("가격 데이터 준비")
+    end = max(DEFAULTS["end"], spec.backtest.end)
+    prices, missing = (data_fn or _default_baseline_data)(end)
+    t = (trial_fn or _default_baseline_trial)(card["text"], prices, DEFAULTS["start"], DEFAULTS["end"],
+                                              repeats=BASELINE_REPEATS, use_cache=False, on_step=step)
+    calendar = trial.equity.index
+    ours = orders_from_fills(trial.fills, dict(zip([a.ticker for a in spec.assets], slot_weights(spec))),
+                             prices["KS11"].index if "KS11" in prices else calendar)
+    first = t["runs"][0]
+    gen, run = first["gen"], first["run"]
+    view = {"role": "assistant", "kind": "baseline", "result_idx": idx, "text": card["text"],
+            "outcome": first["outcome"], "message": gen.message, "code": gen.code, "raw": None if gen.code else gen.raw,
+            "error": run.error if run and not run.ok else None, "stage": run.stage if run else None,
+            "consistent": t["consistent"], "codes_same": t["codes_same"],
+            "runs": [{"outcome": r["outcome"], "n_orders": len(r["run"].orders) if r["run"] and r["run"].ok else None,
+                      "code_hash": (r["gen"].code_hash or "")[:8], "error": r["run"].error if r["run"] else r["gen"].message,
+                      "seconds": round(r["wall_s"], 1)} for r in t["runs"]],
+            "lookahead": t["lookahead"].get(gen.code_hash) if gen.code_hash else None,
+            "lookahead_other": any(v["leak"] for h, v in t["lookahead"].items() if h != gen.code_hash),
+            "ours_orders": ours, "base_orders": None, "chart": None, "metrics": None, "missing": missing,
+            "period": [DEFAULTS["start"], DEFAULTS["end"]]}
+    if run is not None and run.ok:
+        bt = spec.backtest
+        ex = execute_orders(run.orders, prices, calendar, initial_cash=bt.initial_cash,
+                            commission_rate=bt.commission_rate, slippage_rate=bt.slippage_rate)
+        eq = ex["equity"]
+        view["base_orders"] = run.orders
+        view["chart"] = {"dates": [d.strftime("%Y-%m-%d") for d in calendar], "ours": _series(trial.equity),
+                         "base": _series(eq)}
+        view["metrics"] = {"ours_total_return": trial.metrics["total_return"],
+                           "base_total_return": float(eq.iloc[-1] / bt.initial_cash - 1) if len(eq) else None,
+                           "base_fills": len(ex["fills"]), "ignored": len(ex["ignored"]),
+                           "unfilled": len(ex["unfilled"])}
+    conv["messages"].append(view)
+    return conv
+
+
+def baseline_badges(m: dict) -> list[tuple[str, str]]:
+    """(문구, 색). 빨강: 실행 실패·미래 참조·3회 결과 다름."""
+    out = []
+    o = m["outcome"]
+    if o == "code_fail":
+        out.append((f"실행 실패 — {m['error']}"[:160], "red"))
+    elif o == "error":
+        out.append(("응답에서 코드를 찾지 못함", "red"))
+    elif o == "clarify":
+        out.append(("코드 대신 되물음", "gray"))
+    elif o == "reject":
+        out.append(("코드 대신 구현 불가라고 답함", "gray"))
+    elif o == "code_ok" and not m.get("base_orders"):
+        out.append(("실행은 됐지만 주문을 하나도 내지 않음", "orange"))
+    la = m.get("lookahead")
+    if la and la["leak"]:
+        out.append(("미래 참조 잡힘", "red"))
+    elif la:
+        out.append(("미래 참조 없음 (가격 섭동 4곳)" if all(c["status"] == "same" for c in la["cuts"])
+                    else "미래 참조 없음 (일부 지점은 섭동 데이터로 실행 실패)", "green"))
+    if m.get("lookahead_other"):
+        out.append(("다른 회차 코드에서 미래 참조 잡힘", "red"))
+    if not m["consistent"]:
+        out.append((f"{len(m['runs'])}회 실행 결과가 다름", "red"))
+    elif not m["codes_same"]:
+        out.append((f"{len(m['runs'])}회 결과는 같지만 코드는 다름", "orange"))
+    else:
+        out.append((f"{len(m['runs'])}회 실행 결과 일치", "green"))
+    return out
+
+
+def order_rows(orders: Optional[list[dict]], limit: int = 500) -> list[dict]:
+    rows = []
+    for o in (orders or [])[:limit]:
+        info = ticker_info(o["ticker"])
+        rows.append({"date": o["date"], "name": info.name if info else o["ticker"], "ticker": o["ticker"],
+                     "side": "사기" if o["side"] == "buy" else "팔기", "weight": o["weight"]})
+    return rows
+
+
 def fmt_pct(x: Optional[float], signed: bool = True) -> str:
     if x is None:
         return "—"

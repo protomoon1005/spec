@@ -5,6 +5,7 @@
   python -m eval.run --compare eval/out/verdict_run_step3.jsonl   # 이전 실행 결과와 나란히 비교
   python -m eval.run --use-cache --ab   # 4단계 근거 검사를 켰을 때와 껐을 때 비교 (각각 저장)
   python -m eval.run --no-prices        # 가격 데이터 없이 (2단계 NO_DATA·5단계 시험 실행 안 함)
+  python -m eval.run --baseline         # 비교 대상(LLM 코드 직접 생성)과 나란히 → eval/report_baseline.md (eval/baseline_eval.py)
 
 입력: eval/dev_sentences.jsonl (개발용 세트). 결과 원본은 eval/out/verdict_run.jsonl (git 제외).
 판정은 규칙(core.decide + 검사 1~5단계)이 정한 최종 판정 하나뿐이다 (LLM 은 판정하지 않는다).
@@ -173,16 +174,30 @@ def main(argv=None) -> int:
     ap.add_argument("--compare", type=Path, help="이전 실행 결과 jsonl (같은 id 로 나란히 비교, 정답은 현재 라벨)")
     ap.add_argument("--ab", action="store_true", help="4단계 근거 검사를 켰을 때와 껐을 때 둘 다 돌려 비교")
     ap.add_argument("--no-prices", action="store_true", help="가격 데이터 없이 (NO_DATA·시험 실행 안 함)")
+    ap.add_argument("--baseline", action="store_true",
+                    help="LLM 코드 직접 생성과 나란히 비교 (각 3회, 캐시 없이) → eval/report_baseline.md")
+    ap.add_argument("--baseline-rereport", action="store_true",
+                    help="LLM 을 부르지 않고 저장된 eval/out/baseline_run.jsonl 로 보고서만 다시 쓴다")
     args = ap.parse_args(argv)
+    if args.baseline_rereport:
+        from eval import baseline_eval
+        return baseline_eval.rereport()
 
     ok, msg = ollama_status()
     if not ok:
         print(msg)
         return 1
-    if not args.use_cache:
+    if not args.use_cache or args.baseline:
         print(f"모델 워밍업(로드) {warm_up():.1f}s — 아래 응답 시간에서 제외")
 
     sentences = load_sentences()
+    if args.baseline:
+        from eval import baseline_eval
+        try:
+            return baseline_eval.main(sentences)
+        except OllamaUnavailable as e:
+            print(e)
+            return 1
     gold = {s["id"]: s["verdict"] for s in sentences}
     prices = None if args.no_prices else load_prices
     off = None

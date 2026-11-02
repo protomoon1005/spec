@@ -7,20 +7,8 @@ from conftest import STOCK, cmp, ind, make_ohlcv, strategy_dict, wavy_ohlcv
 from core.backtest import condition_series, run_backtest
 from core.dictionary import INDICATORS
 from core.indicators import align_us_to_kr, indicator_series
+from core.lookahead import perturb_after as _perturb_after   # t 이후(t+1~) 행을 결정론적으로 크게 바꾼다 (baseline 도 같은 함수)
 from core.schema import Strategy
-
-
-def _perturb_after(df: pd.DataFrame, t: int) -> pd.DataFrame:
-    """t 이후(t+1~) 행을 결정론적으로 크게 바꾼다."""
-    out = df.copy()
-    tail = out.index[t + 1:]
-    k = np.arange(len(tail))
-    for col in ["Open", "High", "Low", "Close"]:
-        out.loc[tail, col] = out.loc[tail, col] * (2.5 + 0.7 * np.sin(k))
-    out.loc[tail, "Low"] = out.loc[tail, ["Open", "Close", "Low"]].min(axis=1) * 0.5
-    out.loc[tail, "High"] = out.loc[tail, ["Open", "Close", "High"]].max(axis=1) * 1.5
-    out.loc[tail, "Volume"] = out.loc[tail, "Volume"] * 37
-    return out
 
 
 def _data(n=300):

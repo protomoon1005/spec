@@ -387,6 +387,87 @@ def draw_result(conv: dict, m: dict, idx: int) -> None:
               help="원래 문장을 입력창에 채워 둡니다.")
     c2.button("전략 카드로 돌아가기", key=_key(conv, "tocard", idx), on_click=_to_card, args=(idx,), width="stretch")
     c3.button("처음으로", key=_key(conv, "home", idx), on_click=_new, width="stretch")
+    done = bool(m.get("baseline_done"))
+    if st.button("LLM 코드 생성과 비교" + (" (비교함)" if done else ""), key=_key(conv, "baseline", idx),
+                 disabled=done, width="stretch",
+                 help=f"같은 문장으로 LLM 이 파이썬 코드를 직접 짜게 해 {S.BASELINE_REPEATS}번 돌리고, 우리 결과와 나란히 보여 줍니다."):
+        _act(type="baseline", idx=idx)
+        st.rerun()
+
+
+def orders_table(rows: list[dict]) -> str:
+    head = "<tr><th>판단일</th><th>종목</th><th>방향</th><th class='r'>목표 비중</th></tr>"
+    body = "".join(
+        f"<tr><td>{r['date']}</td><td>{html.escape(r['name'])}<span class='code'>{html.escape(r['ticker'])}</span></td>"
+        f"<td class='{'up' if r['side'] == '사기' else 'down'}'>{r['side']}</td><td class='r'>{r['weight']:.1%}</td></tr>"
+        for r in rows)
+    return f"<div class='trades-wrap'><table class='trades'><thead>{head}</thead><tbody>{body}</tbody></table></div>"
+
+
+def baseline_chart(c: dict) -> go.Figure:
+    fig = go.Figure()
+    for key, name, color, width in (("ours", "우리 방식", ACCENT, 2), ("base", "LLM 코드", "#8b5cf6", 1.6)):
+        fig.add_trace(go.Scatter(x=c["dates"], y=c[key], name=name, mode="lines", line=dict(color=color, width=width),
+                                 hovertemplate="%{y:,.0f}원"))
+    fig.update_layout(template="plotly_white", height=300, margin=dict(l=8, r=8, t=8, b=8), hovermode="x unified",
+                      legend=dict(orientation="h", y=1.1, x=0, font=dict(color=MUTED)),
+                      yaxis=dict(tickformat=",.0f", gridcolor="#eef0f2", ticksuffix="원"), font=dict(color=INK))
+    _date_axes(fig)
+    return fig
+
+
+def draw_baseline(conv: dict, m: dict, idx: int) -> None:
+    with st.container(border=True, key=_key(conv, "bl", idx)):
+        st.markdown("**LLM 코드 생성과 비교** <span class='muted'>같은 모델·같은 설정, 프롬프트에는 데이터·출력 형식만</span>",
+                    unsafe_allow_html=True)
+        with st.container(horizontal=True, gap="small"):
+            for text, color in S.baseline_badges(m):
+                st.badge(text, color=color)
+        if m["outcome"] in ("clarify", "reject"):
+            st.markdown(f"LLM 의 답: {html.escape(m['message'])}")
+        mt = m.get("metrics")
+        if m.get("chart"):
+            a, b = st.columns(2)
+            a.metric("우리 방식 총수익률", S.fmt_pct(mt["ours_total_return"]))
+            b.metric("LLM 코드 총수익률", S.fmt_pct(mt["base_total_return"]),
+                     help="LLM 코드의 주문을 우리 엔진과 같은 비용·세금(다음 날 시가 체결)으로 체결했습니다.")
+            st.plotly_chart(baseline_chart(m["chart"]), width="stretch", key=_key(conv, "bleq", idx),
+                            config={"displayModeBar": False})
+            if mt["ignored"] or mt["unfilled"]:
+                st.caption(f"기간 밖이라 버린 주문 {mt['ignored']}건 · 기간 끝이라 체결 못 한 주문 {mt['unfilled']}건")
+        left, right = st.columns(2)
+        ours, base = S.order_rows(m["ours_orders"]), S.order_rows(m.get("base_orders"))
+        with left:
+            st.markdown(f"<div class='chart-title'>우리 주문 ({len(m['ours_orders'])}건)</div>", unsafe_allow_html=True)
+            st.markdown(orders_table(ours) if ours else "<span class='muted'>주문 없음</span>", unsafe_allow_html=True)
+        with right:
+            n = len(m["base_orders"]) if m.get("base_orders") is not None else None
+            st.markdown(f"<div class='chart-title'>LLM 코드 주문 ({'—' if n is None else f'{n}건'})</div>",
+                        unsafe_allow_html=True)
+            st.markdown(orders_table(base) if base else
+                        f"<span class='muted'>{'실행하지 못해 주문이 없습니다' if n is None else '주문 없음'}</span>",
+                        unsafe_allow_html=True)
+        if m.get("code"):
+            with st.expander("생성된 코드 (1회차)"):
+                st.code(m["code"], language="python")
+        elif m.get("raw"):
+            with st.expander("LLM 응답 원문 (1회차)"):
+                st.text(m["raw"])
+        with st.expander(f"{len(m['runs'])}회 실행 · 미래 참조 검사"):
+            label = {"code_ok": "실행 성공", "code_fail": "실행 실패", "clarify": "되물음", "reject": "구현 불가",
+                     "error": "응답 이상"}
+            for k, r in enumerate(m["runs"], 1):
+                extra = f"주문 {r['n_orders']}건" if r["n_orders"] is not None else (r["error"] or "")
+                code = f" · 코드 {r['code_hash']}" if r["code_hash"] else ""
+                st.markdown(f"- {k}회: {label[r['outcome']]} · {html.escape(extra[:160])}{code} · {r['seconds']}초")
+            la = m.get("lookahead")
+            if la:
+                st.markdown("미래 참조 검사 (그날 이후 가격만 바꿔 다시 실행 → 그날까지 주문이 같아야 함)")
+                for c in la["cuts"]:
+                    st.markdown(f"- {c['cut']}: {html.escape(c['detail'] or c['status'])}")
+        st.caption(f"baseline 에 넘긴 기간: {m['period'][0]} ~ {m['period'][1]} (기본 기간) · 실행: 별도 프로세스, "
+                   "pandas·numpy 만, 파일·네트워크 금지, 30초 제한"
+                   + (f" · 받지 못한 데이터 {', '.join(m['missing'])}" if m.get("missing") else ""))
 
 
 def _result_body(conv: dict, m: dict, idx: int) -> None:
@@ -450,6 +531,8 @@ def draw_messages(conv: dict) -> None:
             draw_understood(conv, m, i)
         elif k == "result":
             draw_result(conv, m, i)
+        elif k == "baseline":
+            draw_baseline(conv, m, i)
         elif k == "error":
             st.error(m["text"])
         else:
@@ -498,7 +581,12 @@ def handle(conv: dict, action: dict) -> None:
     if t == "submit":
         user_bubble(action["text"])
     with st.status("빈칸 나누는 중…", expanded=True) as box:
-        steps = Steps(box, "백테스트 다시 실행 중…" if t == "backtest" else "빈칸 나누는 중…")
+        first = {"backtest": "백테스트 다시 실행 중…", "baseline": "LLM 코드 생성과 비교 중…"}.get(t, "빈칸 나누는 중…")
+        steps = Steps(box, first)
+        if t == "baseline":
+            S.baseline_compare(conv, action["idx"], S.default_run, steps)
+            steps.done("완료", "✓ 비교")
+            return
         if t == "submit":
             S.submit(conv, action["text"], S.default_run, steps)
             tail = "→ 백테스트는 '이대로 백테스트'를 누르면 보여 드립니다"
