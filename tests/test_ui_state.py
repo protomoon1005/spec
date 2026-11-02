@@ -340,3 +340,22 @@ def test_history_restores_whole_conversation(tmp_path):
     assert back["messages"][1]["reply"] == {"exit:none": "몇 % 오르면 팔기"} and back["pending"]["answers"]
     S.back_to_previous_question(back)                   # 복원한 대화에서도 이어서 할 수 있다
     assert back["messages"][-1]["round"] == 1
+
+
+# ---------------------------------------------------------------- 화면 보조값
+
+def test_trade_window_pads_20_days_and_clamps():
+    dates = [f"d{i:03d}" for i in range(200)]
+    t = {"buys": [{"date": "d050"}, {"date": "d120"}], "sells": [{"date": "d090"}, {"date": "d190"}]}
+    assert S.trade_window(dates, t) == (30, 199)
+    assert S.trade_window(dates, {"buys": [{"date": "d005"}], "sells": []}) == (0, 25)
+
+
+def test_trade_window_none_without_trades():
+    assert S.trade_window(["a", "b"], {"buys": [], "sells": []}) is None
+
+
+def test_history_stamp():
+    assert S.history_stamp({"id": "x", "created": "2026-11-02T10:08:41"}) == "11-02 10:08"
+    assert S.history_stamp({"id": "20261102-100717-943503"}) == "11-02 10:07"      # created 없는 옛 파일
+    assert S.history_stamp({"id": "bad", "created": ""}) == ""

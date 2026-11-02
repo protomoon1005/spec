@@ -468,6 +468,27 @@ def trade_chart_view(spec: Strategy, trial) -> list[dict]:
     return out
 
 
+def trade_window(dates: list[str], t: dict, pad: int = 20) -> Optional[tuple[int, int]]:
+    """매매 지점 차트를 처음 열 때 보일 구간 (dates 위치, 양 끝 포함): 첫 매매 pad 거래일 전 ~ 마지막 매매 pad 거래일 후.
+    매매가 없으면 None (전체 기간)."""
+    pos = {d: i for i, d in enumerate(dates)}
+    idx = sorted(pos[p["date"]] for p in [*t.get("buys", []), *t.get("sells", [])] if p["date"] in pos)
+    if not idx:
+        return None
+    return max(0, idx[0] - pad), min(len(dates) - 1, idx[-1] + pad)
+
+
+def history_stamp(item: dict) -> str:
+    """지난 대화 목록의 작은 날짜·시간 '11-02 10:08'. created 가 없으면 id(YYYYmmdd-HHMMSS-…)에서 읽는다."""
+    for raw, fmt in ((item.get("created", ""), None), (item.get("id", "")[:15], "%Y%m%d-%H%M%S")):
+        try:
+            d = datetime.fromisoformat(raw) if fmt is None else datetime.strptime(raw, fmt)
+            return d.strftime("%m-%d %H:%M")
+        except (TypeError, ValueError):
+            continue
+    return ""
+
+
 def trade_rows(trades: list[dict]) -> list[dict]:
     """거래 내역 → [{"ticker", "name", "entry_date", "entry_price", "exit_date", "exit_price", "holding_days",
     "return_pct"(비율), "open"}]. 백테스트 trades 와 이전 판에서 저장한 화면용 표(한국어 열 이름) 둘 다 받는다."""

@@ -139,6 +139,13 @@ def sidebar(conv: dict) -> None:
         items = S.list_history()
         if not items:
             st.markdown('<span class="muted">아직 없습니다.</span>', unsafe_allow_html=True)
+        # 제목 아래 작은 날짜·시간: 버튼 라벨은 한 줄이라 버튼 키(.st-key-h-…)마다 ::after 로 붙인다.
+        stamps = "".join(f'.st-key-h-{it["id"]} button p::after {{ content: {json.dumps(S.history_stamp(it))}; }}'
+                         for it in items)
+        st.markdown(f"""<style>
+[class*="st-key-h-"] button {{ justify-content: flex-start; text-align: left; padding-top: .3rem; padding-bottom: .3rem; }}
+[class*="st-key-h-"] button p::after {{ display: block; font-size: .72rem; color: {MUTED}; line-height: 1.2; }}
+{stamps}</style>""", unsafe_allow_html=True)
         for it in items:
             st.button(it["title"], key=f"h-{it['id']}", on_click=_open, args=(it["id"],), width="stretch",
                       type="secondary" if it["id"] == conv["id"] else "tertiary")
@@ -251,12 +258,14 @@ def draw_understood(conv: dict, m: dict, idx: int) -> None:
                             unsafe_allow_html=True)
         with st.expander("전략서 JSON"):
             st.json(m["spec"], expanded=True)
-        c1, c2, _ = st.columns([1.2, 1, 2])
         used = m.get("used")
-        if c1.button("이대로 백테스트", key=_key(conv, "bt", idx), type="primary", disabled=bool(used)):
-            _act(type="backtest", idx=idx)
-            st.rerun()
-        c2.button("고쳐 말하기", key=_key(conv, "rv", idx), disabled=bool(used), on_click=_revise, args=(idx,))
+        with st.container(horizontal=True, horizontal_alignment="left", gap="small"):
+            if st.button("이대로 백테스트", key=_key(conv, "bt", idx), type="primary", disabled=bool(used),
+                         width="content"):
+                _act(type="backtest", idx=idx)
+                st.rerun()
+            st.button("고쳐 말하기", key=_key(conv, "rv", idx), disabled=bool(used), on_click=_revise, args=(idx,),
+                      width="content")
 
 
 def _date_axes(fig: go.Figure) -> None:
@@ -279,8 +288,17 @@ def equity_chart(c: dict) -> go.Figure:
     return fig
 
 
+def _clip(dates: list[str], t: dict, lo: int, hi: int) -> tuple[list[str], dict]:
+    """차트 값을 dates[lo..hi] 구간으로 자른다 (그리기용 — y축이 보이는 구간에 맞춰지도록). 매매 지점은 모두 구간 안."""
+    cut = lambda v: v[lo:hi + 1]  # noqa: E731
+    return cut(dates), {**t, "close": cut(t["close"]),
+                        "price_lines": [{**ln, "values": cut(ln["values"])} for ln in t["price_lines"]],
+                        "panels": [{**p, "lines": [{**ln, "values": cut(ln["values"])} for ln in p["lines"]]}
+                                   for p in t["panels"]]}
+
+
 def trade_chart(dates: list[str], t: dict) -> go.Figure:
-    """위: 종가 + 가격 지표 + 사기·팔기. 아래: 가격이 아닌 지표마다 보조 차트(기준선 포함). x축 공유."""
+    """위: 종가 + 가격 지표 + 사기·팔기. 아래: 가격이 아닌 지표마다 보조 차트(기준선 + 사기·팔기 세로 점선). x축 공유."""
     panels = t["panels"]
     rows = 1 + len(panels)
     fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.05,
@@ -306,6 +324,9 @@ def trade_chart(dates: list[str], t: dict) -> go.Figure:
             fig.add_trace(go.Scatter(x=dates, y=ln["values"], name=ln["label"], mode="lines",
                                      line=dict(color=LINE_COLORS[(k0 + k) % len(LINE_COLORS)], width=1.2),
                                      hovertemplate="%{y:,.2f}"), row=r, col=1)
+        for side, color in (("buys", UP), ("sells", DOWN)):
+            for pt in t[side]:
+                fig.add_vline(x=pt["date"], line=dict(color=color, width=1, dash="dot"), opacity=0.6, row=r, col=1)
         for v in p["refs"]:
             fig.add_hline(y=v, line=dict(color=MUTED, width=1, dash="dash"), row=r, col=1,
                           annotation_text=f"{v:g}", annotation_font_color=MUTED)
@@ -351,7 +372,7 @@ def draw_result(conv: dict, m: dict, idx: int) -> None:
     c1.button("조건 바꿔서 다시", key=_key(conv, "retry", idx), on_click=_retry, args=(idx,), width="stretch",
               help="원래 문장을 입력창에 채워 둡니다.")
     c2.button("전략 카드로 돌아가기", key=_key(conv, "tocard", idx), on_click=_to_card, args=(idx,), width="stretch")
-    c3.button("처음으로", key=_key(conv, "home", idx), on_click=_new, width="stretch", type="tertiary")
+    c3.button("처음으로", key=_key(conv, "home", idx), on_click=_new, width="stretch")
 
 
 def _result_body(conv: dict, m: dict, idx: int) -> None:
@@ -372,10 +393,17 @@ def _result_body(conv: dict, m: dict, idx: int) -> None:
     if not tcs:
         st.caption("이 기록에는 매매 지점 데이터가 없습니다 (이전 판에서 저장한 결과).")
     else:
+        dates = m["chart"]["dates"]
+        windows = [S.trade_window(dates, t) for t in tcs]
+        full = False
+        if any(w is not None for w in windows):           # 매매가 없으면 토글 없이 전체 기간
+            full = st.toggle("전체 기간 보기", key=_key(conv, "full", idx),
+                             help="처음에는 첫 매매 20거래일 전 ~ 마지막 매매 20거래일 후만 보여 줍니다.")
         tabs = st.tabs([t["name"] for t in tcs]) if len(tcs) > 1 else [st.container()]
-        for tab, t in zip(tabs, tcs):
+        for tab, t, w in zip(tabs, tcs, windows):
             with tab:
-                st.plotly_chart(trade_chart(m["chart"]["dates"], t), width="stretch",
+                d, tv = (dates, t) if full or w is None else _clip(dates, t, *w)
+                st.plotly_chart(trade_chart(d, tv), width="stretch",
                                 key=_key(conv, "tc", idx, t["ticker"]), config={"displayModeBar": False})
 
     for w in m["warnings"]:
