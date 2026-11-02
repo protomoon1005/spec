@@ -118,7 +118,7 @@ export default function LoginPage() {
 
     // 로그인 화면에는 refresh 토큰이 없다. 만료되면 이 화면에서 재인증한다.
     saveSession({ access, refresh: "", username: me.username });
-    router.push("/home");
+    router.push("/chat");
   }
 
   return (
