@@ -48,6 +48,18 @@ class OllamaClient:
         content = response.json()["message"]["content"]
         return json.loads(content)
 
+    def generate_text(self, prompt: str, *, system: str | None = None, options: dict | None = None) -> str:
+        """구조화 출력 없이 글로 답을 받는다. 비교 대상(LLM 이 코드를 직접 짜는 방식)이 쓴다.
+
+        모델 · 온도 · 시드 · thinking 끔은 generate_json 과 같다. options 로 num_ctx 같은 값을 더한다.
+        """
+        payload = self.build_payload(prompt, {}, system=system)
+        payload.pop("format")
+        payload["options"] = {**payload["options"], **(options or {})}
+        response = httpx.post(f"{self._base_url}/api/chat", json=payload, timeout=self._timeout * 3)
+        response.raise_for_status()
+        return response.json()["message"]["content"]
+
     def ping(self) -> bool:
         try:
             response = httpx.get(f"{self._base_url}/api/tags", timeout=3.0)
