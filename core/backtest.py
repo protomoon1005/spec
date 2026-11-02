@@ -222,6 +222,9 @@ class BacktestResult:
     result_hash: str
     notes: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # 화면용: 종목별 {"close": 종가 Series, "indicators": [{"indicator", "window", "of", "values": Series}]}.
+    # 조건 계산에 쓴 값(_Market 메모)을 그대로 내보낸다. 실행·해시에는 쓰지 않는다.
+    series: dict = field(default_factory=dict)
 
 
 def _canon(obj) -> str:
@@ -471,6 +474,9 @@ def run_backtest(spec: Strategy, data: Optional[dict[str, pd.DataFrame]] = None,
     if any(c == "ETF_OTHER" for c in categories.values()):
         notes.append("그 밖의 ETF 차익세는 과표기준가 대신 실제 차익 × 15.4% 로 계산했습니다 (실제보다 같거나 조금 많음).")
 
+    series = {t: {"close": pd.Series(closes[t][first:], index=cal, name=t),
+                  "indicators": _used_indicators(rules, t, market, first, cal)} for t in tickers}
+
     s_hash = spec_hash(spec)
     payload = {"spec_hash": s_hash, "fills": fills, "trades": trades, "unfilled": unfilled,
                "equity": [[d.strftime("%Y-%m-%d"), round(float(v), 4)] for d, v in equity.items()]}
@@ -478,8 +484,27 @@ def run_backtest(spec: Strategy, data: Optional[dict[str, pd.DataFrame]] = None,
         equity=equity, cash=cash_s, positions=positions, benchmarks=benchmarks, fills=fills, trades=trades,
         conflicts=conflicts, metrics=metrics, unfilled_signals=unfilled, spec_hash=s_hash,
         data_snapshot=dict(sorted(frames.snapshot.items())), result_hash=_sha(_canon(payload)),
-        notes=notes, warnings=warnings,
+        notes=notes, warnings=warnings, series=series,
     )
+
+
+def _used_indicators(rules, ticker: str, market: _Market, first: int, cal: pd.DatetimeIndex) -> list[dict]:
+    """조건에 쓴 시장 지표의 (오늘) 값. 이미 계산해 둔 메모를 꺼낼 뿐 다시 계산하지 않는다."""
+    if rules is None:
+        return []
+    out, seen = [], set()
+    for _, c in [*iter_compares(rules.entry, "entry"), *iter_compares(rules.exit, "exit")]:
+        for op in (c.left, c.right):
+            if not isinstance(op, Operand) or INDICATORS[op.indicator].get("position"):
+                continue
+            key = (op.indicator, op.window, op.of)
+            if key in seen:
+                continue
+            seen.add(key)
+            cur, _ = market.series(op, ticker)
+            out.append({"indicator": op.indicator, "window": op.window, "of": op.of,
+                        "values": pd.Series(cur[first:], index=cal)})
+    return out
 
 
 def _close_trade(tr: dict, mark_value: float) -> None:

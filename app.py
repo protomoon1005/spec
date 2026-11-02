@@ -5,9 +5,12 @@
 from __future__ import annotations
 
 import html
+import json
+import re
 
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 from core.decide import DIRECT
 from core.slot_fill import MODEL, ollama_status
@@ -18,15 +21,39 @@ st.set_page_config(page_title="전략 시험실", page_icon="📈", layout="cent
 ACCENT = "#2a78d6"
 SERIES = {"strategy": ("전략", ACCENT), "kospi": ("코스피", "#eb6834"), "buy_hold": ("단순 보유", "#1baf7a")}
 INK, MUTED = "#1f2328", "#6b7280"
+UP, DOWN = "#16a34a", "#dc2626"                       # 사기·이익 초록, 팔기·손실 빨강
+CLOSE_COLOR = "#4b5563"
+LINE_COLORS = [ACCENT, "#eb6834", "#8b5cf6", "#0d9488"]
+CHAT_KEY = "chat"
 
 st.markdown(f"""<style>
 .block-container {{ max-width: 760px; padding-top: 2.5rem; padding-bottom: 6rem; }}
 .u-row {{ display: flex; justify-content: flex-end; margin: .75rem 0; }}
 .u-bubble {{ background: #eef1f5; border-radius: 18px; padding: .6rem 1rem; max-width: 80%; white-space: pre-wrap; }}
 .hero {{ text-align: center; font-size: 2rem; font-weight: 600; margin: 3.5rem 0 1.5rem; }}
-.tag {{ font-size: .75rem; color: {MUTED}; background: #f1f2f4; border-radius: 6px; padding: 1px 6px; margin-left: 2px; }}
+.tag {{ font-size: .75rem; color: {MUTED}; background: #f1f2f4; border-radius: 6px; padding: 1px 6px; margin-left: 4px;
+        white-space: nowrap; vertical-align: middle; }}
 mark {{ background: #fde68a; border-radius: 4px; padding: 0 2px; }}
 .muted {{ color: {MUTED}; font-size: .85rem; }}
+.core {{ display: grid; grid-template-columns: max-content 1fr; gap: .55rem 1rem; margin: .35rem 0 .6rem;
+         font-size: 1.12rem; line-height: 1.5; }}
+.core .k {{ color: {MUTED}; font-size: .9rem; padding-top: .18rem; white-space: nowrap; }}
+.rules {{ display: grid; grid-template-columns: max-content 1fr; gap: .45rem .9rem; font-size: .92rem; }}
+.rules .k {{ color: {MUTED}; white-space: nowrap; }}
+.small {{ color: {MUTED}; font-size: .8rem; margin-top: .2rem; }}
+.small table {{ border-collapse: collapse; margin-top: .15rem; }}
+.small td {{ padding: 0 .9rem 0 0; }}
+.trades-wrap {{ max-height: 380px; overflow: auto; }}
+table.trades {{ width: 100%; border-collapse: collapse; font-size: .88rem; font-variant-numeric: tabular-nums; }}
+table.trades th {{ color: {MUTED}; font-weight: 500; text-align: left; border-bottom: 1px solid #e5e7eb;
+                   padding: .35rem .5rem; position: sticky; top: 0; background: #fff; white-space: nowrap; }}
+table.trades td {{ padding: .35rem .5rem; border-bottom: 1px solid #f1f2f4; white-space: nowrap; }}
+table.trades .r {{ text-align: right; }}
+table.trades .code {{ color: {MUTED}; font-size: .72rem; margin-left: 4px; }}
+table.trades .up {{ color: {UP}; }}
+table.trades .down {{ color: {DOWN}; }}
+table.trades .open {{ color: {ACCENT}; }}
+.chart-title {{ font-weight: 600; margin: .6rem 0 0; }}
 </style>""", unsafe_allow_html=True)
 
 
@@ -48,12 +75,59 @@ def _act(**kw) -> None:
 
 
 def _open(conv_id: str) -> None:
+    """지난 대화를 저장된 그대로 연다 (되묻기 답·접힌 결과 포함). 위젯 키에 대화 id 가 들어 있어 섞이지 않는다."""
     if (c := S.load(conv_id)) is not None:
         st.session_state.conv = c
 
 
 def _new() -> None:
     st.session_state.conv = S.new_conversation()
+    st.session_state.pop(CHAT_KEY, None)
+
+
+def _key(conv: dict, *parts) -> str:
+    return "-".join([conv["id"], *map(str, parts)])
+
+
+# 아래 콜백은 버튼을 누른 직후, 화면을 다시 그리기 전에 돈다 (입력창 채우기는 이때만 된다).
+
+def _retry(idx: int) -> None:
+    """'조건 바꿔서 다시' · '고쳐 말하기': 원래 문장을 입력창에 채워 둔다."""
+    st.session_state[CHAT_KEY] = S.retry_text(_conv(), idx)
+
+
+def _revise(idx: int) -> None:
+    conv = _conv()
+    S.revise(conv, idx)
+    S.save(conv)
+    _retry(idx)
+
+
+def _to_card(idx: int) -> None:
+    conv = _conv()
+    st.session_state.scroll_to = S.collapse_result(conv, idx)
+    S.save(conv)
+
+
+def _expand(idx: int) -> None:
+    conv = _conv()
+    S.expand_result(conv, idx)
+    S.save(conv)
+
+
+def _back() -> None:
+    conv = _conv()
+    S.back_to_previous_question(conv)
+    S.save(conv)
+
+
+def _scroll(conv: dict, idx: int) -> None:
+    """전략 카드(st.container key → .st-key-… 클래스)로 스크롤."""
+    sel = json.dumps(".st-key-" + _key(conv, "card", idx))
+    st.html(f"""<script>
+const d = window.frameElement ? window.parent.document : document;
+setTimeout(() => {{ const el = d.querySelector({sel}); if (el) el.scrollIntoView({{behavior: "smooth", block: "start"}}); }}, 150);
+</script>""", unsafe_allow_javascript=True)
 
 
 # ---------------------------------------------------------------- 사이드바
@@ -80,26 +154,34 @@ def user_bubble(text: str) -> None:
     st.markdown(f'<div class="u-row"><div class="u-bubble">{html.escape(text)}</div></div>', unsafe_allow_html=True)
 
 
-def draw_clarify(m: dict, idx: int, live: bool) -> None:
+def draw_clarify(conv: dict, m: dict, idx: int, live: bool) -> None:
     st.markdown(f"**확인할 게 있어요** &nbsp;<span class='tag'>되묻기 {m['round']}/{m['max_rounds']}</span>",
                 unsafe_allow_html=True)
     picks, typed = {}, {}
+    reply = m.get("reply") or {}
     for q in m["questions"]:
         st.markdown(q["text"])
         if q.get("hint"):
             st.caption(q["hint"])
-        k = f"q-{idx}-{q['id']}"
-        picks[q["id"]] = st.pills(q["text"], q["options"], key=k, label_visibility="collapsed", disabled=not live)
-        if live and picks[q["id"]] == DIRECT:
-            typed[q["id"]] = st.text_input("직접 입력", key=k + "-t", placeholder="답을 적어 주세요")
+        k = _key(conv, "q", idx, m.get("rev", 0), q["id"])
+        prev = reply.get(q["id"])                       # 전에 고른 답 (지난 대화 · 이전 질문으로)
+        default = prev if prev in q["options"] else (DIRECT if prev and DIRECT in q["options"] else None)
+        picks[q["id"]] = st.pills(q["text"], q["options"], key=k, default=default,
+                                  label_visibility="collapsed", disabled=not live)
+        if picks[q["id"]] == DIRECT:
+            typed[q["id"]] = st.text_input("직접 입력", key=k + "-t", placeholder="답을 적어 주세요",
+                                           value=prev if default == DIRECT else "", disabled=not live)
     if live:
-        if st.button("답하기", key=f"ans-{idx}", type="primary"):
+        c1, c2, _ = st.columns([1, 1.4, 2])
+        if c1.button("답하기", key=_key(conv, "ans", idx), type="primary"):
             reply, err = S.collect_answers(m["questions"], picks, typed)
             if err:
                 st.warning(err)
             else:
                 _act(type="answer", reply=reply)
                 st.rerun()
+        if S.previous_question(conv) is not None:
+            c2.button("← 이전 질문으로", key=_key(conv, "back", idx), on_click=_back)
 
 
 def draw_reject(m: dict) -> None:
@@ -122,14 +204,45 @@ def _part(p: dict) -> str:
     return t + (" " + TAG if p["default"] else "")
 
 
-def draw_understood(m: dict, idx: int) -> None:
-    with st.container(border=True):
+def _tag(defaults: list[str]) -> str:
+    """핵심 줄 옆 '기본값' 태그. 무엇이 기본값인지는 마우스를 올리면 보인다."""
+    if not defaults:
+        return ""
+    return f'<span class="tag" title="{html.escape(" · ".join(defaults))}">기본값</span>'
+
+
+def _md_bold(text: str) -> str:
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+
+
+def draw_understood(conv: dict, m: dict, idx: int) -> None:
+    card = S.card_of(m)
+    with st.container(border=True, key=_key(conv, "card", idx)):
         st.markdown("**AI가 이해한 전략**")
-        body = " ".join(_part(p) for p in m["parts"])
-        st.markdown(body, unsafe_allow_html=True)
-        if m["defaults"]:
-            st.caption("기본값 사용: " + ", ".join(m["defaults"]))
-        with st.expander("검사 5단계"):
+        rows = "".join(f'<div class="k">{html.escape(ln["key"])}</div>'
+                       f'<div>{html.escape(ln["text"])}{_tag(ln["defaults"])}</div>' for ln in card["lines"])
+        st.markdown(f'<div class="core">{rows}</div>', unsafe_allow_html=True)
+        if card["other_defaults"]:
+            st.caption("기본값 — " + " · ".join(card["other_defaults"]))
+
+        with st.expander("공통 규칙"):
+            out = []
+            for c in card["common"]:
+                if c.get("tax"):
+                    tx = c["tax"]
+                    table = "".join(
+                        f'<div>{html.escape(t["label"])}</div><table><tr>'
+                        + "".join(f"<td>{y}</td>" for y, _ in t["rows"]) + "</tr><tr>"
+                        + "".join(f"<td>{r}</td>" for _, r in t["rows"]) + "</tr></table>"
+                        for t in tx["table"])
+                    body = html.escape(tx["headline"]) + (f'<div class="small">{table}</div>' if table else "")
+                else:
+                    body = _md_bold(_part(c))
+                out.append(f'<div class="k">{html.escape(c["label"])}</div><div>{body}</div>')
+            st.markdown(f'<div class="rules">{"".join(out)}</div>', unsafe_allow_html=True)
+
+        title, open_ = S.checklist_summary(m["checklist"])
+        with st.expander(title, expanded=open_):
             icon = {"passed": "✅", "failed": "⛔", "questions": "❓", "warned": "⚠️", "skipped": "➖"}
             for s in m["checklist"]:
                 extra = " · ".join(s["issues"]) or s["note"]
@@ -140,12 +253,14 @@ def draw_understood(m: dict, idx: int) -> None:
             st.json(m["spec"], expanded=True)
         c1, c2, _ = st.columns([1.2, 1, 2])
         used = m.get("used")
-        if c1.button("이대로 백테스트", key=f"bt-{idx}", type="primary", disabled=bool(used)):
+        if c1.button("이대로 백테스트", key=_key(conv, "bt", idx), type="primary", disabled=bool(used)):
             _act(type="backtest", idx=idx)
             st.rerun()
-        if c2.button("고쳐 말하기", key=f"rv-{idx}", disabled=bool(used)):
-            _act(type="revise", idx=idx)
-            st.rerun()
+        c2.button("고쳐 말하기", key=_key(conv, "rv", idx), disabled=bool(used), on_click=_revise, args=(idx,))
+
+
+def _date_axes(fig: go.Figure) -> None:
+    fig.update_xaxes(tickformat="%Y-%m", hoverformat="%Y-%m-%d", gridcolor="#f5f6f7")
 
 
 def equity_chart(c: dict) -> go.Figure:
@@ -157,45 +272,125 @@ def equity_chart(c: dict) -> go.Figure:
         fig.add_trace(go.Scatter(x=c["dates"], y=c[key], name=name, mode="lines",
                                  line=dict(color=color, width=2 if key == "strategy" else 1.5),
                                  hovertemplate="%{y:,.0f}원"))
-    for side, sym, label, fill in (("buys", "triangle-up", "사기 ▲", INK), ("sells", "triangle-down", "팔기 ▼", "#ffffff")):
-        pts = c.get(side) or []
-        if pts:
-            fig.add_trace(go.Scatter(
-                x=[p["date"] for p in pts], y=[p["value"] for p in pts], name=label, mode="markers",
-                marker=dict(symbol=sym, size=10, color=fill, line=dict(color=INK, width=1.5)),
-                customdata=[[p["ticker"], p["price"]] for p in pts],
-                hovertemplate="%{customdata[0]} %{customdata[1]:,.0f}원 체결<extra>" + label + "</extra>"))
-    fig.update_layout(template="plotly_white", height=360, margin=dict(l=8, r=8, t=8, b=8), hovermode="x unified",
-                      legend=dict(orientation="h", y=1.08, x=0, font=dict(color=MUTED)),
-                      yaxis=dict(tickformat=",.0f", gridcolor="#eef0f2", ticksuffix="원"),
-                      xaxis=dict(gridcolor="#f5f6f7"), font=dict(color=INK))
+    fig.update_layout(template="plotly_white", height=320, margin=dict(l=8, r=8, t=8, b=8), hovermode="x unified",
+                      legend=dict(orientation="h", y=1.1, x=0, font=dict(color=MUTED)),
+                      yaxis=dict(tickformat=",.0f", gridcolor="#eef0f2", ticksuffix="원"), font=dict(color=INK))
+    _date_axes(fig)
     return fig
 
 
-def draw_result(m: dict, idx: int) -> None:
+def trade_chart(dates: list[str], t: dict) -> go.Figure:
+    """위: 종가 + 가격 지표 + 사기·팔기. 아래: 가격이 아닌 지표마다 보조 차트(기준선 포함). x축 공유."""
+    panels = t["panels"]
+    rows = 1 + len(panels)
+    fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+                        row_heights=[3] + [1.1] * len(panels))
+    fig.add_trace(go.Scatter(x=dates, y=t["close"], name="종가", mode="lines",
+                             line=dict(color=CLOSE_COLOR, width=1.4), hovertemplate="%{y:,.0f}원"), row=1, col=1)
+    for k, ln in enumerate(t["price_lines"]):
+        fig.add_trace(go.Scatter(x=dates, y=ln["values"], name=ln["label"], mode="lines",
+                                 line=dict(color=LINE_COLORS[k % len(LINE_COLORS)], width=1.2),
+                                 hovertemplate="%{y:,.0f}원"), row=1, col=1)
+    for v in t["price_refs"]:
+        fig.add_hline(y=v, line=dict(color=MUTED, width=1, dash="dash"), row=1, col=1,
+                      annotation_text=f"{v:,.0f}", annotation_font_color=MUTED)
+    for side, sym, label, color in (("buys", "triangle-up", "사기", UP), ("sells", "triangle-down", "팔기", DOWN)):
+        pts = t[side]
+        if pts:
+            fig.add_trace(go.Scatter(x=[p["date"] for p in pts], y=[p["price"] for p in pts], name=label,
+                                     mode="markers", marker=dict(symbol=sym, size=10, color=color),
+                                     hovertemplate="%{y:,.0f}원 체결"), row=1, col=1)
+    k0 = len(t["price_lines"])
+    for r, p in enumerate(panels, start=2):
+        for k, ln in enumerate(p["lines"]):
+            fig.add_trace(go.Scatter(x=dates, y=ln["values"], name=ln["label"], mode="lines",
+                                     line=dict(color=LINE_COLORS[(k0 + k) % len(LINE_COLORS)], width=1.2),
+                                     hovertemplate="%{y:,.2f}"), row=r, col=1)
+        for v in p["refs"]:
+            fig.add_hline(y=v, line=dict(color=MUTED, width=1, dash="dash"), row=r, col=1,
+                          annotation_text=f"{v:g}", annotation_font_color=MUTED)
+        k0 += len(p["lines"])
+    fig.update_layout(template="plotly_white", height=300 + 120 * len(panels), margin=dict(l=8, r=8, t=8, b=8),
+                      hovermode="x unified", legend=dict(orientation="h", y=1.08, x=0, font=dict(color=MUTED)),
+                      font=dict(color=INK))
+    fig.update_yaxes(gridcolor="#eef0f2")
+    fig.update_yaxes(tickformat=",.0f", ticksuffix="원", row=1, col=1)
+    _date_axes(fig)
+    return fig
+
+
+def trades_table(rows: list[dict]) -> str:
+    head = ("<tr><th>종목</th><th>산 날</th><th class='r'>산 값</th><th>판 날</th><th class='r'>판 값</th>"
+            "<th class='r'>보유일</th><th class='r'>수익률</th></tr>")
+    body = []
+    for r in rows:
+        ret = r["return_pct"]
+        tone = "" if ret is None or ret == 0 else ("up" if ret > 0 else "down")
+        exit_date = "<span class='open'>보유 중</span>" if r["open"] else html.escape(r["exit_date"])
+        note = " <span class='code'>평가</span>" if r["open"] else ""
+        body.append(
+            f"<tr><td>{html.escape(r['name'])}<span class='code'>{html.escape(r['ticker'])}</span></td>"
+            f"<td>{r['entry_date']}</td><td class='r'>{S.fmt_won(r['entry_price'])}</td>"
+            f"<td>{exit_date}</td><td class='r'>{S.fmt_won(r['exit_price'])}</td>"
+            f"<td class='r'>{r['holding_days']}일</td><td class='r {tone}'>{S.fmt_ret(ret)}{note}</td></tr>")
+    return f"<div class='trades-wrap'><table class='trades'><thead>{head}</thead><tbody>{''.join(body)}</tbody></table></div>"
+
+
+def draw_result(conv: dict, m: dict, idx: int) -> None:
     mt = m["metrics"]
-    with st.container(border=True):
-        st.markdown(f"**백테스트 결과** <span class='muted'>{mt['start']} ~ {mt['end']}</span>", unsafe_allow_html=True)
-        a, b, c, d = st.columns(4)
-        a.metric("총수익률", S.fmt_pct(mt["total_return"]))
-        b.metric("연 수익률", S.fmt_pct(mt["cagr"]))
-        c.metric("MDD", S.fmt_pct(mt["mdd"], signed=False))
-        d.metric("거래 횟수", f"{mt['n_trades']}회", help=f"보유 중 {mt['n_open_positions']}건은 빼고 셉니다.")
-        st.caption(f"비교 — 코스피 {S.fmt_pct(mt['kospi_total_return'])} · 단순 보유 {S.fmt_pct(mt['buy_hold_total_return'])}")
-        st.plotly_chart(equity_chart(m["chart"]), width="stretch", key=f"chart-{idx}",
-                        config={"displayModeBar": False})
-        for w in m["warnings"]:
-            st.warning(w, icon="⚠️")
-        with st.expander(f"거래 내역 ({len(m['trades'])}건)"):
-            if m["trades"]:
-                st.dataframe(m["trades"], hide_index=True, width="stretch")
-            else:
-                st.write("거래가 없습니다.")
-        if m["match"]:
-            st.badge(f"다시 실행 → 결과 일치 ✓ {m['hash'][:8]}", color="green")
+    with st.container(border=True, key=_key(conv, "result", idx)):
+        if m.get("collapsed"):
+            c1, c2 = st.columns([3, 1], vertical_alignment="center")
+            c1.markdown(f"**백테스트 결과** <span class='muted'>(접음) 총수익률 {S.fmt_pct(mt['total_return'])} · "
+                        f"MDD {S.fmt_pct(mt['mdd'], signed=False)} · 거래 {mt['n_trades']}회</span>",
+                        unsafe_allow_html=True)
+            c2.button("결과 펼치기", key=_key(conv, "expand", idx), on_click=_expand, args=(idx,), width="stretch")
         else:
-            st.badge(f"다시 실행 → 결과 불일치 ✗ {(m['first_hash'] or '—')[:8]} ≠ {m['hash'][:8]}", color="red")
-        st.caption(m["costs"] + "  \n" + "  \n".join(m["notes"]))
+            _result_body(conv, m, idx)
+    c1, c2, c3 = st.columns(3)
+    c1.button("조건 바꿔서 다시", key=_key(conv, "retry", idx), on_click=_retry, args=(idx,), width="stretch",
+              help="원래 문장을 입력창에 채워 둡니다.")
+    c2.button("전략 카드로 돌아가기", key=_key(conv, "tocard", idx), on_click=_to_card, args=(idx,), width="stretch")
+    c3.button("처음으로", key=_key(conv, "home", idx), on_click=_new, width="stretch", type="tertiary")
+
+
+def _result_body(conv: dict, m: dict, idx: int) -> None:
+    mt = m["metrics"]
+    st.markdown(f"**백테스트 결과** <span class='muted'>{mt['start']} ~ {mt['end']}</span>", unsafe_allow_html=True)
+    a, b, c, d = st.columns(4)
+    a.metric("총수익률", S.fmt_pct(mt["total_return"]))
+    b.metric("연 수익률", S.fmt_pct(mt["cagr"]))
+    c.metric("MDD", S.fmt_pct(mt["mdd"], signed=False))
+    d.metric("거래 횟수", f"{mt['n_trades']}회", help=f"보유 중 {mt['n_open_positions']}건은 빼고 셉니다.")
+    st.caption(f"비교 — 코스피 {S.fmt_pct(mt['kospi_total_return'])} · 단순 보유 {S.fmt_pct(mt['buy_hold_total_return'])}")
+
+    st.markdown("<div class='chart-title'>자산 곡선</div>", unsafe_allow_html=True)
+    st.plotly_chart(equity_chart(m["chart"]), width="stretch", key=_key(conv, "eq", idx),
+                    config={"displayModeBar": False})
+    st.markdown("<div class='chart-title'>매매 지점</div>", unsafe_allow_html=True)
+    tcs = m.get("trade_chart")
+    if not tcs:
+        st.caption("이 기록에는 매매 지점 데이터가 없습니다 (이전 판에서 저장한 결과).")
+    else:
+        tabs = st.tabs([t["name"] for t in tcs]) if len(tcs) > 1 else [st.container()]
+        for tab, t in zip(tabs, tcs):
+            with tab:
+                st.plotly_chart(trade_chart(m["chart"]["dates"], t), width="stretch",
+                                key=_key(conv, "tc", idx, t["ticker"]), config={"displayModeBar": False})
+
+    for w in m["warnings"]:
+        st.warning(w, icon="⚠️")
+    rows = S.trade_rows(m["trades"])
+    with st.expander(f"거래 내역 ({len(rows)}건)"):
+        if rows:
+            st.markdown(trades_table(rows), unsafe_allow_html=True)
+        else:
+            st.write("거래가 없습니다.")
+    if m["match"]:
+        st.badge(f"다시 실행 → 결과 일치 ✓ {m['hash'][:8]}", color="green")
+    else:
+        st.badge(f"다시 실행 → 결과 불일치 ✗ {(m['first_hash'] or '—')[:8]} ≠ {m['hash'][:8]}", color="red")
+    st.caption(m["costs"] + "  \n" + "  \n".join(m["notes"]))
 
 
 def draw_messages(conv: dict) -> None:
@@ -206,13 +401,13 @@ def draw_messages(conv: dict) -> None:
             continue
         k = m["kind"]
         if k == "clarify":
-            draw_clarify(m, i, live=(i == last_clarify and not m.get("done")))
+            draw_clarify(conv, m, i, live=(i == last_clarify and not m.get("done")))
         elif k == "reject":
             draw_reject(m)
         elif k == "understood":
-            draw_understood(m, i)
+            draw_understood(conv, m, i)
         elif k == "result":
-            draw_result(m, i)
+            draw_result(conv, m, i)
         elif k == "error":
             st.error(m["text"])
         else:
@@ -258,9 +453,6 @@ class Steps:
 
 def handle(conv: dict, action: dict) -> None:
     t = action["type"]
-    if t == "revise":
-        S.revise(conv, action["idx"])
-        return
     if t == "submit":
         user_bubble(action["text"])
     with st.status("빈칸 나누는 중…", expanded=True) as box:
@@ -281,13 +473,15 @@ def main() -> None:
     conv = _conv()
     sidebar(conv)
     action = st.session_state.pop("action", None)
-    prompt = st.chat_input("전략을 한국어로 말해 주세요")
+    prompt = st.chat_input("전략을 한국어로 말해 주세요", key=CHAT_KEY)
     if prompt:
         action = {"type": "submit", "text": prompt}
     if not conv["messages"] and not action:
         empty_screen()
     else:
         draw_messages(conv)
+    if (target := st.session_state.pop("scroll_to", None)) is not None:
+        _scroll(conv, target)
     if action:
         try:
             handle(conv, action)
