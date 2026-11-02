@@ -138,6 +138,42 @@ def get_bar_history(tickers: list[str], *, as_of: date) -> dict[str, list[dict]]
     return out
 
 
+def get_price_coverage(tickers: list[str], *, start: date, as_of: date) -> dict[str, dict]:
+    """종목별 가격이 있는 범위. 전략서 검사 2단계(존재 검사)가 쓴다.
+
+    {종목: {"first": 첫 거래일, "last": as_of 이하 마지막 거래일, "before_start": start 앞의 행 수,
+            "in_period": [start, as_of] 안의 행 수}}. 가격이 한 행도 없는 종목은 키가 없다.
+
+    as_of 규약: 키워드 필수, 기본값 없음, 경계는 `<=`. 지표 준비용 과거 이력(before_start)을 세려고
+    start 앞의 행도 본다. 그래도 as_of 뒤의 행은 보지 않는다.
+    """
+    if not tickers:
+        return {}
+    with get_engine().connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT ticker,
+                       MIN(trade_date) AS first,
+                       MAX(trade_date) AS last,
+                       COUNT(*) FILTER (WHERE trade_date < :start) AS before_start,
+                       COUNT(*) FILTER (WHERE trade_date >= :start) AS in_period
+                  FROM price_daily
+                 WHERE ticker = ANY(:tickers)
+                   AND trade_date <= :as_of
+                   AND close IS NOT NULL
+                 GROUP BY ticker
+                """
+            ),
+            {"tickers": list(tickers), "start": start, "as_of": as_of},
+        ).all()
+    return {
+        row.ticker: {"first": row.first, "last": row.last, "before_start": row.before_start,
+                     "in_period": row.in_period}
+        for row in rows
+    }
+
+
 def get_latest_trade_date() -> date | None:
     """적재된 가장 늦은 거래일. 없으면 None.
 

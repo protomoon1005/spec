@@ -58,7 +58,13 @@ def test_representative_sentence_is_saved_as_a_draft(user, engine):
             {"s": result.strategy_id},
         ).all()
     assert [(a.ticker, float(a.weight_min)) for a in assets] == [("005930", 1.0)]
-    assert [(log.stage, log.passed, log.violations) for log in logs] == [(4, True, [])]
+    assert sorted((log.stage, log.passed, log.violations) for log in logs) == [
+        (1, True, []),
+        (2, True, []),
+        (3, True, []),
+        (4, True, []),
+    ]
+    assert [c["result"] for c in result.checks] == ["pass", "pass", "pass", "pass"]
     public = result.public()
     assert public["status"] == "ok" and public["spec"]["universe"]["tickers"] == ["005930"]
 
@@ -114,3 +120,41 @@ def test_reject_before_ai_and_expired_session():
     assert compile_v0_2.start(1, "엑셀에서 VLOOKUP 쓰는 법", client).public()["code"] == "OUT_OF_DOMAIN"
     with pytest.raises(LookupError):
         compile_v0_2.answer("없는세션", [], store=compile_v0_2.MemoryStore())
+
+
+def test_always_both_true_is_asked_and_the_answer_flips_the_exit(user):
+    user_id, created = user
+    text_ = "현대차 20일 수익률이 -5% 이하면 사고 0% 이하면 팔아"
+    raw = copy.deepcopy(pairing.EXAMPLE_OUTPUT)
+    raw["universe"] = ["1:현대차"]
+    raw["rules"][0]["entry"] = {
+        "actions": ["5:사고"],
+        "join": "one",
+        "items": [{"subject": None, "left": "2:20일 수익률", "op": "4:이하면", "right": "3:-5%"}],
+    }
+    raw["rules"][0]["exit"] = {
+        "actions": ["8:팔아"],
+        "join": "one",
+        "items": [{"subject": None, "left": "2:20일 수익률", "op": "7:이하면", "right": "6:0%"}],
+    }
+    store = compile_v0_2.MemoryStore()
+    first = compile_v0_2.start(user_id, text_, FakeClient(raw), store=store)
+    assert first.status == "ask"
+    question = first.questions[0]
+    assert question["kind"] == "always_both_true"
+    assert question["choices"][0]["label"] == "20일 수익률 0% 위면 팔기"
+    done = compile_v0_2.answer(first.session_id, [{"question_id": "q1", "choice_id": "c1"}], store=store)
+    assert done.status == "ok", done
+    created.append(done.strategy_id)
+    assert done.spec["rules"][0]["exit"]["op"] == ">"
+
+
+def test_check_block_is_a_rejection_with_the_check_message():
+    raw = copy.deepcopy(pairing.EXAMPLE_OUTPUT)
+    raw["rules"][0]["entry"]["items"][0]["right"] = "6:5일선"
+    # "30" 조각을 안 써서 근거 검사가 다시 짝짓기를 부른다. 같은 답을 두 번 준다.
+    # 되물을 거리(쓰지 않은 30)가 있어도 검사의 막힘이 먼저다
+    result = compile_v0_2.start(1, REPRESENTATIVE, FakeClient(raw, raw), store=compile_v0_2.MemoryStore())
+    assert result.status == "reject"
+    assert result.rejection["code"] == "VALIDATION" and result.rejection["stage"] == 3
+    assert "단위가 다른 것끼리" in result.rejection["message"]

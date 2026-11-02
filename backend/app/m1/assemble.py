@@ -86,6 +86,8 @@ class Assembly:
     rejects: list[Reject]
     defaults_used: list[str]
     evidence: dict[str, list[str]]
+    # "rules[0]" 같은 칸의 문장 위치. 검사 결과를 붙인다
+    positions: dict[str, int] = field(default_factory=dict)
 
 
 def assemble(
@@ -108,6 +110,7 @@ class _Builder:
         self.defaults: list[str] = []
         self.evidence: dict[str, list[str]] = {}
         self.negated = negated_span_ids(result)
+        self.positions: dict[str, int] = {}
 
     # ── 전체 ──────────────────────────────────────────────────────────
 
@@ -135,7 +138,8 @@ class _Builder:
                 spec = StrategyV0_2.model_validate(spec_dict)
             except ValidationError as exc:  # 조립 규칙의 빈틈이다. 검사 1단계가 막고 기록한다
                 spec_dict["_shape_error"] = str(exc)
-        return Assembly(spec_dict, spec, self.asks, self.rejects, _ordered(self.defaults), self.evidence)
+        return Assembly(spec_dict, spec, self.asks, self.rejects, _ordered(self.defaults), self.evidence,
+                        self.positions)
 
     # ── 기록 도우미 ───────────────────────────────────────────────────
 
@@ -224,6 +228,7 @@ class _Builder:
         entry = self._condition(f"rules[{i}].entry", rule.entry, self_ticker)
         exit_ = self._condition(f"rules[{i}].exit", rule.exit, self_ticker)
         rule_spans = [s for c in (rule.entry, rule.exit) if c is not None for s in c.spans()]
+        self.positions[f"rules[{i}]"] = min((s.start for s in rule_spans), default=len(self.result.text))
 
         # 반대쪽 조건을 말했으면, 그쪽을 아직 다 조립하지 못했어도(기준 숫자를 되묻는 중이어도) 묻는다
         if rule.entry is None and rule.exit is not None:
@@ -246,6 +251,9 @@ class _Builder:
                 self._ask("exit", f"rules[{i}].exit", rule_spans)
         if entry is None and exit_ is None:
             return None
+        # 검사 3단계의 되묻기 답: 사자마자 팔게 되는 모순이면 팔 조건 방향을 뒤집는다
+        if exit_ is not None and self._answer("always_both_true", f"rules[{i}]") == "flip_exit":
+            exit_ = _reverse(exit_)
         return {"target": target, "entry": entry, "exit": exit_}
 
     def _condition(self, path: str, cond: Condition | None, self_ticker: str | None) -> dict | None:
@@ -433,6 +441,11 @@ class _Builder:
             if mode is None:
                 self._default("weights")
             return "equal"
+        cap = self._answer("weight_vs_cap", "weights")
+        if cap == "cap":
+            limit = self._constraint().get("max_weight_per_asset")
+            if limit is not None:
+                weights = {t: min(w, limit) for t, w in weights.items()}
         total = sum(weights.values())
         if total > 1 + 1e-9:
             if self._answer("weights_over_100", "weights") == "scale":
@@ -518,6 +531,8 @@ def number_value(span: Span, indicator: str) -> float | None:
     if unit in ("percent", "none") and indicator in ("ret", "entry_return"):
         # 수익률은 소수로 적는다(0.10 = 10%). "10 오르면" 처럼 % 를 빼고 말해도 % 로 본다
         return value / 100
+    if unit == "percent" and indicator == "vol":
+        return value / 100  # 변동성도 소수다(signals.py)
     if unit in ("percent", "none", "times"):
         return float(value)
     return None
