@@ -118,8 +118,6 @@ def _run_rules_backtest(run_id: int, strategy_id: str) -> dict:
             tax_rate=None,
             slippage_bp=rules_engine.SLIPPAGE_RATE * 10_000,
         )
-        if not spec.is_rules_strategy:
-            raise rules_engine.UnsupportedStrategy("자산 배분형 v0.2 백테스트는 아직 지원하지 않아요")
         result = rules_service.run_rules_backtest(spec)
     except (rules_engine.UnsupportedStrategy, ValueError) as exc:
         reason = str(exc)
