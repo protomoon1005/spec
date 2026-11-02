@@ -45,15 +45,16 @@
 
 ### 3.2 strategies
 
-- 전략서 한 건. 내용 블록은 JSONB 로 담는다. 계약은 `app/contracts/spec.py`
+- 전략서 한 건. 내용 블록은 JSONB 로 담는다. 계약은 v0.1 이 `app/contracts/spec.py`, v0.2 가 `app/contracts/strategy_v0_2.py`
 - strategy_id: varchar, 기본키. `STR-` 와 12자리 16진수
 - user_id: bigint, 필수, users 외래키
-- strategy_version: varchar, 필수. 전략서 계약 버전(지금 0.1)
+- strategy_version: varchar, 필수. 전략서 계약 버전(v0.1 또는 0.2)
 - name: varchar, 필수
 - input_prompt: text. 사용자가 쓴 한국어 문장
 - rebalance: jsonb. 리밸런싱 규칙
 - signal_rules: jsonb. 옛 신호원 자리가 남아 있다. 기반 이후 전략서 v0.2 때 정리한다
 - constraint_user: jsonb. 사용자가 말한 제약
+- spec: jsonb(`db/migrate/003`). v0.2 전략서 전체. v0.2 는 이 칸에만 저장하고 rebalance · signal_rules · constraint_user 는 비워 둔다. v0.1 전략서는 이 칸이 비어 있다. 옛 칸은 v0.1 을 지울 때 정리한다(`docs/v0.2-plan.md` 9단계)
 - status: varchar, 필수. draft, approved, running, closed 중 하나. 승인 기능이 없어져 지금은 draft 로만 저장한다
 - created_at: timestamptz, 필수, 기본값 now()
 

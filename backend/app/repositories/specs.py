@@ -238,6 +238,74 @@ _OWNED_BY_DRAFT = ("strategy_assets", "validation_logs")
 _BLOCKS_DELETE = ("backtest_runs",)
 
 
+def insert_strategy_v0_2(
+    *,
+    strategy_id: str,
+    user_id: int,
+    name: str,
+    input_prompt: str | None,
+    spec: dict,
+    asset_weights: list[tuple[str, float | None]],
+    evidence_log: dict,
+) -> SavedSpec:
+    """전략서 v0.2 한 건을 draft 로 저장한다(docs/v0.2-plan.md 5단계, A안).
+
+    전략서는 strategies.spec 에 통째로 넣는다(db/migrate/003). 옛 칸(rebalance · signal_rules ·
+    constraint_user)은 비워 둔다. strategy_assets 에는 종목과 자리 비율을 weight_min = weight_max 로 남긴다
+    (종목 목록을 다른 화면과 저장소가 계속 같은 곳에서 읽게). evidence_log 는 검사 4단계(근거 검사) 결과로,
+    전략서가 저장되기 전에 돌아서 여기서 같이 남긴다(docs/db-erd.md validation_logs).
+    """
+    with get_engine().begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO strategies
+                    (strategy_id, user_id, strategy_version, name, input_prompt, spec, status)
+                VALUES
+                    (:strategy_id, :user_id, '0.2', :name, :input_prompt, CAST(:spec AS jsonb), :status)
+                """
+            ),
+            {"strategy_id": strategy_id, "user_id": user_id, "name": name, "input_prompt": input_prompt,
+             "spec": _dump(spec), "status": DRAFT},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO strategy_assets (strategy_id, ticker, weight_min, weight_max)
+                VALUES (:strategy_id, :ticker, :weight, :weight)
+                """
+            ),
+            [{"strategy_id": strategy_id, "ticker": t, "weight": w} for t, w in asset_weights],
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO validation_logs (strategy_id, stage, passed, violations)
+                VALUES (:strategy_id, :stage, :passed, CAST(:violations AS jsonb))
+                """
+            ),
+            {"strategy_id": strategy_id, "stage": evidence_log["stage"], "passed": evidence_log["passed"],
+             "violations": _dump(evidence_log["violations"])},
+        )
+    return SavedSpec(strategy_id=strategy_id, user_id=user_id, status=DRAFT, universe_size=len(asset_weights))
+
+
+def get_strategy_v0_2(strategy_id: str) -> dict | None:
+    """v0.2 전략서(strategies.spec)와 주인 · 이름 · 상태. v0.1 전략서이거나 없으면 None."""
+    with reading() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT strategy_id, user_id, name, status, input_prompt, spec
+                  FROM strategies
+                 WHERE strategy_id = :s AND strategy_version = '0.2'
+                """
+            ),
+            {"s": strategy_id},
+        ).one_or_none()
+    return None if row is None else dict(row._mapping)
+
+
 def delete_draft_spec(strategy_id: str, user_id: int) -> str:
     """draft 전략서를 하위 기록과 함께 한 트랜잭션으로 지운다.
 

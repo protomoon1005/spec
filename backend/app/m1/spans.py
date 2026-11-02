@@ -28,7 +28,7 @@ NAME_RIGHT_BOUNDARY = rf"(?![가-힣A-Za-z0-9])|(?=[{NAME_FOLLOWERS}])"
 
 KIND_ORDER = (
     "reject", "instrument", "indicator", "rebalance", "verb", "action", "subject", "weight",
-    "dividend", "selection", "sector", "product", "period", "capital", "number", "negation",
+    "dividend", "selection", "sector", "product", "period", "capital", "number", "intent", "negation",
 )
 KINDS = frozenset(KIND_ORDER)
 
