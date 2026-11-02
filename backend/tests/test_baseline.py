@@ -89,3 +89,16 @@ def test_sandbox_runs_code_and_blocks_imports():
         "import os\ndef strategy(p, s, e):\n    return []\n", frames, "2024-01-01", "2024-12-31"
     )
     assert not bad.ok and bad.stage == "check"
+
+
+def test_equity_curve_replays_fills_with_cash_and_closes():
+    frame = _frame()
+    days = frame.index
+    o = [{"date": days[0].strftime("%Y-%m-%d"), "ticker": "005930", "side": "buy", "weight": 0.5}]
+    fills = orders.execute_orders(
+        o, {"005930": frame}, date(2024, 1, 1), date(2024, 12, 31), 10_000, {"005930": taxes.STOCK}
+    )
+    curve = orders.equity_curve(fills, {"005930": frame}, [d.date() for d in days], 10_000)
+    assert curve[0] == (days[0].date(), 10_000)
+    shares, cash = fills[0]["shares"], fills[0]["cash_after"]
+    assert curve[-1][1] == cash + shares * frame["Close"].iloc[-1]

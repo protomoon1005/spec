@@ -6,6 +6,8 @@ import { useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { fmtPct, fmtWon, REJECT_PLAIN, type Ask, type Ok, type Reject } from "@/lib/chat";
+
+import { TradeCharts } from "./charts";
 import { REJECT_LABELS, STAGE_NAMES, type BacktestV2, type Check } from "@/lib/v2";
 
 export const COLORS = { accent: "#2a78d6", orange: "#eb6834", green: "#1baf7a", muted: "#6b7280", grid: "#eef0f2" };
@@ -268,11 +270,17 @@ export function ResultCard({
   onRetry,
   onToCard,
   onHome,
+  onBaseline,
+  baselineDone,
+  busy,
 }: {
   run: BacktestV2;
   onRetry: () => void;
   onToCard: () => void;
   onHome: () => void;
+  onBaseline: () => void;
+  baselineDone?: boolean;
+  busy: boolean;
 }) {
   const s = run.summary!;
   const trades = run.trades ?? [];
@@ -321,6 +329,10 @@ export function ResultCard({
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        {(run.trade_chart ?? []).length > 0 && (
+          <TradeCharts dates={(run.series ?? []).map((p) => p.date)} charts={run.trade_chart ?? []} />
+        )}
 
         {(run.unfilled ?? []).length > 0 && (
           <div className="warn-box">
@@ -383,6 +395,19 @@ export function ResultCard({
             </div>
           )}
         </details>
+        {run.repro && (
+          <div style={{ marginTop: 12 }}>
+            {run.repro.match ? (
+              <span className="badge green" title={run.repro.hash}>
+                다시 실행 → 결과 일치 ✓ {run.repro.hash.slice(0, 8)}
+              </span>
+            ) : (
+              <span className="badge red">
+                다시 실행 → 결과 불일치 ✗ {run.repro.first_hash.slice(0, 8)} ≠ {run.repro.hash.slice(0, 8)}
+              </span>
+            )}
+          </div>
+        )}
         <p className="small">
           가격 데이터 {run.data_snapshot_asof} 까지 · 수수료 0.015% · 체결 오차 0.05% · 세금 포함
           {(run.notes ?? []).map((n) => (
@@ -404,6 +429,15 @@ export function ResultCard({
           처음으로
         </button>
       </div>
+      <button
+        className="btn wide"
+        style={{ marginTop: 8 }}
+        disabled={baselineDone || busy}
+        onClick={onBaseline}
+        title="같은 문장으로 LLM 이 파이썬 코드를 직접 짜게 해 돌리고, 우리 결과와 나란히 보여 줍니다."
+      >
+        LLM 코드 생성과 비교{baselineDone ? " (비교함)" : ""}
+      </button>
     </>
   );
 }

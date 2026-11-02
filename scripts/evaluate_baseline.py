@@ -36,17 +36,16 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "backend"))
 sys.path.insert(0, str(REPO / "scripts"))
 
-import pandas as pd  # noqa: E402
 from evaluate_v0_2 import evaluate as evaluate_ours  # noqa: E402
 from measure_pairing import CachedClient  # noqa: E402
 
-from app.backtest import rules_engine, taxes  # noqa: E402
+from app.backtest import rules_engine  # noqa: E402
 from app.backtest.rules_service import run_rules_backtest  # noqa: E402
-from app.baseline import codegen, orders, sandbox  # noqa: E402
+from app.baseline import codegen, compare, orders, sandbox  # noqa: E402
 from app.contracts.strategy_v0_2 import StrategyV0_2  # noqa: E402
 from app.llm.ollama_client import OllamaClient  # noqa: E402
 from app.m1 import compile_v0_2  # noqa: E402
-from app.repositories import etf_master, price_daily  # noqa: E402
+from app.repositories import etf_master  # noqa: E402
 
 DATASET = REPO / "eval" / "dataset.jsonl"
 CACHE = Path("/tmp/baseline-cache")
@@ -97,7 +96,7 @@ def evaluate_baseline(row: dict, client) -> dict:
     tickers = sorted({s.meaning["ticker"] for s in compile_v0_2.find(row["text"]).by_kind("instrument")})
     records = etf_master.get_by_tickers(tickers)
     tickers = [t for t in tickers if t in records]
-    frames = _frames(tickers, max(end, DEFAULT_END))
+    frames = compare.frames(tickers, max(end, DEFAULT_END))
     tickers = [t for t in tickers if t in frames]
     listing = [(t, records[t].name, "ETF" if records[t].kind == "etf" else "주식") for t in tickers]
 
@@ -134,33 +133,11 @@ def evaluate_baseline(row: dict, client) -> dict:
     if not run.ok:
         rec.update(good=False, run_error=f"{run.stage}: {run.error}")
         return rec
-    categories = {t: _tax_category(records[t]) for t in tickers}
+    categories = {t: compare.tax_category(records[t]) for t in tickers}
     clean = [{**o, "weight": min(max(float(o["weight"]), 0.0), 1.0)} for o in run.orders]
     got = orders.execute_orders(clean, frames, start, end, capital, categories)
     rec.update(good=orders.same_fills(want, got), orders=len(run.orders), got_fills=len(got))
     return rec
-
-
-def _frames(tickers: list[str], as_of: date) -> dict[str, pd.DataFrame]:
-    bars = price_daily.get_bar_history(tickers, as_of=as_of)
-    out = {}
-    for t, rows in bars.items():
-        frame = pd.DataFrame(rows)
-        frame.index = pd.DatetimeIndex(pd.to_datetime(frame.pop("trade_date")))
-        frame.columns = [c.capitalize() for c in frame.columns]
-        out[t] = frame[["Open", "High", "Low", "Close", "Volume"]].astype(float)
-    return out
-
-
-def _tax_category(record) -> str:
-    return taxes.tax_category(
-        taxes.InstrumentTaxInfo(
-            kind=record.kind,
-            asset_group_id=record.asset_group_id,
-            country_group_id=record.country_group_id,
-            is_leveraged=record.is_leveraged,
-        )
-    )
 
 
 def report(records: list[dict]) -> None:

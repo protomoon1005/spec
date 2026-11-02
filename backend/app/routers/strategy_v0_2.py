@@ -1,12 +1,13 @@
 """전략서 v0.2 라우터 (docs/v0.2-plan.md 7단계, 설계 문서 "판정 결과 응답 모양").
 
-v0.1 라우터(/spec, /backtest)는 9단계에서 v0.1 을 지울 때까지 그대로 둔다. v0.2 는 /v2 아래에 둔다.
+v0.2 는 /v2 아래에 둔다.
 
 - POST /v2/strategies/compile                       한국어 문장 접수(202). 결과는 GET /jobs/{job_id}/stream
 - POST /v2/strategies/compile/{session_id}/answer   되묻기에 답하기. AI 를 부르지 않아 바로 결과를 준다
 - GET  /v2/strategies/{strategy_id}                 전략서, "AI가 이해한 전략" 설명, 검사 결과
 - POST /v2/strategies/{strategy_id}/backtest        백테스트 접수(202). 결과는 GET /v2/backtests/{run_id}
 - GET  /v2/backtests/{run_id}                       백테스트 결과(평가액 곡선, 체결, 거래, 비교 기준, 안내)
+- POST /v2/strategies/{strategy_id}/baseline        LLM 코드 생성과 비교 접수(202). 결과는 작업 스트림
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from app.contracts.strategy_v0_2 import StrategyV0_2
 from app.core.security import AuthUser, require_user
 from app.m1 import compile_v0_2, explain
 from app.repositories import backtests, specs
-from app.workers.tasks import compile_strategy_v0_2, run_backtest
+from app.workers.tasks import compare_baseline, compile_strategy_v0_2, run_backtest
 
 router = APIRouter(prefix="/v2", tags=["strategy v0.2"])
 
@@ -122,6 +123,24 @@ def backtest_strategy(strategy_id: str, user: AuthUser = Depends(require_user)) 
     )
     run_backtest.delay(run["run_id"])
     return BacktestAccepted(run_id=run["run_id"], status=run["status"])
+
+
+@router.post(
+    "/strategies/{strategy_id}/baseline",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Accepted,
+    summary="LLM 코드 생성과 비교하기",
+)
+def baseline_strategy(strategy_id: str, user: AuthUser = Depends(require_user)) -> Accepted:
+    """같은 문장을 LLM(qwen3:8b)이 파이썬 코드로 직접 짜게 해 돌리고, 우리 결과와 나란히 준다.
+
+    결과(`GET /jobs/{job_id}/stream` 의 `result`): `outcome`(code · clarify · reject · error), `message`,
+    `code`, `ours`·`base`(총수익률과 주문), `same_orders`, `series`(날짜별 평가액 두 줄), `run_error`.
+    비교 대상의 주문은 우리 엔진과 같은 비용 · 세금으로 다음 날 시가에 체결한다. 수십 초 걸린다.
+    """
+    _own_strategy(strategy_id, user)
+    job = compare_baseline.delay({"user_id": user.user_id, "strategy_id": strategy_id})
+    return Accepted(job_id=job.id)
 
 
 @router.get("/backtests/{run_id}", summary="백테스트 결과 보기")

@@ -21,9 +21,10 @@ import {
   type Conversation,
   type Message,
 } from "@/lib/chat";
-import type { BacktestV2, Outcome } from "@/lib/v2";
+import type { BacktestV2, BaselineResult, Outcome } from "@/lib/v2";
 
 import "./chat.css";
+import { BaselineCard } from "./charts";
 import { AskCard, RejectCard, ResultCard, UnderstoodCard, UserBubble } from "./parts";
 
 const POLL_MS = 2000;
@@ -108,7 +109,7 @@ function Chat({ session }: { session: Session }) {
     setBusy("전략서를 만들고 있어요");
     try {
       const { job_id } = await api<{ job_id: string }>("/v2/strategies/compile", { body: { text: t } });
-      const result = await waitJob(job_id);
+      const result = await waitJob<Outcome>(job_id);
       push(outcomeMessage(result, t));
     } catch (err) {
       push({ role: "ai", kind: "error", text: `처리 중 오류: ${err instanceof Error ? err.message : String(err)}` });
@@ -168,6 +169,29 @@ function Chat({ session }: { session: Session }) {
       }
     } catch (err) {
       push({ role: "ai", kind: "error", text: `백테스트 오류: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function baseline(index: number) {
+    const m = conv.messages[index];
+    if (m.role !== "ai" || m.kind !== "result" || busy) return;
+    update((c) => ({
+      ...c,
+      messages: c.messages.map((x, i) =>
+        i === index && x.role === "ai" && x.kind === "result" ? { ...x, baselineDone: true } : x,
+      ),
+    }));
+    setBusy("LLM 이 같은 문장으로 코드를 짜서 돌리고 있어요");
+    try {
+      const { job_id } = await api<{ job_id: string }>(
+        `/v2/strategies/${encodeURIComponent(m.run.strategy_id)}/baseline`,
+        { method: "POST" },
+      );
+      push({ role: "ai", kind: "baseline", result: await waitJob<BaselineResult>(job_id) });
+    } catch (err) {
+      push({ role: "ai", kind: "error", text: `비교하지 못했어요: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       setBusy(null);
     }
@@ -283,7 +307,12 @@ function Chat({ session }: { session: Session }) {
                       document.getElementById(`card-${conv.id}-${m.cardIndex}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
                     }
                     onHome={startNew}
+                    onBaseline={() => baseline(i)}
+                    baselineDone={m.baselineDone}
+                    busy={!!busy}
                   />
+                ) : m.kind === "baseline" ? (
+                  <BaselineCard result={m.result} />
                 ) : (
                   <div className="error-box">{m.text}</div>
                 )}
@@ -335,12 +364,12 @@ function requestBefore(messages: Message[], index: number): string {
 }
 
 // 작업 스트림이 끝날 때까지 기다려 결과를 돌려준다.
-function waitJob(jobId: string): Promise<Outcome> {
+function waitJob<T>(jobId: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const abort = new AbortController();
     let settled = false;
     const onEvent = ({ event, data }: StreamEvent) => {
-      const d = data as { state?: string; result?: Outcome; error?: string };
+      const d = data as { state?: string; result?: T; error?: string };
       if (event === "complete") {
         settled = true;
         abort.abort();

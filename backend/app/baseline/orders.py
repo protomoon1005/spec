@@ -69,6 +69,8 @@ def execute_orders(
                             "ticker": t,
                             "side": "sell",
                             "shares": n,
+                            "price": px,
+                            "cash_after": cash,
                             "target_weight": o["weight"],
                         }
                     )
@@ -90,10 +92,37 @@ def execute_orders(
                             "ticker": t,
                             "side": "buy",
                             "shares": n,
+                            "price": px,
+                            "cash_after": cash,
                             "target_weight": o["weight"],
                         }
                     )
     return fills
+
+
+def equity_curve(
+    fills: list[dict], prices: Mapping[str, pd.DataFrame], calendar: list[date], capital: float
+) -> list[tuple[date, float]]:
+    # 체결 기록을 날짜 순으로 다시 따라가며 날마다 현금 + 보유 종목 종가 평가액을 낸다
+    shares: dict[str, int] = {}
+    cash = float(capital)
+    ordered = sorted(fills, key=lambda f: f["date"])
+    k = 0
+    out = []
+    for day in calendar:
+        while k < len(ordered) and ordered[k]["date"] <= day:
+            f = ordered[k]
+            shares[f["ticker"]] = shares.get(f["ticker"], 0) + (
+                f["shares"] if f["side"] == "buy" else -f["shares"]
+            )
+            cash = f["cash_after"]
+            k += 1
+        value = cash
+        for t, n in shares.items():
+            if n:
+                value += n * (_close_before(prices[t], pd.Timestamp(day)) or 0.0)
+        out.append((day, value))
+    return out
 
 
 def same_fills(a: list[dict], b: list[dict], tol: float = WEIGHT_TOLERANCE) -> bool:

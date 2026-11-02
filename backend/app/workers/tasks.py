@@ -1,10 +1,12 @@
-"""Celery 태스크 두 개: compile_strategy_v0_2, run_backtest.
+"""Celery 태스크 세 개: compile_strategy_v0_2, run_backtest, compare_baseline.
 
 compile_strategy_v0_2 는 문장을 전략서 v0.2 로 바꾼다. 202 Accepted + job_id ->
 GET /jobs/{job_id}/stream 패턴이다 (app/routers/jobs.py, app/routers/strategy_v0_2.py).
 
 run_backtest 는 전략서 v0.2 를 돌린다. 상태는 job_id 가 아니라 backtest_runs 에 남긴다.
 GET /v2/backtests/{run_id} 가 거기서 읽는다.
+
+compare_baseline 은 화면의 "LLM 코드 생성과 비교" 다. 결과는 작업 스트림으로만 준다(DB 에 남기지 않는다).
 """
 
 from __future__ import annotations
@@ -50,6 +52,8 @@ def _run_rules_backtest(run_id: int, strategy_id: str) -> dict:
             slippage_bp=rules_engine.SLIPPAGE_RATE * 10_000,
         )
         result = rules_service.run_rules_backtest(spec)
+        # 재현성: 같은 전략서를 한 번 더 돌려 결과 지문이 같은지 남긴다(화면의 "다시 실행 → 결과 일치")
+        again = rules_service.run_rules_backtest(spec)
     except (rules_engine.UnsupportedStrategy, ValueError) as exc:
         reason = str(exc)
         if "데모 범위 밖" in reason:
@@ -62,6 +66,9 @@ def _run_rules_backtest(run_id: int, strategy_id: str) -> dict:
         return {"status": backtests.FAILED, "reason": UNEXPECTED_FAILURE}
 
     metrics, window = rules_service.to_run_record(result)
+    first = rules_service.result_hash(rules_service.to_run_record(again)[1])
+    second = rules_service.result_hash(window)
+    window["repro"] = {"first_hash": first, "hash": second, "match": first == second}
     backtests.finish_run(
         run_id,
         data_snapshot_asof=price_daily.get_latest_trade_date() or spec.backtest.end,
@@ -84,3 +91,26 @@ def compile_strategy_v0_2(job_payload: dict) -> dict:
 
     result = compile_v0_2.start(job_payload["user_id"], job_payload["text"], get_llm_client())
     return compile_v0_2.with_explanation(result)
+
+
+@celery_app.task(name="compare_baseline")
+def compare_baseline(job_payload: dict) -> dict:
+    """저장된 전략서와 같은 문장을 LLM 이 코드로 직접 짠 결과를 나란히 낸다(app/baseline/compare.py).
+
+    AI 를 부르고 생성 코드를 별도 프로세스에서 돌려 수십 초 걸린다. 실패는 이유를 담아 돌려준다.
+    """
+    from app.baseline import compare
+    from app.contracts.strategy_v0_2 import StrategyV0_2
+    from app.llm.client import get_llm_client
+    from app.repositories import specs
+
+    row = specs.get_strategy_v0_2(job_payload["strategy_id"])
+    if row is None or row["user_id"] != job_payload["user_id"]:
+        return {"status": "failed", "reason": "전략서를 찾을 수 없어요"}
+    try:
+        spec = StrategyV0_2.model_validate(row["spec"])
+        result = compare.compare(row["input_prompt"] or "", spec, get_llm_client())
+    except Exception as exc:  # 비교는 덤이라 사용자에게 이유만 보여 준다
+        logger.exception("compare_baseline %s 실패", job_payload["strategy_id"])
+        return {"status": "failed", "reason": f"{type(exc).__name__}: {exc}"}
+    return {"status": "done", **result}

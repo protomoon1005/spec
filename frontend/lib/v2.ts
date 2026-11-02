@@ -75,7 +75,44 @@ export type BacktestV2 = {
   holdings_at_end?: Record<string, number>;
   names?: Record<string, string>;
   notes?: string[];
+  // 종목별 매매 지점 차트 자료(backend/app/backtest/trade_chart.py). 날짜는 series 와 같다
+  trade_chart?: TradeChart[];
+  // 같은 전략서를 한 번 더 돌린 결과 지문이 같은지(재현성)
+  repro?: { first_hash: string; hash: string; match: boolean };
 };
+
+export type ChartLine = { label: string; values: (number | null)[] };
+export type ChartPoint = { date: string; price: number; signal_date: string | null };
+export type TradeChart = {
+  ticker: string;
+  name: string;
+  close: (number | null)[];
+  price_lines: ChartLine[];
+  panels: { title: string; lines: ChartLine[]; refs: number[] }[];
+  buys: ChartPoint[];
+  sells: ChartPoint[];
+};
+
+// POST /v2/strategies/{id}/baseline 작업 결과(backend/app/baseline/compare.py)
+export type OrderRow = { date: string; ticker: string; name: string; side: "buy" | "sell"; weight: number };
+export type BaselineResult =
+  | { status: "failed"; reason: string }
+  | {
+      status: "done";
+      outcome: "code" | "clarify" | "reject" | "error";
+      message: string;
+      code: string | null;
+      raw: string | null;
+      seconds: number;
+      cached: boolean;
+      tickers: string[];
+      period: [string, string];
+      ours: { total_return: number | null; orders: OrderRow[] };
+      base: { total_return: number | null; orders: OrderRow[]; ignored: number } | null;
+      run_error: string | null;
+      same_orders: boolean | null;
+      series: { date: string; ours: number; base: number }[] | null;
+    };
 
 // 거절 사유 코드의 쉬운 이름(설계 문서 "거절하는 경우")
 export const REJECT_LABELS: Record<string, string> = {

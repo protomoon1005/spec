@@ -9,10 +9,12 @@
 #   - KODEX 200(069500) 사서 들고 있기. 코스피 지수가 DB 에 없어 대신한다. 화면에 그렇게 밝힌다
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import hashlib
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import date
 
-from app.backtest import allocation_engine, rules_engine, taxes
+from app.backtest import allocation_engine, rules_engine, taxes, trade_chart
 from app.contracts.strategy_v0_2 import StrategyV0_2
 from app.repositories import etf_master, price_daily
 
@@ -39,6 +41,8 @@ class RulesBacktest:
     benchmarks: dict[str, dict]
     names: dict[str, str]
     notes: tuple[str, ...]
+    # 종목별 매매 지점 차트 자료(app/backtest/trade_chart.py)
+    trade_chart: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -102,6 +106,9 @@ def run_rules_backtest(spec: StrategyV0_2) -> RulesBacktest:
         },
         names={t: r.name for t, r in records.items()},
         notes=notes,
+        trade_chart=trade_chart.build(
+            spec, bars, calendar, result.fills, {t: r.name for t, r in records.items()}
+        ),
     )
 
 
@@ -141,5 +148,14 @@ def to_run_record(result: RulesBacktest) -> tuple[dict, dict]:
         "holdings_at_end": result.holdings_at_end,
         "names": result.names,
         "notes": list(result.notes),
+        "trade_chart": result.trade_chart,
     }
     return metrics, window
+
+
+def result_hash(window: dict) -> str:
+    # 결과 전체(평가액 곡선 · 체결 · 거래 · 지표)의 지문. 같은 전략서 + 같은 데이터면 같아야 한다(재현성).
+    # 다시 실행한 기록(repro)은 빼고 계산한다
+    body = {k: v for k, v in window.items() if k != "repro"}
+    raw = json.dumps(body, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()

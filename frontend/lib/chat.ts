@@ -3,7 +3,7 @@
 // 대화는 브라우저 저장소(localStorage)에 사용자별로 둔다. 서버에는 전략서와 백테스트 결과만 남는다.
 // 저장소가 막힌 브라우저에서는 기록만 남지 않고 화면은 그대로 돈다.
 
-import type { BacktestV2, Outcome } from "@/lib/v2";
+import type { BacktestV2, BaselineResult, Outcome } from "@/lib/v2";
 
 export type Ask = Extract<Outcome, { status: "ask" }>;
 export type Ok = Extract<Outcome, { status: "ok" }>;
@@ -16,7 +16,9 @@ export type Message =
   | { role: "ai"; kind: "reject"; outcome: Reject }
   // used: 이 카드로 백테스트를 돌렸거나 고쳐 말하기를 눌렀다
   | { role: "ai"; kind: "ok"; outcome: Ok; request: string; used?: boolean }
-  | { role: "ai"; kind: "result"; run: BacktestV2; request: string; cardIndex: number }
+  // baselineDone: "LLM 코드 생성과 비교" 를 이미 돌렸다
+  | { role: "ai"; kind: "result"; run: BacktestV2; request: string; cardIndex: number; baselineDone?: boolean }
+  | { role: "ai"; kind: "baseline"; result: BaselineResult }
   | { role: "ai"; kind: "error"; text: string };
 
 export type Conversation = { id: string; title: string; createdAt: string; messages: Message[] };
