@@ -36,7 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 명령 — 전부 Docker 안에서 실행
 
 ```sh
-scripts/build_db.sh                         # DB 새로 빌드 (볼륨 삭제, 기동, 스키마, 시드 · 종목 원장 · 가격 적재. -y 면 묻지 않음)
+scripts/build_db.sh                         # DB 새로 빌드 (볼륨 삭제, 기동, 스키마, 마이그레이션, 시드 · 종목 원장 · 가격 적재. -y 면 묻지 않음)
 docker compose up -d --build                # 전 스택 기동
 docker compose exec api ruff check .        # lint
 docker compose exec api ruff check /repo/scripts --config /app/pyproject.toml   # scripts/ lint (위 명령 범위 밖)
@@ -51,7 +51,7 @@ docker compose logs -f                      # 로그
 - DB
   - 스키마는 `db/init/` 이 빈 볼륨에서 postgres 컨테이너 최초 기동 시 만든다. 개발 DB `spec` 과 테스트 전용 DB `spec_test`(`db/init/03_test_db.sh`)가 같은 스키마로 생긴다
   - `scripts/build_db.sh` 가 이 compose 프로젝트의 볼륨을 지우고 다시 띄운 뒤 두 DB 의 테이블 11개를 확인하고, 두 DB 에 공용 데이터(기준 시드, 종목 원장, 가격 스냅샷)를 넣는다. 프로젝트 이름과 포트는 `.env` 를 따른다
-  - 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후 `docker compose exec api python /repo/scripts/apply_migrations.py`. 멱등이고 `schema_migrations` 에 이력이 남는다. 테스트 DB 에도 `DATABASE_URL` 을 바꿔 한 번 돌린다. Alembic 은 쓰지 않는다
+  - 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후 `docker compose exec api python /repo/scripts/apply_migrations.py`. 멱등이고 `schema_migrations` 에 이력이 남는다. 테스트 DB 에도 `DATABASE_URL` 을 바꿔 한 번 돌린다. `scripts/build_db.sh` 는 빌드 때 두 DB 에 적용한다. Alembic 은 쓰지 않는다
   - 시드는 `docker compose exec api python /repo/scripts/seed_all.py`. 분류표, 종목 원장, 전략 요소 사전을 넣는다. 03 은 두 번 넣을 수 없어 빈 DB 에 한 번만 돌린다
 - 가격
   - 국내 상장 보통주와 ETF 의 5년치 일봉 스냅샷(Parquet)을 한 사람이 받아 공유하고, 각자 빌드 때 적재만 한다. API 는 스냅샷을 만들 때 한 번만 부른다

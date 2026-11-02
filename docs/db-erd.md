@@ -73,9 +73,11 @@
 - 검증기 실행 기록. 한 번 검증하면 단계마다 한 행이 같은 트랜잭션(같은 checked_at)으로 들어간다
 - validation_id: bigint, 기본키, 자동 증가
 - strategy_id: varchar, 필수, strategies 외래키
-- stage: smallint, 필수, 1 부터 3. 1 스키마, 2 참조, 3 논리와 범위 보정
+- stage: smallint, 필수, 1 부터 4(`db/migrate/001`). 지금 코드는 1 스키마, 2 참조, 3 논리와 범위 보정만 쓴다
+  - 전략서 v0.2 검사 기준 뜻: 1 모양, 2 존재, 3 말이 되는지, 4 근거. 시험 실행 단계는 두지 않는다(2026-11-02)
+  - 4 근거 검사는 전략서 저장 전에 돌고, 결과는 전략서를 저장할 때 같이 남긴다. 되묻기나 거절로 끝난 문장의 기록은 이후 대화 테이블(결정 4)에 남긴다
 - passed: boolean, 필수
-- violations: jsonb. 위반 목록
+- violations: jsonb. 위반 목록. 전략서 v0.2 검사부터 항목마다 종류(block 막힘, ask 되묻기, warn 경고)를 적는다. 칸은 늘리지 않는다
 - adjusted_bounds: jsonb. 범위 보정 내역
 - clamped_fields: jsonb
 - checked_at: timestamptz, 필수, 기본값 now()
@@ -178,4 +180,4 @@
 
 - `scripts/build_db.sh` 가 볼륨 삭제, 기동, 스키마 생성 확인을 한 번에 한다. 개발 DB(spec)와 테스트 DB(spec_test)가 같이 만들어진다
 - 공용 데이터 적재는 기반 정리 3단계에서 빌드 명령에 붙인다. 그전까지는 `scripts/seed_all.py` 와 `scripts/ingest_prices.py` 를 따로 돌린다
-- `db/init/` 은 빈 볼륨 부트스트랩 전용이다. 이후 구조 변경은 `db/migrate/NNN_설명.sql` 로 쌓고 `scripts/apply_migrations.py` 로 적용한다. 적용하면 이력 테이블 schema_migrations 가 생긴다
+- `db/init/` 은 빈 볼륨 부트스트랩 전용이다. 이후 구조 변경은 `db/migrate/NNN_설명.sql` 로 쌓고 `scripts/apply_migrations.py` 로 적용한다. 적용하면 이력 테이블 schema_migrations 가 생긴다. `scripts/build_db.sh` 가 빌드 때 두 DB 에 적용한다
