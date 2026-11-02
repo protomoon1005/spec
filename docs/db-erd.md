@@ -1,8 +1,9 @@
 # DB 설계
 
-- 기준: 기반 정리 2단계(2026-11-02). 스키마 정본은 이 문서와 `db/init/02_schema.sql` 이다. 둘이 다르면 SQL 이 맞고 이 문서를 고친다
-- 테이블은 11개다. 칸이나 테이블을 임의로 더하지 않는다(CLAUDE.md 절대 규칙)
+- 기준: 기반 정리 2단계(2026-11-02)와 마이그레이션 001~004. 스키마 정본은 이 문서와 `db/init/02_schema.sql`, `db/migrate/` 다. 둘이 다르면 SQL 이 맞고 이 문서를 고친다
+- 테이블은 9개다(마이그레이션 이력 `schema_migrations` 빼고). `db/init/` 이 11개를 만들고 `db/migrate/004` 가 전략 요소 사전 2개를 지운다. 칸이나 테이블을 임의로 더하지 않는다(CLAUDE.md 절대 규칙)
 - 옛 주제(모의운용, 투자 성향, 하드캡, 그룹캡, 3개 신호원)의 테이블 설계는 git 이력(커밋 fe1f8ce 이전 `docs/db-erd.md`)에 있다
+- 전략서 v0.1 이 쓰던 전략 요소 사전(strategy_elements, strategy_element_tags)과 strategies 의 rebalance · signal_rules · constraint_user 칸은 `db/migrate/004` 에서 지웠다(2026-11-02, `docs/v0.2-plan.md` 9단계 d)
 
 ---
 
@@ -11,7 +12,7 @@
 - 개인 데이터: 각자 DB 에만 쌓인다. 구조가 바뀌면 다시 빌드하고 잃는 것은 자기 시험 데이터뿐이다
   - users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics
 - 공용 데이터: 빌드할 때 git 시드와 가격 스냅샷에서 한 번에 적재한다. 누가 빌드해도 같아야 한다
-  - instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags
+  - instruments, asset_groups, price_daily
 - 테스트 전용 DB `spec_test` 도 같은 스키마로 만들어진다(`db/init/03_test_db.sh`). 테스트는 이 DB 만 쓴다
 
 ---
@@ -27,7 +28,6 @@
 - strategy_assets.ticker 는 instruments.ticker 를 가리킨다
 - instruments 는 asset_groups 를 네 칸으로 가리킨다: group_id, asset_group_id, sector_group_id, country_group_id
 - asset_groups.parent_group_id 는 asset_groups 자신을 가리킨다. 지금 시드에서는 전부 비어 있다
-- strategy_element_tags.element_id 는 strategy_elements.element_id 를 가리킨다
 - price_daily 는 외래키가 없다. ticker 로 instruments 와 이어지지만 제약은 걸지 않았다
 - 외래키에 ON DELETE CASCADE 는 없다. 전략서를 지울 때는 저장소 함수가 하위 테이블부터 지운다(`app/repositories/specs.py` 의 `delete_draft_spec`)
 
@@ -45,16 +45,13 @@
 
 ### 3.2 strategies
 
-- 전략서 한 건. 내용 블록은 JSONB 로 담는다. 계약은 v0.1 이 `app/contracts/spec.py`, v0.2 가 `app/contracts/strategy_v0_2.py`
+- 전략서 한 건. 전략서 전체를 spec 칸에 JSONB 로 담는다. 계약은 `app/contracts/strategy_v0_2.py`
 - strategy_id: varchar, 기본키. `STR-` 와 12자리 16진수
 - user_id: bigint, 필수, users 외래키
-- strategy_version: varchar, 필수. 전략서 계약 버전(v0.1 또는 0.2)
+- strategy_version: varchar, 필수. 전략서 계약 버전(0.2)
 - name: varchar, 필수
 - input_prompt: text. 사용자가 쓴 한국어 문장
-- rebalance: jsonb. 리밸런싱 규칙
-- signal_rules: jsonb. 옛 신호원 자리가 남아 있다. 기반 이후 전략서 v0.2 때 정리한다
-- constraint_user: jsonb. 사용자가 말한 제약
-- spec: jsonb(`db/migrate/003`). v0.2 전략서 전체. v0.2 는 이 칸에만 저장하고 rebalance · signal_rules · constraint_user 는 비워 둔다. v0.1 전략서는 이 칸이 비어 있다. 옛 칸은 v0.1 을 지울 때 정리한다(`docs/v0.2-plan.md` 9단계)
+- spec: jsonb(`db/migrate/003`). v0.2 전략서 전체
 - status: varchar, 필수. draft, approved, running, closed 중 하나. 승인 기능이 없어져 지금은 draft 로만 저장한다
 - created_at: timestamptz, 필수, 기본값 now()
 
@@ -139,32 +136,12 @@
 - atr_14: numeric. 적재기가 채우지 않는다. 지표는 app/backtest/features.py 가 계산한다
 - ingested_at: timestamptz, 필수, 기본값 now(). 적재 시각
 
-### 3.10 strategy_elements
-
-- 전략 요소 사전. 전략서에 들어갈 수 있는 값의 목록이다. 시드는 `db/seeds/05_bbl.sql`
-- element_id: varchar, 기본키. 지표는 이 값이 그대로 전략서에 들어간다(예: ret_20). 나머지는 RB_, FL_, ET_ 접두어
-- element_type: varchar, 필수. indicator, filter, rebalance, etf_trait 중 하나
-- title: varchar
-- description: text
-- params_schema: jsonb. 이 요소를 고르면 무엇이 되는지
-- embedding: vector(768). 아직 채우지 않는다
-- active: boolean, 필수, 기본값 true
-
-### 3.11 strategy_element_tags
-
-- 전략 요소의 검색 태그. 접두어는 kw:, asset:, sector:, country:, risk: 다섯 개
-- tag_id: bigint, 기본키, 자동 증가
-- element_id: varchar, 필수, strategy_elements 외래키
-- tag: varchar, 필수
-- (element_id, tag) 유일 제약이 없다. 시드가 두 테이블을 비우고 다시 채워 중복을 막는다
-
 ---
 
 ## 4. 인덱스, 하이퍼테이블, 확장
 
-- 확장: timescaledb(price_daily 하이퍼테이블), vector(strategy_elements.embedding), pg_trgm(지금 쓰는 코드가 없다)
+- 확장: timescaledb(price_daily 하이퍼테이블), vector · pg_trgm(`db/init/00_extensions.sql` 이 깔지만 지금 쓰는 칸 · 코드가 없다)
 - idx_price_ticker_date: price_daily (ticker, trade_date DESC). 시점 경계 조회의 진입점
-- idx_strategy_elements_embedding: strategy_elements, hnsw (embedding vector_cosine_ops)
 - price_daily 는 trade_date 기준 하이퍼테이블이다
 - 트리거는 없다. 옛 승인 후 수정 금지 트리거(옛 `db/migrate/003`)와 승인 기록 유일 인덱스(옛 `db/migrate/002`)는 승인 기능과 함께 버렸다
 

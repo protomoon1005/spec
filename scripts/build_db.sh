@@ -19,6 +19,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# db/init/ 이 만드는 테이블 수. 마이그레이션 004 가 그 뒤에 2개를 지워 9개가 된다(schema_migrations 빼고)
 expected_tables=11
 
 if [[ "${1:-}" != "-y" ]]; then

@@ -2,7 +2,8 @@
 
 설계 문서 "비교 대상", docs/v0.2-plan.md 9단계.
 
-demo/baseline/codegen.py 를 옮겼다. 같은 모델 · 같은 설정(qwen3:8b, 온도 0, 시드 42, thinking 끔)이고
+demo/baseline/codegen.py 를 옮겼다(demo/ 는 9단계 d 에서 지웠다).
+같은 모델 · 같은 설정(qwen3:8b, 온도 0, 시드 42, thinking 끔)이고
 구조화 출력(format)은 쓰지 않는다. 코드를 자유롭게 쓰게 한다.
 
 프롬프트에는 데이터 형식과 출력 형식만 적는다. 우리 사전(표현 표 · 거절 사전) · 규칙 · 판정은 넣지 않는다.

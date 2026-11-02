@@ -6,7 +6,7 @@
 시드가 두 가지 형식이다. 성격이 달라서 일부러 그렇게 뒀다.
 
   .sql  규칙표 — 팀이 회의에서 정한 값. 손으로 쓰고 잘 안 바뀐다
-        (분류표 · 전략 요소 사전)
+        (분류표)
   .csv  데이터 — 종목 원장. 사람이 스프레드시트로 분류 작업을 한다
         한글 분류값(`반도체`)을 묶음 이름(`SECTOR_SEMICONDUCTOR`)으로 옮기는
         매핑이 필요해서 전용 적재기를 쓴다 (scripts/load_etf_master.py)
@@ -23,8 +23,8 @@ db/seeds/ 에는 적재 대상이 아닌 파일(예: 상장폐지 후보 목록)
 ## 멱등하지 않은 것이 섞여 있다
 
 03 은 같은 값을 두 번 넣으면 기본키 충돌로 실패한다(ON CONFLICT 가 없다).
-**새 데이터베이스에 한 번 돌리는 것이 전제다.** 05(블록)와 04(종목)는 여러 번
-돌려도 괜찮다 — 각각 비우고 다시 채우거나 갱신한다.
+**새 데이터베이스에 한 번 돌리는 것이 전제다.** 종목 원장은 여러 번 돌려도 괜찮다.
+갱신한다.
 
 사용:
     python scripts/seed_all.py
@@ -47,11 +47,6 @@ SQL_SEEDS: tuple[tuple[str, str], ...] = (
 
 # 종목 원장. 전용 적재기가 한글 분류값을 묶음 이름으로 옮긴다.
 ETF_LOADER = REPO_ROOT / "scripts" / "load_etf_master.py"
-
-# 블록 라이브러리는 종목보다 뒤에 둘 이유가 없지만, 번호 순서를 지켜 읽기 쉽게 둔다.
-LATE_SQL_SEEDS: tuple[tuple[str, str], ...] = (
-    ("05_bbl.sql", "전략 요소 사전(strategy_elements · strategy_element_tags)"),
-)
 
 
 def _database_url() -> str:
@@ -105,8 +100,6 @@ def main() -> int:
         for name, description in SQL_SEEDS:
             _run_sql(engine, name, description)
         _run_etf_master()
-        for name, description in LATE_SQL_SEEDS:
-            _run_sql(engine, name, description)
     except Exception as exc:  # noqa: BLE001 — 어디서 멈췄는지만 알려 주면 된다
         message = str(exc)
         print(f"seed_all: 실패 — {message}", file=sys.stderr)

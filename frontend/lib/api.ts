@@ -185,30 +185,7 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
 
 // --- 4) 화면 사이에 넘기는 전략 만들기 결과 --------------------------------
 //
-// 진행 상황 화면이 받은 결과(되묻기 질문, 완료된 strategy_id)를 다음 화면이 읽는다.
-// 질문 문장과 선택지는 주소에 싣기엔 길어서 탭 저장소(sessionStorage)에 둔다.
-// 탭을 닫으면 사라지는 게 맞다 — 되묻기 대화도 서버에서 30분이면 만료된다.
-
-export type CompileResult =
-  // excluded: 요청했지만 담지 못한 종목 · 자산군과 사유(lib/excluded.ts). 옛 결과에는 없다
-  | { status: "completed"; strategy_id: string; universe_size: number; excluded?: unknown }
-  | { status: "need_answer"; session_id: string; question: string; choices: string[] }
-  | { status: "failed"; reason: string };
-
-const COMPILE_KEY = "spec.compile";
-
-export function saveCompileResult(result: CompileResult): void {
-  window.sessionStorage.setItem(COMPILE_KEY, JSON.stringify(result));
-}
-
-export function loadCompileResult(): CompileResult | null {
-  try {
-    const raw = window.sessionStorage.getItem(COMPILE_KEY);
-    return raw ? (JSON.parse(raw) as CompileResult) : null;
-  } catch {
-    return null;
-  }
-}
+// 판정 결과 자체는 lib/v2.ts 가 탭 저장소에 둔다.
 
 // 전략 요청 화면이 보낸 문장. 진행 상황 화면이 "무엇을 만들고 있는지" 보여 주고,
 // 실패해서 다시 요청할 때 입력칸에 되채운다. 같은 탭 안에서만 쓰므로 탭 저장소에 둔다.
@@ -252,38 +229,3 @@ export function loadBacktestRun(specId: string): SavedBacktest | null {
     return null;
   }
 }
-
-// GET /backtest/runs/{run_id} 응답 (backend/app/routers/backtest.py BacktestRunDetail).
-export type SeriesSummary = { total: number; cagr: number; vol: number; mdd: number; sharpe: number; sortino: number; final: number };
-
-export type RunUniverseItem = {
-  ticker: string;
-  name: string;
-  asset_group: string;
-  sector_group: string;
-  country_group: string;
-  weight_min_raw: number;
-  weight_max_raw: number;
-  weight_min: number;
-  weight_max: number;
-};
-
-export type BacktestRun = {
-  run_id: number;
-  strategy_id: string;
-  period_start: string | null;
-  period_end: string | null;
-  status: "queued" | "running" | "done" | "failed" | null;
-  seed_money: number | null;
-  fee_rate: number | null;
-  tax_rate: number | null;
-  slippage_bp: number | null;
-  data_snapshot_asof: string | null;
-  metrics: Record<"cagr" | "mdd" | "sharpe" | "sortino" | "win_rate" | "benchmark_cagr", number | null> | null;
-  summary: { strategy: SeriesSummary; market: SeriesSummary } | null;
-  series: { date: string; strategy: number; market: number }[] | null;
-  schedule: { note: string; rebalance_dates: string[]; skipped_rebalance_dates: string[] } | null;
-  universe: RunUniverseItem[] | null;
-  decisions: { date: string; target: Record<string, number>; cash: number }[] | null;
-  reason: string | null;
-};

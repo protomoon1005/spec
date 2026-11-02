@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # 한국어 투자 전략 명세화 · 백테스트 서비스 — 졸업작품
 
-- 자동매매를 원하지만 코딩을 못 하는 한국인 일반 투자자가 한국어로 전략을 말하면, 전략 요소 사전에 있는 요소만 쓰는 전략서(JSON)로 바꾸고 백테스트 결과를 보여 준다
+- 자동매매를 원하지만 코딩을 못 하는 한국인 일반 투자자가 한국어로 전략을 말하면, 표현 표에 있는 표현만 쓰는 전략서 v0.2(JSON)로 바꾸고 백테스트 결과를 보여 준다
 - 지금은 주제 변경 기반 정리 중이다(2026-11-01 시작). 계획과 결정 사항은 `docs/pivot-plan.md`
   - 옛 주제(국내 ETF 모의운용, 투자 성향, 3개 신호원)의 코드는 1단계에서 지웠다(2026-11-01)
   - DB 테이블은 2단계에서 남는 11개만 새 이름으로 다시 만들었다(2026-11-02)
   - 3단계(공용 데이터와 가격 스냅샷 적재)를 하고 있다(2026-11-02). 진행은 `docs/pivot-plan.md` 3단계 결과
+  - 전략서 v0.2 구현은 `docs/v0.2-plan.md`. 9단계 d 에서 v0.1 코드 · 화면과 demo/ 를 지우고, 마이그레이션 004 로 테이블 2개와 칸 3개를 지웠다(2026-11-02)
 
 ## 절대 규칙
 
@@ -41,7 +42,7 @@ docker compose up -d --build                # 전 스택 기동
 docker compose exec api ruff check .        # lint
 docker compose exec api ruff check /repo/scripts --config /app/pyproject.toml   # scripts/ lint (위 명령 범위 밖)
 docker compose exec api pytest -m "not requires_ollama and not requires_backfill and not requires_backtest" -q  # 테스트
-docker compose exec api pytest tests/test_m2_feasibility.py::test_same_input_twice_same_result -q        # 단일 테스트
+docker compose exec api pytest tests/test_rules_engine.py::test_same_input_same_result -q                # 단일 테스트
 docker compose exec api python /repo/scripts/check_asof_guard.py                                          # as_of 가드
 docker compose exec frontend npx tsc --noEmit                                                             # 프론트 타입 검사
 docker compose logs -f                      # 로그
@@ -50,9 +51,9 @@ docker compose logs -f                      # 로그
 - 저장소 루트가 `/repo` 로, `backend/` 가 `/app` 으로 마운트된다. 앱 코드는 `/app`(uvicorn WORKDIR), 스크립트는 `/repo` 에서 찾는다
 - DB
   - 스키마는 `db/init/` 이 빈 볼륨에서 postgres 컨테이너 최초 기동 시 만든다. 개발 DB `spec` 과 테스트 전용 DB `spec_test`(`db/init/03_test_db.sh`)가 같은 스키마로 생긴다
-  - `scripts/build_db.sh` 가 이 compose 프로젝트의 볼륨을 지우고 다시 띄운 뒤 두 DB 의 테이블 11개를 확인하고, 두 DB 에 공용 데이터(기준 시드, 종목 원장, 가격 스냅샷)를 넣는다. 프로젝트 이름과 포트는 `.env` 를 따른다
+  - `scripts/build_db.sh` 가 이 compose 프로젝트의 볼륨을 지우고 다시 띄운 뒤 두 DB 에서 `db/init/` 이 만든 테이블 11개를 확인하고, 마이그레이션을 적용한 뒤(004 가 2개를 지워 9개), 두 DB 에 공용 데이터(기준 시드, 종목 원장, 가격 스냅샷)를 넣는다. 프로젝트 이름과 포트는 `.env` 를 따른다
   - 스키마 변경은 `db/migrate/NNN_설명.sql` 추가 후 `docker compose exec api python /repo/scripts/apply_migrations.py`. 멱등이고 `schema_migrations` 에 이력이 남는다. 테스트 DB 에도 `DATABASE_URL` 을 바꿔 한 번 돌린다. `scripts/build_db.sh` 는 빌드 때 두 DB 에 적용한다. Alembic 은 쓰지 않는다
-  - 시드는 `docker compose exec api python /repo/scripts/seed_all.py`. 분류표, 종목 원장, 전략 요소 사전을 넣는다. 03 은 두 번 넣을 수 없어 빈 DB 에 한 번만 돌린다
+  - 시드는 `docker compose exec api python /repo/scripts/seed_all.py`. 분류표와 종목 원장을 넣는다. 03 은 두 번 넣을 수 없어 빈 DB 에 한 번만 돌린다
 - 가격
   - 국내 상장 보통주와 ETF 의 5년치 일봉 스냅샷(Parquet)을 한 사람이 받아 공유하고, 각자 빌드 때 적재만 한다. API 는 스냅샷을 만들 때 한 번만 부른다
   - 스냅샷 만들기: `scripts/fetch_prices.py`. `data/snapshot/prices-<버전>.parquet`(git 밖, GitHub Release 로 공유), `data/prices_snapshot.json`(메타, git), `data/listing.csv`(종목 목록, git)를 쓴다. 이미 받은 원천 CSV 가 있으면 `--from-raw` 로 만든다
@@ -74,18 +75,19 @@ docker compose logs -f                      # 로그
 ## 아키텍처
 
 - 흐름: 한국어 문장 입력, 명세화, 판정, 검증, 백테스트, 결과 확인
-  - 명세화만 LLM 을 쓴다. 전략 요소 사전에 있는 값만 고를 수 있게 좁힌 스키마를 LLM 에 준다
-  - 판정은 명세화 가능 / 추가 질문 필요 / 실행 불가 세 가지다. 판정기는 기반 이후에 만든다
+  - 명세화만 LLM 을 쓴다. 표현 표로 문장에서 조각을 찾고, LLM 은 조각 번호를 짝짓기만 한다
+  - 판정은 바로 진행(ok) / 되묻기(ask) / 거절(reject) 세 가지다
   - 검증과 백테스트는 AI 없이 결정론적으로 돈다
 - 사용자가 말한 대로만 거래한다. 사용자가 말하지 않은 외부 판단(시장 국면, 뉴스 감성, 예측 모델)이나 시스템 상한(성향, 하드캡, 그룹캡)이 거래에 끼어들지 않는다. 계산이 성립하지 않는 것(현금 초과 매수, 상장 기간 밖 거래)만 검증기가 막는다
 - 대상 종목은 국내 상장 개별주와 ETF 다
 - 보장할 성질: 시점 무결성(point-in-time, 룩어헤드 방지)과 재현성(같은 입력이면 같은 결과)
 - 남는 모듈
-  - 명세화 파이프라인: `app/m1/`(의도 파악, 추가 질문, 후보 선정, 스키마 좁히기, 후처리)
-  - 전략 요소 사전: `db/seeds/05_bbl.sql`, `app/repositories/bbl.py`(테이블 `strategy_elements`, `strategy_element_tags`)
-  - 전략서 계약: `app/contracts/spec.py`(Pydantic v2)
-  - 검증기: `app/m2/validator.py`, `checks.py`, `stages.py`, `feasibility.py`
-  - 백테스트: `app/backtest/`
+  - 명세화: `app/m1/`(spans 조각 찾기, pairing AI 짝짓기, assemble 조립, decide 판정, explain 설명, compile_v0_2 입구). 표현 표는 `db/seeds/expressions.yaml`
+  - 전략서 계약: `app/contracts/strategy_v0_2.py`(Pydantic v2)
+  - 검사 1~4단계: `app/m2/checks_v0_2.py`
+  - 백테스트: `app/backtest/`(rules_engine 조건형, allocation_engine 자산 배분형, rules_service 입구)
+  - API: `app/routers/strategy_v0_2.py`(/v2), 전략 관리 목록 · 삭제는 `app/routers/spec.py`(/specs)
+  - 비교 대상(LLM 코드 직접 생성): `app/baseline/`. 평가는 `scripts/evaluate_v0_2.py`, `scripts/evaluate_baseline.py`
   - 지표 계산: `app/backtest/features.py`. stdlib 순수 함수이고 결측은 None
 - as_of 규약(`app/repositories/`)
   - `as_of` 는 키워드 필수, 기본값 금지. 가격 조회는 `as_of` 이하만 돌려준다
@@ -94,6 +96,6 @@ docker compose logs -f                      # 로그
   - DB 는 빌드할 때 처음부터 만든다. 공용 데이터(기준 시드, 종목 원장, 가격 스냅샷)는 그때 한 번에 적재한다
   - 개인 데이터(계정, 전략서, 검증 기록, 백테스트 결과)만 각자 DB 에 쌓인다
   - dev DB 서버는 두지 않는다
-- 스키마 정본은 `docs/db-erd.md`. 테이블 11개: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags
-  - 2단계에서 테이블 · 칸 이름을 바꿨다(`docs/pivot-plan.md` 3.2). 모듈 · 파일 이름(`repositories/etf_master.py`, `bbl.py`, `specs.py`, `scripts/load_etf_master.py`, `db/seeds/04_etf_master.csv`)은 그대로다
+- 스키마 정본은 `docs/db-erd.md`. 테이블 9개: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily
+  - 2단계에서 테이블 · 칸 이름을 바꿨다(`docs/pivot-plan.md` 3.2). 모듈 · 파일 이름(`repositories/etf_master.py`, `specs.py`, `scripts/load_etf_master.py`, `db/seeds/04_etf_master.csv`)은 그대로다
 - 알려진 설계 구멍은 `docs/known-issues.md` 에 기록한다

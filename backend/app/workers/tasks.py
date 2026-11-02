@@ -1,10 +1,10 @@
-"""Celery 태스크 두 개: compile_spec, run_backtest.
+"""Celery 태스크 두 개: compile_strategy_v0_2, run_backtest.
 
-compile_spec 은 M1 6단계에서 실제 컴파일로 교체됐다. 202 Accepted + job_id ->
-GET /jobs/{job_id}/stream 패턴은 그대로다 (app/routers/jobs.py, app/routers/spec.py).
+compile_strategy_v0_2 는 문장을 전략서 v0.2 로 바꾼다. 202 Accepted + job_id ->
+GET /jobs/{job_id}/stream 패턴이다 (app/routers/jobs.py, app/routers/strategy_v0_2.py).
 
-run_backtest 는 M4 가 만든 러너를 API 에 잇는 배선이다(2026-09-28). 상태는 job_id 가
-아니라 backtest_runs 에 남긴다 — GET /backtest/runs/{run_id} 가 거기서 읽는다.
+run_backtest 는 전략서 v0.2 를 돌린다. 상태는 job_id 가 아니라 backtest_runs 에 남긴다.
+GET /v2/backtests/{run_id} 가 거기서 읽는다.
 """
 
 from __future__ import annotations
@@ -19,87 +19,18 @@ logger = logging.getLogger(__name__)
 UNEXPECTED_FAILURE = "백테스트 실행 중 예상하지 못한 오류가 났다. 워커 로그를 확인해야 한다."
 
 
-@celery_app.task(name="compile_spec")
-def compile_spec(job_payload: dict) -> dict:
-    """자연어 -> 전략서 컴파일 (M1).
-
-    새 요청이면 user_id 와 input_prompt 를, 되묻기에 답하는 것이면 session_id 와
-    answer 를 받는다. 되물을 것이 있으면 질문을 담아 돌려주고 거기서 멈춘다.
-
-    **오래 걸린다** — 2026-09-20 실측으로 2분을 넘는다. 진행 상황 스트림의 상한이
-    그래서 10분이다(app/routers/jobs.py).
-
-    파이프라인은 함수 안에서 import 한다. M1 전용 의존성이 안 깔린 환경에서도
-    워커가 뜨고 나머지 태스크가 동작해야 한다.
-    """
-    from app.llm.client import get_llm_client
-    from app.m1 import pipeline
-    from app.m1.postprocess import CompileError
-
-    client = get_llm_client()
-    try:
-        if job_payload.get("session_id"):
-            result = pipeline.answer(job_payload["session_id"], job_payload["answer"], client)
-        else:
-            result = pipeline.start(job_payload["user_id"], job_payload["input_prompt"], client)
-    except CompileError as exc:
-        # 사용자에게 그대로 보여 줄 수 있는 실패다. 스택을 올리지 않는다.
-        return {"status": "failed", "reason": str(exc)}
-
-    if result.status == pipeline.STATUS_NEED_ANSWER:
-        return {
-            "status": result.status,
-            "session_id": result.session_id,
-            "question": result.question.text,
-            "choices": list(result.question.choices),
-        }
-    return {
-        "status": result.status,
-        "strategy_id": result.saved.strategy_id,
-        "universe_size": result.saved.universe_size,
-        # 사용자가 원했지만 못 담은 것 [{"ticker", "name", "reason_code", "reason"}] (app/m1/excluded.py)
-        "excluded": list(result.excluded),
-        # 문장에서 읽은 손실 한도와 근거. 없으면 null (app/m1/constraints.py)
-        "loss_limit": result.loss_limit.as_dict() if result.loss_limit else None,
-    }
-
-
 @celery_app.task(name="run_backtest")
 def run_backtest(run_id: int) -> dict:
-    """queued 인 실행 기록 하나를 돌려 결과를 저장한다.
-
-    러너는 app/backtest/service.py 의 함수 하나로만 부른다 — 비중 계산 경로가
-    바뀌어도 이 태스크는 그대로다. 실패는 전부 failed 로 끝내고 이유를 남긴다.
-    """
-    from app.backtest import service
-    from app.repositories import backtests
+    # queued 인 실행 기록 하나를 돌려 결과를 저장한다. 실패는 전부 failed 로 끝내고 이유를 남긴다
+    from app.repositories import backtests, specs
 
     run = backtests.get_run(run_id)
     if run is None:
         return {"status": backtests.FAILED, "reason": f"실행 기록이 없다: {run_id}"}
-    from app.repositories import specs
-
-    if specs.get_strategy_v0_2(run["strategy_id"]) is not None:
-        return _run_rules_backtest(run_id, run["strategy_id"])
-
-    try:
-        backtests.mark_running(run_id, **service.run_conditions())
-        result = service.run_spec_backtest(
-            run["strategy_id"],
-            period_start=run["period_start"],
-            period_end=run["period_end"],
-            seed_money=run["seed_money"],
-        )
-    except service.BacktestFailed as exc:
-        backtests.fail_run(run_id, reason=str(exc))
-        return {"status": backtests.FAILED, "reason": str(exc)}
-    except Exception:
-        logger.exception("run_backtest %s 실패", run_id)
-        backtests.fail_run(run_id, reason=UNEXPECTED_FAILURE)
-        return {"status": backtests.FAILED, "reason": UNEXPECTED_FAILURE}
-
-    backtests.finish_run(run_id, **result)
-    return {"status": backtests.DONE, "run_id": run_id}
+    if specs.get_strategy_v0_2(run["strategy_id"]) is None:
+        backtests.fail_run(run_id, reason="전략서 v0.2 가 아니다")
+        return {"status": backtests.FAILED, "reason": "전략서 v0.2 가 아니다"}
+    return _run_rules_backtest(run_id, run["strategy_id"])
 
 
 def _run_rules_backtest(run_id: int, strategy_id: str) -> dict:

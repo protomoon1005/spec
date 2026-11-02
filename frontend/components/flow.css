@@ -3,11 +3,11 @@
 
 /* 흐름 화면(가입 → … → 관점 브리핑) 공통 스타일. ScaffoldShell 만 import 한다.
  *
- * 색·글꼴은 /report 의 components/report/tokens.ts 를 그대로 옮긴 것이다 — 흐름 화면에서
- * 리포트로 넘어가도 같은 제품으로 보여야 한다. tokens.ts 를 고치면 여기도 같이 고친다.
+ * 색·글꼴은 components/tokens.ts 를 그대로 옮긴 것이다. 차트(Recharts)는 tokens.ts 를 쓰므로
+ * 같은 제품으로 보여야 한다. tokens.ts 를 고치면 여기도 같이 고친다.
  *
  * 전부 .flow-root 아래로 좁힌다. Next 개발 모드는 라우트별 CSS 청크를 늘 나눠 주지
- * 않아서, 문서 전체 선택자를 쓰면 /report 까지 새어 들어간다. */
+ * 않아서, 문서 전체 선택자를 쓰면 다른 라우트까지 새어 들어간다. */
 
 .flow-root {
   --c-bg: #0b0f14;
@@ -1300,92 +1300,6 @@
   .flow-levels {
     grid-template-columns: repeat(2, 1fr);
   }
-}
-
-/* 전략 초안 이중막대 (components/spec-contents.tsx, U05) */
-.flow-dual {
-  position: relative;
-  display: grid;
-  gap: 3px;
-  min-width: 160px;
-  padding: 3px 0;
-}
-
-.flow-dual .row {
-  position: relative;
-  display: block;
-  height: 8px;
-  background: var(--c-bg);
-  border-radius: 999px;
-}
-
-.flow-dual .row > span {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: 999px;
-}
-
-.flow-dual .allowed,
-.flow-legend .allowed {
-  background: #7f9ab544;
-}
-
-.flow-dual .ai,
-.flow-legend .ai {
-  background: var(--c-accent);
-}
-
-.flow-dual .final,
-.flow-legend .final {
-  background: transparent;
-  border: 1.5px solid var(--c-warn);
-}
-
-.flow-dual .row > em {
-  position: absolute;
-  right: 2px;
-  top: -4px;
-  font-style: normal;
-  font-size: 9px;
-  color: var(--c-muted);
-}
-
-.flow-dual > i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--c-warn);
-}
-
-.flow-root .flow-legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-  font-size: 12px;
-  color: var(--c-muted);
-  margin-bottom: 8px;
-}
-
-.flow-legend > span {
-  display: inline-block;
-  width: 14px;
-  height: 8px;
-  border-radius: 999px;
-  margin-left: 8px;
-}
-
-.flow-legend > span:first-child {
-  margin-left: 0;
-}
-
-.flow-legend .cap {
-  width: 1px;
-  height: 12px;
-  border-radius: 0;
-  background: var(--c-warn);
 }
 
 /* --- 데모 화면: 샘플 결과(/samples) · 재현성 비교(/repro) ------------------------ */
