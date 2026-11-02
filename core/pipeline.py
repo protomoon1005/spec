@@ -20,12 +20,13 @@ LLM 은 원문 문장에만 쓰고(캐시), 답은 규칙이 빈칸에 적용한
   처음 결과를 유지하고 그 4단계 질문으로 되묻는다 (retry["kept_first"] 에 이유).
   첫 시도의 4단계 결과는 PipelineResult.retry 에 남긴다 (평가용).
 가격 데이터(prices)를 주면 2단계 NO_DATA 와 5단계 시험 실행을 한다. 화면·평가는 load_prices 를 넘긴다.
+on_step 을 주면 단계가 바뀔 때마다 단계 이름(STEPS)으로 부른다 (화면의 진행 표시용. 결과에는 영향 없음).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from core.assemble import assemble, grounding
 from core.decide import MAX_QUESTIONS, MAX_ROUNDS, RESTATE, Decision, Question, Rejection, decide
@@ -34,6 +35,8 @@ from core.slot_fill import CACHE_DIR, ChatFn, SlotFillResult, slot_fill
 from core.validate import STAGES, PriceSource, StageResult, Stages, ValidationReport, _status, validate
 
 IGNORE_ANSWERS = {"무시하고 진행", "네"}     # 4단계 질문에 이 답이면 그 항목을 뺀다
+STEPS = ("빈칸 나누는 중", "판정", "검사")   # on_step 으로 알리는 단계 (검사에 5단계 시험 실행 = 백테스트 포함)
+StepFn = Callable[[str], None]
 
 
 def load_prices(symbol: str):
@@ -119,13 +122,15 @@ def unsupported_items(slots) -> set[str]:
 
 
 def _evaluate(text: str, answers: list[dict], fill: SlotFillResult, stages: Stages,
-              prices: Optional[PriceSource]) -> PipelineResult:
+              prices: Optional[PriceSource], on_step: StepFn = lambda _: None) -> PipelineResult:
+    on_step("판정")
     d = decide(fill.slots, answers, text=text)
     if d.verdict == "reject":
         return PipelineResult(text, answers, "reject", fill, d, rejection=d.rejection, round=d.round)
     if d.verdict == "clarify":
         return PipelineResult(text, answers, "clarify", fill, d, questions=d.questions, round=d.round)
     spec = assemble(d.resolved)
+    on_step("검사")
     report = validate(spec, stages=stages, grounding=grounding(d.resolved, text, answers), prices=prices)
     report = _drop_answered(report, {"NO_EXIT"} if d.resolved.hold else set(), _answered_qids(answers))
     return PipelineResult(text, answers, "proceed", fill, d, spec, report)
@@ -133,18 +138,21 @@ def _evaluate(text: str, answers: list[dict], fill: SlotFillResult, stages: Stag
 
 def run(text: str, answers: Optional[list[dict[str, str]]] = None, *, use_cache: bool = True,
         chat_fn: Optional[ChatFn] = None, cache_dir: Path | str = CACHE_DIR, stages: Stages = Stages.ALL,
-        prices: Optional[PriceSource] = None) -> PipelineResult:
+        prices: Optional[PriceSource] = None, on_step: Optional[StepFn] = None) -> PipelineResult:
     text = text.strip()
     answers = list(answers or [])
+    step = on_step or (lambda _: None)
+    step("빈칸 나누는 중")
     fill = slot_fill(text, use_cache=use_cache, chat_fn=chat_fn, cache_dir=cache_dir)
     if fill.slots is None:
         return PipelineResult(text, answers, "error", fill,
                               error=fill.error or "빈칸 채우기 결과를 읽을 수 없습니다.")
-    res = _evaluate(text, answers, fill, stages, prices)
+    res = _evaluate(text, answers, fill, stages, prices, step)
 
     first = _stage4(res.report)
     if first and res.report.failed_stage is None:
         feedback = "\n".join(f"- {i.message}" for i in first)
+        step("빈칸 나누는 중")
         fill2 = slot_fill(text, use_cache=use_cache, chat_fn=chat_fn, cache_dir=cache_dir, retry=(fill.raw, feedback))
         retry = {"issues": first, "feedback": feedback, "first_fill": fill, "first_spec": res.spec, "kept_first": None}
         if fill2.slots is None:
@@ -154,7 +162,7 @@ def run(text: str, answers: Optional[list[dict[str, str]]] = None, *, use_cache:
             retry["kept_first"] = f"다시 채우기에서 새 못 다룸: {', '.join(new)}"
             retry["second_fill"] = fill2
         else:
-            res = _evaluate(text, answers, fill2, stages, prices)
+            res = _evaluate(text, answers, fill2, stages, prices, step)
         res.retry = retry
     if res.verdict != "proceed":
         return res
