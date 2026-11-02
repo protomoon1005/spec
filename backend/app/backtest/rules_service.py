@@ -112,3 +112,31 @@ def _other_subjects(spec: StrategyV0_2) -> set[str]:
                     out.add(operand.of)
     return out
 
+
+
+def to_run_record(result: RulesBacktest) -> tuple[dict, dict]:
+    # backtest_metrics 칸(cagr · mdd · win_rate · benchmark_cagr)과 window_results(JSONB)에 넣을 모양.
+    # sharpe · sortino 는 v0.2 에서 내지 않는다(비워 둔다)
+    market = result.benchmarks["hold_market_proxy"]["metrics"]
+    metrics = {"cagr": result.metrics.get("cagr"), "mdd": result.metrics.get("mdd"),
+               "win_rate": result.metrics.get("win_rate"), "benchmark_cagr": market.get("cagr")}
+    by_day: dict = {}
+    for key, equity in (("strategy", result.equity),
+                        ("hold_same", result.benchmarks["hold_same"]["equity"]),
+                        ("market_proxy", result.benchmarks["hold_market_proxy"]["equity"])):
+        for day, value in equity:
+            by_day.setdefault(day.isoformat(), {"date": day.isoformat()})[key] = round(value, 2)
+    window = {
+        "engine": "rules_v0_2",
+        "summary": {"strategy": result.metrics, "hold_same": result.benchmarks["hold_same"]["metrics"],
+                    "market_proxy": market},
+        "series": list(by_day.values()),
+        "fills": result.fills,
+        "trades": result.trades,
+        "unfilled": result.unfilled,
+        "same_day_conflicts": result.same_day_conflicts,
+        "holdings_at_end": result.holdings_at_end,
+        "names": result.names,
+        "notes": list(result.notes),
+    }
+    return metrics, window

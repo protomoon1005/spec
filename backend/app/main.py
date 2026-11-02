@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import auth, backtest, health, jobs, spec
+from app.routers import auth, backtest, health, jobs, spec, strategy_v0_2
 
 API_DESCRIPTION = """
 사용자가 한국어로 투자 전략을 말하면 그걸 전략서로 만들고, 그 전략서로 과거 데이터에
@@ -31,6 +31,8 @@ TAGS_METADATA = [
     {"name": "auth", "description": "회원가입 · 로그인 · 토큰 갱신."},
     {"name": "spec", "description": "사용자 요청을 전략서로 바꾸고, 전략서를 검사 · 조회 · 삭제한다."},
     {"name": "jobs", "description": "오래 걸리는 작업이 어디까지 갔는지 실시간으로 본다."},
+    {"name": "strategy v0.2",
+     "description": "한국어 문장으로 전략서 v0.2 를 만들고, 되묻기에 답하고, 백테스트한다."},
     {"name": "backtest", "description": "만든 전략을 과거 데이터에 돌려보고 성적을 본다."},
 ]
 
@@ -54,3 +56,4 @@ app.include_router(auth.router)
 app.include_router(spec.router)
 app.include_router(backtest.router)
 app.include_router(jobs.router)
+app.include_router(strategy_v0_2.router)
