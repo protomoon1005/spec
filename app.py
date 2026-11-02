@@ -298,7 +298,8 @@ def _clip(dates: list[str], t: dict, lo: int, hi: int) -> tuple[list[str], dict]
 
 
 def trade_chart(dates: list[str], t: dict) -> go.Figure:
-    """위: 종가 + 가격 지표 + 사기·팔기. 아래: 가격이 아닌 지표마다 보조 차트(기준선 + 사기·팔기 세로 점선). x축 공유."""
+    """위: 종가 + 가격 지표 + 사기·팔기 삼각형(체결일). 아래: 가격이 아닌 지표마다 보조 차트
+    (기준선 + 사기·팔기 신호일 세로 점선, hover 에 신호일·체결일). x축 공유."""
     panels = t["panels"]
     rows = 1 + len(panels)
     fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.05,
@@ -324,9 +325,22 @@ def trade_chart(dates: list[str], t: dict) -> go.Figure:
             fig.add_trace(go.Scatter(x=dates, y=ln["values"], name=ln["label"], mode="lines",
                                      line=dict(color=LINE_COLORS[(k0 + k) % len(LINE_COLORS)], width=1.2),
                                      hovertemplate="%{y:,.2f}"), row=r, col=1)
-        for side, color in (("buys", UP), ("sells", DOWN)):
-            for pt in t[side]:
-                fig.add_vline(x=pt["date"], line=dict(color=color, width=1, dash="dot"), opacity=0.6, row=r, col=1)
+        # 세로 점선은 신호가 난 날(종가로 판단한 날). hover 를 띄우려고 add_vline 대신 선 trace 로 그린다.
+        ys = [y for ln in p["lines"] for y in ln["values"] if y is not None] + list(p["refs"])
+        if ys:
+            lo, hi = min(ys), max(ys)
+            for side, label, color in (("buys", "사기", UP), ("sells", "팔기", DOWN)):
+                pts = [pt for pt in t[side] if pt.get("signal_date")]   # 첫날 매수 등 신호 없는 체결은 선 없음
+                if not pts:
+                    continue
+                xs, yv, tx = [], [], []
+                for pt in pts:
+                    xs += [pt["signal_date"], pt["signal_date"], None]
+                    yv += [lo, hi, None]
+                    tx += [S.signal_hover(pt)] * 2 + [None]
+                fig.add_trace(go.Scatter(x=xs, y=yv, name=f"{label} 신호", mode="lines", showlegend=False,
+                                         line=dict(color=color, width=1, dash="dot"), opacity=0.6,
+                                         text=tx, hovertemplate="%{text}<extra></extra>"), row=r, col=1)
         for v in p["refs"]:
             fig.add_hline(y=v, line=dict(color=MUTED, width=1, dash="dash"), row=r, col=1,
                           annotation_text=f"{v:g}", annotation_font_color=MUTED)

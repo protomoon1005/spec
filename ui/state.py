@@ -438,7 +438,9 @@ def trade_chart_view(spec: Strategy, trial) -> list[dict]:
     """종목별 매매 지점 차트 값. 지표 값은 백테스트가 조건 계산에 쓴 것(trial.series)을 그대로 옮긴다.
 
     [{"ticker", "name", "close", "price_lines": [{"label", "values"}], "price_refs": [숫자],
-      "panels": [{"lines": [{"label", "values"}], "refs": [숫자]}], "buys": [{"date", "price"}], "sells": [...]}]
+      "panels": [{"lines": [{"label", "values"}], "refs": [숫자]}],
+      "buys": [{"date", "signal_date", "price"}], "sells": [...]}]
+    date 는 체결일(다음 날 시가), signal_date 는 판단한 날(종가 기준). 첫날 매수처럼 신호 없는 체결은 signal_date None.
     가격 지표(그 종목의 종가·이동평균)는 종가 차트에, 나머지(RSI, 다른 대상의 값 등)는 단위·대상별 보조 차트에.
     """
     series = getattr(trial, "series", None) or {}
@@ -463,9 +465,18 @@ def trade_chart_view(spec: Strategy, trial) -> list[dict]:
         fills = [f for f in trial.fills if f["ticker"] == a.ticker]
         out.append({"ticker": a.ticker, "name": a.name, "close": _series(s["close"]),
                     "price_lines": price_lines, "price_refs": price_refs, "panels": list(panels.values()),
-                    "buys": [{"date": f["date"], "price": _num(f["price"])} for f in fills if f["side"] == "buy"],
-                    "sells": [{"date": f["date"], "price": _num(f["price"])} for f in fills if f["side"] == "sell"]})
+                    "buys": [_point(f) for f in fills if f["side"] == "buy"],
+                    "sells": [_point(f) for f in fills if f["side"] == "sell"]})
     return out
+
+
+def _point(f: dict) -> dict:
+    return {"date": f["date"], "signal_date": f.get("signal_date"), "price": _num(f["price"])}
+
+
+def signal_hover(p: dict) -> str:
+    """보조 차트 세로 점선에 마우스를 올렸을 때 보이는 문구."""
+    return f"신호 {p['signal_date']} 종가 기준 → 체결 {p['date']} 시가"
 
 
 def trade_window(dates: list[str], t: dict, pad: int = 20) -> Optional[tuple[int, int]]:

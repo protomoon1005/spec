@@ -272,6 +272,12 @@ def test_trade_chart_uses_backtest_indicator_values(tmp_path):
     assert tc["panels"][0]["lines"][0]["values"] == [S._num(v) for v in ind["rsi"]]
     assert tc["price_lines"][0]["values"] == [S._num(v) for v in ind["ma"]]
     assert tc["buys"] and all(b["date"] in res["chart"]["dates"] for b in tc["buys"] + tc["sells"])
+    # 세로 점선은 신호일, 삼각형은 체결일: 신호 다음 거래일에 체결
+    dates = res["chart"]["dates"]
+    for p in tc["buys"] + tc["sells"]:
+        if p["signal_date"] is not None:
+            assert dates.index(p["date"]) == dates.index(p["signal_date"]) + 1
+            assert S.signal_hover(p) == f"신호 {p['signal_date']} 종가 기준 → 체결 {p['date']} 시가"
     json.dumps(res, allow_nan=False)                # NaN(지표 워밍업)은 null 로
 
 
