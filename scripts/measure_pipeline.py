@@ -25,26 +25,25 @@ from measure_pairing import CachedClient  # noqa: E402
 
 from app.contracts.strategy_v0_2 import StrategyV0_2  # noqa: E402
 from app.llm.ollama_client import OllamaClient  # noqa: E402
-from app.m1 import assemble, pairing, spans  # noqa: E402
+from app.m1 import assemble, decide, pairing, spans  # noqa: E402
 from app.repositories import etf_master  # noqa: E402
 
 DATASET = REPO / "eval" / "dataset.jsonl"
 
 
 def run(text, dictionary, index, client):
-    # 5b 에서 판정(decide)으로 바꾼다. 지금은 거절 사전, 짝짓기, 조립까지
+    # 조각 찾기, AI 전 판정, 짝짓기, 조립, 판정. 검사 1~3단계는 6단계에서 붙인다
     result = spans.find_spans(text, dictionary, index)
-    negated = spans.negated_span_ids(result)
-    rejects = [s for s in result.spans if s.kind == "reject" and s.id not in negated]
-    if rejects:
-        return "reject", rejects[0].meaning["reject"], None
+    early = decide.precheck(result)
+    if early is not None:
+        return "reject", early.code, None
     outcome = pairing.pair(result, client)
     built = assemble.assemble(result, outcome.pairing, unresolved_issues=outcome.issues)
-    if built.rejects:
-        first = min(built.rejects, key=lambda r: r.position)
-        return "reject", first.code, built
-    if built.asks:
-        return "ask", sorted({a.kind for a in built.asks}), built
+    decision = decide.decide(built, rounds_asked=0)
+    if decision.status == "reject":
+        return "reject", decision.rejection.code, built
+    if decision.status == "ask":
+        return "ask", sorted({a.kind for a in decision.all_asks}), built
     return "ok", built.spec, built
 
 

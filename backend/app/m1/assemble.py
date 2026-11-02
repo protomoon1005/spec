@@ -366,7 +366,7 @@ class _Builder:
         if span is not None and span.kind == "indicator":
             return self._indicator(path + ".right", span.meaning, of, spans, span)
         if span is not None and span.kind == "number":
-            value = _number(span, name)
+            value = number_value(span, name)
             if value is not None:
                 return {"value": value}
         if isinstance(lm.get("value"), (int, float)):
@@ -509,7 +509,7 @@ class _Builder:
 # ── 값 도우미 ────────────────────────────────────────────────────────
 
 
-def _number(span: Span, indicator: str) -> float | None:
+def number_value(span: Span, indicator: str) -> float | None:
     m = span.meaning
     unit = m.get("unit")
     value = m.get("value")

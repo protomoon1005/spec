@@ -50,7 +50,7 @@ KIND_LABELS = {
     "instrument": "종목", "indicator": "지표", "number": "숫자", "verb": "비교", "action": "사기·팔기",
     "subject": "시장·지수", "weight": "비중", "rebalance": "리밸런싱", "period": "기간", "capital": "금액",
     "dividend": "배당", "selection": "고르기", "sector": "업종", "product": "상품", "negation": "부정",
-    "reject": "거절",
+    "reject": "거절", "intent": "의도",
 }
 # 짝짓지 않아도 되는 조각: 부정어(규칙이 처리), 방향 없는 "면"
 EXEMPT_ENTRY_IDS = ("negation", "bare_if")
@@ -294,8 +294,9 @@ def build_prompt(result: SpanResult, feedback: Sequence[str] = ()) -> str:
 
 
 def _skipped_ids(result: SpanResult) -> set[int]:
-    # 부정된 조각과 거절 조각은 AI 에게 주지 않는다. 거절 조각이 남아 있으면 짝짓기 전에 거절된다
-    return negated_span_ids(result) | {s.id for s in result.spans if s.kind == "reject"}
+    # 부정된 조각, 거절 조각, 전략 의도 조각은 AI 에게 주지 않는다.
+    # 거절 조각이 남아 있으면 짝짓기 전에 거절되고, 전략 의도 조각은 판정에만 쓴다
+    return negated_span_ids(result) | {s.id for s in result.spans if s.kind in ("reject", "intent")}
 
 
 # ── 받은 JSON 읽기와 근거 검사 ───────────────────────────────────────

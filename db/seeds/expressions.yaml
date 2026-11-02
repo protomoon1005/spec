@@ -7,7 +7,7 @@
 # 항목 다섯 칸
 #   id        항목 이름. 겹치지 않는다
 #   kind      indicator number verb action subject weight rebalance period capital dividend
-#             selection sector product negation reject
+#             selection sector product intent negation reject
 #   pattern   정규식. 대소문자를 가리지 않는다. 이름 붙은 묶음((?P<w>...))은 meaning 의 "$w" 로 들어간다
 #             {L} 은 "앞이 한글 · 영문 · 숫자가 아님" 이다. "회사" 의 "사" 를 사기로 읽지 않게 한다
 #   meaning   무엇으로 바뀌는지. 조각 찾기는 값을 옮겨 적기만 하고, 뜻을 해석하는 일(기본값, 단위 환산)은 값 바꾸기 단계가 한다
@@ -418,6 +418,14 @@ entries:
     pattern: 'ETF'
     meaning: {product: etf}
     examples: [ETF]
+
+  # ── 전략 의도 (판정 전용. AI 에게 주지 않는다) ─────────────────────
+  # 사기 · 팔기 · 지표 말이 없어도 투자 전략 이야기인지 가린다. 이것도 없으면 투자와 무관(OUT_OF_DOMAIN)이다
+  - id: intent
+    kind: intent
+    pattern: '백테스트|투자|매매|전략|포트폴리오|운용|굴려|수익률\s*(?:보여|알려|계산)|돌려\s*(?:봐|줘)'
+    meaning: {intent: true}
+    examples: [백테스트, 투자, 전략, 포트폴리오]
 
   # ── 부정 ──────────────────────────────────────────────────────────
   - id: negation
