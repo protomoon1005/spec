@@ -89,7 +89,7 @@ def _run_etf_master() -> None:
     )
     if result.returncode != 0:
         raise RuntimeError("load_etf_master.py 가 실패했다")
-    print("seed_all: 04_etf_master.csv — 종목 원장(instruments)")
+    print("seed_all: data/listing.csv — 종목 원장(instruments)")
 
 
 def main() -> int:

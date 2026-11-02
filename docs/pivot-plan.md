@@ -348,7 +348,7 @@
     - 스냅샷 2026-11-02: 보통주 2,667 · ETF 1,183 · 3,925,500행 · 45.4MB. 거래정지일(시가 · 고가 · 저가 0) 40,097행의 시가 · 고가 · 저가를 빈 값으로 바꿨다
     - `data/prices_snapshot.json`: 버전, 소스, 기간, 종목 수, 파일 해시, 내용 해시, 정리 규칙, 뺀 것
     - `scripts/ingest_prices.py`: 스냅샷을 내려받거나 로컬에서 찾아 파일 해시를 맞추고, COPY 로 한 번에 적재한 뒤 DB 의 내용 해시를 메타와 맞춘다(`price_daily.copy_price_bars`, `stored_price_content_sha256`)
-    - 종목 원장 3,850종목: `scripts/build_etf_master.py` 가 `data/listing.csv` 로 `db/seeds/04_etf_master.csv` 를 만든다
+    - 종목 원장 3,850종목: `scripts/build_etf_master.py` 가 `data/listing.csv` 를 분류하고 `load_etf_master.py` 가 바로 적재한다. 같은 내용을 두 번 들고 있던 `db/seeds/04_etf_master.csv` 는 지웠다(2026-11-02)
       - 보통주 업종은 KRX 상장법인 업종(KSIC 158가지)을 `db/seeds/industry_sector_map.csv` 로 업종 묶음 6개에 매핑하고 나머지는 기타. 매핑 중 "검토" 로 표시한 4줄은 팀 확인이 필요하다
       - ETF 는 예전에 사람이 분류한 73종목(`db/seeds/etf_curated.csv`)은 그 값을, 나머지는 목록 분류와 이름 키워드로 자산군 · 국가 · 업종 · 레버리지를 정한다. 분류가 "기타" 인 ETF 는 근사다
       - 위험등급 · 변동성 칸은 비운다(결정 3). `load_etf_master.py` 의 G1 과 레버리지 일치 검사를 뺐다

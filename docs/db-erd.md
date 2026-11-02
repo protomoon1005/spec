@@ -103,7 +103,7 @@
 
 ### 3.7 instruments
 
-- 종목 원장. 국내 상장 보통주 2,667종목과 ETF 1,183종목, 모두 3,850종목이다(3단계, `db/seeds/04_etf_master.csv`)
+- 종목 원장. 국내 상장 보통주 2,667종목과 ETF 1,183종목, 모두 3,850종목이다(3단계, `data/listing.csv` 를 적재할 때 분류)
 - ticker: varchar, 기본키
 - name: varchar, 필수
 - sector: varchar. 한글 섹터 라벨(예: 반도체). 코드는 sector_group_id 를 읽는다

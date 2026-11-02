@@ -23,7 +23,7 @@
 - cache/cap_KOSPI_20221229.csv, cache/cap_KOSDAQ_20221229.csv: 시작 직전 거래일 시가총액.
 - cache/days.txt: 시작 전 61거래일(2022-10-05 에서 2022-12-29).
 - cache/ohlcv_pre.csv.gz: 위 61거래일 중 첫 날과 마지막 21거래일의 종목별 종가, 거래대금(주식만).
-- ETF 목록은 저장소의 ../db/seeds/04_etf_master.csv 를 읽는다. 이 폴더는 저장소 eval/ 에 있어야 한다.
+- ETF 목록은 저장소의 ../data/listing.csv 를 읽는다. 이 폴더는 저장소 eval/ 에 있어야 한다.
 
 ## 데이터 출처와 주의
 

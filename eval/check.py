@@ -1,7 +1,7 @@
 """dataset.jsonl 검증. 실패가 하나라도 있으면 종료 코드 1.
 
 python3 check.py [dataset.jsonl]
-경로는 모두 이 파일 위치 기준(ref/, cache/, ../db/seeds/). 어느 디렉터리에서 실행해도 된다. 네트워크를 쓰지 않는다.
+경로는 모두 이 파일 위치 기준(ref/, cache/, ../data/). 어느 디렉터리에서 실행해도 된다. 네트워크를 쓰지 않는다.
 """
 import csv
 import json
@@ -36,7 +36,7 @@ S25 = {m: load_sector(m, "20251230") for m in ("KOSPI", "KOSDAQ")}
 STOCK23 = {**S23["KOSPI"], **S23["KOSDAQ"]}
 STOCK25 = {**S25["KOSPI"], **S25["KOSDAQ"]}
 ETF = {r["ticker"]: r for r in csv.DictReader(open(ETF_MASTER, encoding="utf-8-sig"))}
-ETF_OK = {t for t, r in ETF.items() if r["active"] == "true" and (not r["listed_date"] or r["listed_date"] < "2023-01-02")}
+ETF_OK = {t for t, r in ETF.items() if not r["listing_date"] or r["listing_date"] < "2023-01-02"}
 KIND = list(csv.DictReader(open(REF / "kind_listing.csv", encoding="utf-8")))
 SECTORS = {m: Counter(r["업종명"] for r in S23[m].values()) for m in S23}
 
