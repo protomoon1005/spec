@@ -29,3 +29,6 @@ celerybeat-schedule
 .DS_Store
 Thumbs.db
 
+
+# 개인 메모 (나만 보는 용도)
+personal/
