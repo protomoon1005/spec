@@ -25,21 +25,21 @@ from measure_pairing import CachedClient  # noqa: E402
 
 from app.contracts.strategy_v0_2 import StrategyV0_2  # noqa: E402
 from app.llm.ollama_client import OllamaClient  # noqa: E402
-from app.m1 import assemble, decide, pairing, spans  # noqa: E402
+from app.m1 import compile_v0_2, decide, pairing, spans  # noqa: E402
 from app.repositories import etf_master  # noqa: E402
 
 DATASET = REPO / "eval" / "dataset.jsonl"
 
 
 def run(text, dictionary, index, client):
-    # 조각 찾기, AI 전 판정, 짝짓기, 조립, 판정. 검사 1~3단계는 6단계에서 붙인다
+    # 입구(compile_v0_2)와 같은 판정을 쓴다. 저장과 대화 상태만 빼고
     result = spans.find_spans(text, dictionary, index)
     early = decide.precheck(result)
     if early is not None:
         return "reject", early.code, None
     outcome = pairing.pair(result, client)
-    built = assemble.assemble(result, outcome.pairing, unresolved_issues=outcome.issues)
-    decision = decide.decide(built, rounds_asked=0)
+    judged = compile_v0_2.judge(result, outcome.pairing, overrides={}, rounds_asked=0)
+    decision, built = judged.decision, judged.built
     if decision.status == "reject":
         return "reject", decision.rejection.code, built
     if decision.status == "ask":

@@ -246,14 +246,14 @@ def insert_strategy_v0_2(
     input_prompt: str | None,
     spec: dict,
     asset_weights: list[tuple[str, float | None]],
-    evidence_log: dict,
+    logs: list[dict],
 ) -> SavedSpec:
     """전략서 v0.2 한 건을 draft 로 저장한다(docs/v0.2-plan.md 5단계, A안).
 
     전략서는 strategies.spec 에 통째로 넣는다(db/migrate/003). 옛 칸(rebalance · signal_rules ·
     constraint_user)은 비워 둔다. strategy_assets 에는 종목과 자리 비율을 weight_min = weight_max 로 남긴다
-    (종목 목록을 다른 화면과 저장소가 계속 같은 곳에서 읽게). evidence_log 는 검사 4단계(근거 검사) 결과로,
-    전략서가 저장되기 전에 돌아서 여기서 같이 남긴다(docs/db-erd.md validation_logs).
+    (종목 목록을 다른 화면과 저장소가 계속 같은 곳에서 읽게). logs 는 검사 1~4단계 결과로 단계마다 한 행이다
+    (stage · passed · violations). 4단계(근거 검사)는 전략서가 저장되기 전에 돌아서 여기서 같이 남긴다.
     """
     with get_engine().begin() as conn:
         conn.execute(
@@ -284,8 +284,8 @@ def insert_strategy_v0_2(
                 VALUES (:strategy_id, :stage, :passed, CAST(:violations AS jsonb))
                 """
             ),
-            {"strategy_id": strategy_id, "stage": evidence_log["stage"], "passed": evidence_log["passed"],
-             "violations": _dump(evidence_log["violations"])},
+            [{"strategy_id": strategy_id, "stage": log["stage"], "passed": log["passed"],
+              "violations": _dump(log["violations"])} for log in logs],
         )
     return SavedSpec(strategy_id=strategy_id, user_id=user_id, status=DRAFT, universe_size=len(asset_weights))
 

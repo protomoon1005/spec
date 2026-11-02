@@ -136,11 +136,17 @@ def decide(
     rejects = [*assembly.rejects, *extra_rejects]
     if rejects:
         first = min(rejects, key=lambda r: (r.stage is not None, r.position))
+        # 검사에서 막힌 것은 검사가 쓴 문장을 그대로 보여 준다
+        message = (
+            first.evidence
+            if first.stage is not None
+            else f"'{first.evidence}': {REJECT_MESSAGES.get(first.code, '')}".strip()
+        )
         return Decision(
             "reject",
             rejection=Rejection(
                 first.code,
-                f"'{first.evidence}': {REJECT_MESSAGES.get(first.code, '')}".strip(),
+                message,
                 first.evidence,
                 first.stage,
             ),
@@ -262,6 +268,11 @@ def _text_and_choices(ask: Ask, name_lookup) -> tuple[str, list[tuple[str, objec
         )
     if kind == "evidence_unused":
         return f"'{c['text']}' 을 어떻게 반영할까요?", [("무시하기", "ignore")]
+    if kind == "weight_vs_cap":
+        return (
+            f"지정한 비중이 종목당 최대 비중 {c.get('cap', 0) * 100:g}%보다 커요. 어떻게 할까요?",
+            [("최대 비중까지만 담고 나머지는 현금", "cap")],
+        )
     if kind == "always_both_true":
         return (
             f"사는 조건({c.get('entry', '')})이 맞는 날은 파는 조건({c.get('exit', '')})도 늘 맞아서 "
