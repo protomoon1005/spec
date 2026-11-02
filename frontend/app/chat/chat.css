@@ -1,0 +1,504 @@
+/* 채팅형 화면(/chat). 현서 님 demo 의 밝은 테마(.streamlit/config.toml)와 app.py 의 스타일을 옮겼다.
+ * 다른 화면(어두운 흐름 화면)으로 새지 않게 전부 .chat-root 아래로 좁힌다. */
+
+.chat-root {
+  --accent: #2a78d6;
+  --ink: #1f2328;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --soft: #f4f5f7;
+  --bubble: #eef1f5;
+  --up: #16a34a;
+  --down: #dc2626;
+  --radius: 12px;
+  color-scheme: light;
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  background: #fff;
+  color: var(--ink);
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.chat-root button {
+  font: inherit;
+  cursor: pointer;
+}
+.chat-root button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ── 사이드바 ── */
+.chat-root .sidebar {
+  background: var(--soft);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.chat-root .caption {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 18px 4px 6px;
+}
+.chat-root .history {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+}
+.chat-root .history-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--ink);
+  display: grid;
+}
+.chat-root .history-item:hover {
+  background: #e9ebef;
+}
+.chat-root .history-item.on {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.chat-root .history-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+.chat-root .history-item small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.chat-root .sidebar-foot {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  font-size: 13px;
+}
+.chat-root .sidebar-foot a,
+.chat-root .link {
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: none;
+}
+.chat-root .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  margin-right: 4px;
+}
+.chat-root .dot.ok {
+  background: var(--up);
+}
+.chat-root .dot.down {
+  background: var(--down);
+}
+.chat-root code {
+  font-size: 12px;
+  background: #e9ebef;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ── 본문 ── */
+.chat-root .main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.chat-root .thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px 16px 24px;
+}
+.chat-root .thread > * {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.chat-root .msg {
+  margin-bottom: 18px;
+}
+.chat-root .hero {
+  text-align: center;
+  font-size: 30px;
+  font-weight: 600;
+  margin: 72px auto 28px;
+}
+.chat-root .examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.chat-root .example {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  color: var(--ink);
+}
+.chat-root .example:hover {
+  border-color: var(--accent);
+}
+.chat-root .example small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-root .u-row {
+  display: flex;
+  justify-content: flex-end;
+}
+.chat-root .u-bubble {
+  background: var(--bubble);
+  border-radius: 18px;
+  padding: 10px 16px;
+  max-width: 80%;
+  white-space: pre-wrap;
+}
+
+.chat-root .ai-title {
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.chat-root .card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  scroll-margin-top: 16px;
+}
+.chat-root .tag {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  background: #f1f2f4;
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.chat-root .muted {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.chat-root .small {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 12px 0 0;
+}
+.chat-root mark {
+  background: #fde68a;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+.chat-root .badge {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.chat-root .badge.red {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.chat-root .core {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 9px 16px;
+  margin: 4px 0 12px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.chat-root .core .k,
+.chat-root .rules .k {
+  color: var(--muted);
+  font-size: 14px;
+  padding-top: 2px;
+  white-space: nowrap;
+}
+.chat-root .core .sub {
+  font-size: 15px;
+}
+.chat-root .rules {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 7px 14px;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.chat-root .expander {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  margin-top: 10px;
+}
+.chat-root .expander summary {
+  cursor: pointer;
+  font-size: 14px;
+}
+.chat-root .expander[open] summary {
+  margin-bottom: 8px;
+}
+.chat-root .check-line {
+  font-size: 14px;
+  margin: 4px 0;
+}
+.chat-root .json {
+  font-size: 12px;
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 10px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.chat-root .question p {
+  margin: 8px 0 6px;
+}
+.chat-root .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chat-root .pill {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.chat-root .pill.on {
+  border-color: var(--accent);
+  background: #e8f1fc;
+  color: var(--accent);
+}
+.chat-root .text-input {
+  margin-top: 8px;
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+}
+
+.chat-root .row-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.chat-root .row-buttons.three {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.chat-root .btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 7px 14px;
+  color: var(--ink);
+}
+.chat-root .btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chat-root .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chat-root .btn.primary:hover:not(:disabled) {
+  background: #1f66bd;
+  color: #fff;
+}
+.chat-root .btn.wide {
+  width: 100%;
+}
+.chat-root .warn-text {
+  color: #b45309;
+  font-size: 13.5px;
+}
+
+.chat-root .metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+.chat-root .metric-value {
+  font-size: 26px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.chat-root .up {
+  color: var(--up);
+}
+.chat-root .down {
+  color: var(--down);
+}
+.chat-root .open {
+  color: var(--accent);
+}
+.chat-root .chart-title {
+  font-weight: 600;
+  margin: 14px 0 4px;
+}
+.chat-root .warn-box {
+  background: #fef3c7;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  margin-top: 10px;
+}
+.chat-root .error-box {
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.chat-root .trades-wrap {
+  max-height: 380px;
+  overflow: auto;
+}
+.chat-root table.trades {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+.chat-root table.trades th {
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  white-space: nowrap;
+}
+.chat-root table.trades td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f2f4;
+  white-space: nowrap;
+}
+.chat-root table.trades .r {
+  text-align: right;
+}
+.chat-root table.trades .code {
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+/* 진행 상태 */
+.chat-root .status {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.chat-root .status-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.chat-root .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #cfe0f5;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: chat-spin 0.8s linear infinite;
+}
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 입력창 */
+.chat-root .composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  width: calc(100% - 32px);
+  max-width: 760px;
+  margin: 0 auto 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 8px 8px 8px 16px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  background: #fff;
+}
+.chat-root .composer textarea {
+  flex: 1;
+  border: 0;
+  outline: none;
+  resize: none;
+  font: inherit;
+  padding: 6px 0;
+  max-height: 160px;
+  background: transparent;
+  color: var(--ink);
+}
+.chat-root .send {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 18px;
+}
+
+/* 좁은 화면: 사이드바를 위로 접는다 */
+@media (max-width: 760px) {
+  .chat-root {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .chat-root .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 16px;
+  }
+  .chat-root .caption,
+  .chat-root .history,
+  .chat-root .sidebar-foot {
+    display: none;
+  }
+  .chat-root .examples,
+  .chat-root .metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .chat-root .row-buttons.three {
+    grid-template-columns: 1fr;
+  }
+}

@@ -28,7 +28,7 @@ export default function HomePage() {
     let cancelled = false;
     api("/auth/me")
       .then(() => {
-        if (!cancelled) router.replace("/home");
+        if (!cancelled) router.replace("/chat");
       })
       .catch((err) => {
         if (cancelled) return;
