@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import { StatusBadge } from "@/components/spec-contents";
+import { StatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
 import { formatDate, type SpecListItem } from "@/lib/specs";
 

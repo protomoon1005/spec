@@ -126,6 +126,7 @@
     - 성향과 하드캡: risk_profile_defaults, risk_profiles, survey_responses, preset_versions, asset_bound_presets, hardcap_versions, group_caps, group_cap_applications
     - 신호원과 외부 데이터: view_weights, view_scores, view_performance, feature_store, macro_indicators, regime_snapshots, news_articles, news_sentiment, ml_models
   - 남는 테이블: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags(이름 변경은 아래). audit_logs 는 쓰는 코드가 없어 2026-11-02 에 지우기로 했다
+    - 2026-11-02 덧붙임: strategy_elements, strategy_element_tags 는 `db/migrate/004` 에서 지웠다(`docs/v0.2-plan.md` 9단계 d)
   - 테이블 · 칸 이름 변경 (2026-11-01 확정). 우리가 지어낸 말(Spec, BBL)과 이제 맞지 않는 말(ETF 원장)을 일반적인 단어로 바꾼다
     - etf_master 는 instruments. 개별주와 ETF 를 모두 담는다
     - strategy_specs 는 strategies, spec_universe 는 strategy_assets
@@ -136,6 +137,8 @@
   - 칸을 더하거나 새 테이블을 만드는 것은 이번 범위가 아니다. 지우는 것만 한다
 
 ### 3.3 챙길 것 (기반으로 남는 것)
+
+- 2026-11-02 덧붙임: 아래 중 명세화 v0.1 파이프라인(intent, schema_builder, questions, excluded, postprocess, session, candidates), 전략 요소 사전, 검증기 v0.1, 백테스트 v0.1 러너(runner, service, inputs)는 전략서 v0.2 로 바뀌어 `docs/v0.2-plan.md` 9단계 d 에서 지웠다. 전략 요소 사전 테이블 2개도 `db/migrate/004` 로 지워 테이블은 9개다
 
 - 전략 컴파일 파이프라인(`backend/app/m1/`) — 새 핵심 기여의 본체
   - `intent.py` 의도 파악, `schema_builder.py` 스키마 좁히기, `questions.py` 추가 질문, `excluded.py` 못 담은 것과 사유, `postprocess.py` 파싱과 검사, `session.py` Redis 대화 상태

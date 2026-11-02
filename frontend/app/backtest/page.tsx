@@ -18,7 +18,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import { C, MONO } from "@/components/report/tokens";
+import { C, MONO } from "@/components/tokens";
 import { api, loadBacktestRun, saveBacktestRun } from "@/lib/api";
 import { pct, won, type BacktestV2, type Summary } from "@/lib/v2";
 

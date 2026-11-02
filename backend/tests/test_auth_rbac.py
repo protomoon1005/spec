@@ -52,24 +52,24 @@ def test_refresh_rejects_access_token(client, make_user):
 
 
 def test_protected_endpoint_without_token_is_401(client):
-    resp = client.get("/specs/spec-does-not-exist")
+    resp = client.get("/v2/strategies/spec-does-not-exist")
 
     assert resp.status_code == 401
 
 
 def test_protected_endpoint_with_garbage_token_is_401(client):
-    resp = client.get("/specs/spec-does-not-exist", headers={"Authorization": "Bearer not-a-jwt"})
+    resp = client.get("/v2/strategies/spec-does-not-exist", headers={"Authorization": "Bearer not-a-jwt"})
 
     assert resp.status_code == 401
 
 
 def test_authenticated_user_reaches_the_router_body(client, make_user):
-    """로그인한 사용자는 spec 라우터를 통과해 본체(없는 전략서이면 404)까지 도달해야 한다."""
+    """로그인한 사용자는 v2 라우터를 통과해 본체(없는 전략서이면 404)까지 도달해야 한다."""
     email, _ = make_user()
     tokens = _login(client, email)
 
     resp = client.get(
-        "/specs/spec-does-not-exist",
+        "/v2/strategies/spec-does-not-exist",
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
 
