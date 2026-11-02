@@ -8,12 +8,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const STEPS = [
-  { href: "/login", label: "로그인", match: ["/login", "/signup"] },
   { href: "/compile", label: "전략서 만들기", match: ["/compile"] },
   { href: "/backtest", label: "백테스트", match: ["/backtest"] },
 ];
 
 const LINKS = [
+  { href: "/chat", label: "채팅" },
   { href: "/home", label: "홈" },
   { href: "/specs", label: "전략 관리" },
 ];

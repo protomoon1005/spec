@@ -70,7 +70,8 @@ docker compose logs -f                      # 로그
   - `requires_backtest` 는 `docker compose exec -w /repo/backend api pytest -m requires_backtest -q` 로 따로 돌린다. `-w` 가 없으면 루트 `data/` 를 못 찾는다
 - 프론트
   - `frontend/` 에서 `npm run dev`. 검사는 `docker compose exec frontend npx tsc --noEmit`. `npm run lint` 는 ESLint 미설정이라 대화형으로 멈춘다
-  - 화면 확인: `mcr.microsoft.com/playwright` 컨테이너(`--network host`)에 `localStorage['spec.session']` 을 주입해 연다. Recharts 차트는 fullPage 스크린샷에서 선이 빠지므로 요소 스크린샷으로 본다
+  - 로그인 화면은 없다. 화면이 열리면 공용 시연 계정(`demo`)으로 알아서 들어간다(`frontend/lib/api.ts` 의 `ensureSession`). 첫 화면은 채팅(`/chat`)
+  - 화면 확인: `mcr.microsoft.com/playwright` 컨테이너(`--network host`)로 그냥 연다(토큰 주입이 필요 없다). Recharts 차트는 fullPage 스크린샷에서 선이 빠지므로 요소 스크린샷으로 본다
 
 ## 아키텍처
 
