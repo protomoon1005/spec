@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""종목 원장 시드 db/seeds/04_etf_master.csv 를 만든다 (기반 정리 3단계, docs/pivot-plan.md 결정 2).
+"""종목 원장 행을 data/listing.csv 에서 분류해 만든다 (기반 정리 3단계, docs/pivot-plan.md 결정 2).
 
-국내 상장 보통주와 ETF 전체를 담는다. 파일 이름은 2장 원칙(이름만 바꾸는 리팩터링은 하지 않는다)대로
-그대로 두었다 — 지금은 ETF 만이 아니다. 적재는 scripts/load_etf_master.py 가 한다.
+국내 상장 보통주와 ETF 전체를 담는다. 파일로 쓰지 않는다 — scripts/load_etf_master.py 가 build_rows()
+를 불러 바로 적재한다. 혼자 돌리면 분류 집계만 보여 준다.
 
 ## 재료
 
@@ -11,7 +11,7 @@
   db/seeds/industry_sector_map.csv 보통주 업종(KSIC) → 업종 묶음. 표에 없는 업종은 기타
   db/seeds/etf_curated.csv         예전 ETF 76종목을 사람이 분류한 값. 이 종목들은 규칙 대신 이 값을 쓴다
 
-같은 재료면 같은 파일이 나온다(종목코드 순).
+같은 재료면 같은 행이 나온다(종목코드 순).
 
 ## 분류 규칙
 
@@ -31,7 +31,7 @@
 - 상장폐지 종목은 넣지 않는다(목록이 받는 날 상장 종목). 모두 active
 
 사용:
-    python /repo/scripts/build_etf_master.py      # data/listing.csv → db/seeds/04_etf_master.csv
+    python /repo/scripts/build_etf_master.py      # 분류 집계 확인
 """
 from __future__ import annotations
 
@@ -45,7 +45,6 @@ ROOT = Path(__file__).resolve().parent.parent
 LISTING = ROOT / "data" / "listing.csv"
 INDUSTRY_MAP = ROOT / "db" / "seeds" / "industry_sector_map.csv"
 CURATED = ROOT / "db" / "seeds" / "etf_curated.csv"
-OUT = ROOT / "db" / "seeds" / "04_etf_master.csv"
 
 # load_etf_master.py 가 읽는 칸 순서
 COLUMNS = [
@@ -119,7 +118,7 @@ def classify_etf(row: dict) -> dict:
     }
 
 
-def main() -> int:
+def build_rows() -> list[dict]:
     listing = read_csv(LISTING)
     industry_map = {r["industry"]: r["sector_group_id"] for r in read_csv(INDUSTRY_MAP)}
     unknown_groups = sorted(set(industry_map.values()) - set(SECTOR_LABEL))
@@ -151,26 +150,24 @@ def main() -> int:
             base.update(classify_etf(row))
         out.append(base)
 
-    with OUT.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=COLUMNS, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(out)
+    missing_curated = sorted(set(curated) - {r["ticker"] for r in listing})
+    if missing_curated:
+        print(
+            f"[build_etf_master] 사람 분류 중 목록에 없는 종목 {len(missing_curated)}: {missing_curated}",
+            file=sys.stderr,
+        )
+    print(f"[build_etf_master] {len(out):,}종목 분류 (사람 분류 {used_curated} 유지)")
+    return out
 
-    kinds = Counter(r["kind"] for r in listing)
-    print(
-        f"[build_etf_master] {OUT.name}: {len(out):,}종목 "
-        f"(보통주 {kinds['stock']:,} · ETF {kinds['etf']:,}, 사람 분류 {used_curated} 유지)"
-    )
+
+def main() -> int:
+    out = build_rows()
+    kinds = Counter(r["kind"] for r in out)
+    print(f"  보통주 {kinds['stock']:,} · ETF {kinds['etf']:,}")
     print("  자산군", dict(Counter(r["group_id"] for r in out)))
     print("  업종  ", dict(Counter(r["sector"] for r in out)))
     print("  국가  ", dict(Counter(r["country"] for r in out)))
     print("  레버리지", sum(r["is_leveraged"] == "true" for r in out))
-    missing_curated = sorted(set(curated) - {r["ticker"] for r in listing})
-    if missing_curated:
-        print(
-            f"  사람 분류 중 목록에 없는(상장폐지 등) 종목 {len(missing_curated)}: {missing_curated}",
-            file=sys.stderr,
-        )
     return 0
 
 

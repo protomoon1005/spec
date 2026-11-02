@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""db/seeds/04_etf_master.csv 를 instruments 테이블(종목 원장)에 적재한다.
+"""종목 원장을 instruments 테이블에 적재한다.
 
-원장은 국내 상장 보통주와 ETF 전체다(기반 정리 3단계, 결정 2). 시드는
-scripts/build_etf_master.py 가 data/listing.csv 에서 만든다 — 파일 이름은 2장 원칙대로 그대로 둔다.
+원장은 국내 상장 보통주와 ETF 전체다(기반 정리 3단계, 결정 2). 행은
+scripts/build_etf_master.py 의 build_rows() 가 data/listing.csv 를 분류해 만든다.
 
 instruments 는 자산군/섹터/국가 세 축을 asset_group_id/sector_group_id/country_group_id
 컬럼으로 나눠 받는다. CSV의 group_id 컬럼값
@@ -29,13 +29,10 @@ group_id가 비어 있는 행(risk_tag/group_id/sector를 사람이 아직 검�
 """
 from __future__ import annotations
 
-import csv
 import os
 import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CSV = REPO_ROOT / "db" / "seeds" / "04_etf_master.csv"
+from build_etf_master import build_rows
 
 # instruments 테이블 컬럼 (asset_group_id/sector_group_id/country_group_id는
 # CSV에 직접 없다 — group_id/sector/country를 아래 매핑으로 변환해 채운다)
@@ -93,11 +90,6 @@ def _to_null(value: str) -> str | None:
     return value if value else None
 
 
-def load_rows(csv_path: Path) -> list[dict]:
-    with csv_path.open(encoding="utf-8-sig", newline="") as f:
-        return list(csv.DictReader(f))
-
-
 def resolve_group_axes(rows: list[dict], known_group_ids: set[str]) -> list[dict]:
     """각 행의 group_id(자산군)/sector/country를 세 축 group_id로 변환한다.
 
@@ -149,16 +141,9 @@ def resolve_group_axes(rows: list[dict], known_group_ids: set[str]) -> list[dict
 
 
 def main() -> int:
-    import argparse
-
     from sqlalchemy import create_engine, text
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
-    args = parser.parse_args()
-
-    rows = load_rows(args.csv)
-    print(f"load_etf_master: {args.csv}에서 {len(rows)}행 읽음")
+    rows = build_rows()
 
     skipped = [r["ticker"] for r in rows if not r["group_id"].strip()]
     if skipped:

@@ -3,7 +3,7 @@
 
 ## 무엇을 만드나
 
-  data/listing.csv                       종목 목록 (git) — 원장 시드(04_etf_master.csv)의 재료
+  data/listing.csv                       종목 목록 (git) — 종목 원장의 재료
   data/snapshot/prices-<버전>.parquet    가격 스냅샷 (git 밖, GitHub Release 로 공유)
   data/prices_snapshot.json              스냅샷 메타 (git) — 버전 · 소스 · 기간 · 종목 수 · 해시 · 정리 규칙
 

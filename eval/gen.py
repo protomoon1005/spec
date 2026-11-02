@@ -1,5 +1,5 @@
 # 평가 데이터셋 초안 생성기. dataset.jsonl, review.csv 를 만든다.
-# 경로는 모두 이 파일 위치 기준(ref/, cache/, ../db/seeds/). 네트워크를 쓰지 않는다.
+# 경로는 모두 이 파일 위치 기준(ref/, cache/, ../data/). 네트워크를 쓰지 않는다.
 import csv
 import json
 import random
@@ -12,7 +12,7 @@ from resolve import dividend_flag, resolve  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 REF = HERE / "ref"
-ETF_MASTER = HERE.parent / "db" / "seeds" / "04_etf_master.csv"
+ETF_MASTER = HERE.parent / "data" / "listing.csv"
 
 NAMES = {}
 for m in ("KOSPI", "KOSDAQ"):

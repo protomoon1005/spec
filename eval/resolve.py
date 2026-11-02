@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REF = HERE / "ref"
 CACHE = HERE / "cache"
-ETF_MASTER = HERE.parent / "db" / "seeds" / "04_etf_master.csv"  # 저장소 eval/ 기준 ../db/seeds
+ETF_MASTER = HERE.parent / "data" / "listing.csv"  # 저장소 eval/ 기준 ../data
 
 
 def _load(market, day):

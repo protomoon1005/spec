@@ -45,7 +45,7 @@ scripts/build_db.sh      # 볼륨 삭제, 기동, 스키마, 기준 시드 · �
 ```sh
 docker compose exec api python /repo/scripts/fetch_prices.py                      # API 에서 받기
 docker compose exec api python /repo/scripts/fetch_prices.py --from-raw /repo/data/raw --version 2026-11-02
-docker compose exec api python /repo/scripts/build_etf_master.py                  # 종목 원장 시드 다시 만들기
+docker compose exec api python /repo/scripts/build_etf_master.py                  # 종목 원장 분류 집계 보기
 ```
 
 - 새 버전 파일을 GitHub Release 에 올리고 `data/prices_snapshot.json` 의 url 을 채워 커밋한다. 옛 버전 파일은 지우지 않는다(수정주가 재계산으로 과거 값이 바뀔 수 있다)
