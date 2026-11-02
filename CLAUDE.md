@@ -59,7 +59,7 @@ docker compose logs -f                      # 로그
   - 적재: `scripts/ingest_prices.py`. 스냅샷이 `data/snapshot/` 에 없으면 메타의 url 에서 받고, 파일 해시와 적재한 내용 해시를 메타와 맞춰 본다
   - 소스는 네이버 금융 차트 API(수정주가). 상장폐지 종목은 없다(생존편향, 메타의 excluded)
 - 종목 원장
-  - `scripts/build_etf_master.py` 가 `data/listing.csv` 와 `db/seeds/industry_sector_map.csv`(보통주 업종), `db/seeds/etf_curated.csv`(예전에 사람이 분류한 ETF)로 `db/seeds/04_etf_master.csv` 를 만든다. 적재는 `scripts/load_etf_master.py`(seed_all 이 부른다)
+  - `scripts/build_etf_master.py` 가 `data/listing.csv` 와 `db/seeds/industry_sector_map.csv`(보통주 업종), `db/seeds/etf_curated.csv`(예전에 사람이 분류한 ETF)로 원장 행을 분류한다(파일로 쓰지 않는다). `scripts/load_etf_master.py`(seed_all 이 부른다)가 그 행을 바로 적재한다
 - 테스트
   - `tests/conftest.py` 가 `CELERY_TASK_ALWAYS_EAGER=true` 를 넣는다
   - 테스트는 테스트 전용 DB 만 쓴다. `tests/conftest.py` 가 `DATABASE_URL` 의 DB 이름을 `<이름>_test` 로 바꿔 강제로 넣는다(`TEST_DATABASE_URL` 로 따로 줄 수 있다). 개발 DB 는 테스트로 바뀌지 않는다
@@ -95,5 +95,5 @@ docker compose logs -f                      # 로그
   - 개인 데이터(계정, 전략서, 검증 기록, 백테스트 결과)만 각자 DB 에 쌓인다
   - dev DB 서버는 두지 않는다
 - 스키마 정본은 `docs/db-erd.md`. 테이블 11개: users, strategies, strategy_assets, validation_logs, backtest_runs, backtest_metrics, instruments, asset_groups, price_daily, strategy_elements, strategy_element_tags
-  - 2단계에서 테이블 · 칸 이름을 바꿨다(`docs/pivot-plan.md` 3.2). 모듈 · 파일 이름(`repositories/etf_master.py`, `bbl.py`, `specs.py`, `scripts/load_etf_master.py`, `db/seeds/04_etf_master.csv`)은 그대로다
+  - 2단계에서 테이블 · 칸 이름을 바꿨다(`docs/pivot-plan.md` 3.2). 모듈 · 파일 이름(`repositories/etf_master.py`, `bbl.py`, `specs.py`, `scripts/load_etf_master.py`)은 그대로다
 - 알려진 설계 구멍은 `docs/known-issues.md` 에 기록한다
