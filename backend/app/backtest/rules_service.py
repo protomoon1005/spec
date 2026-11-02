@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date
 
-from app.backtest import rules_engine, taxes
+from app.backtest import allocation_engine, rules_engine, taxes
 from app.contracts.strategy_v0_2 import StrategyV0_2
 from app.repositories import etf_master, price_daily
 
@@ -21,6 +21,7 @@ MARKET_PROXY_NOTE = "코스피 지수 대신 KODEX 200(069500)을 사서 들고 
 NOTES = (
     "판단은 그날 종가까지의 데이터로 하고, 체결은 다음 거래일 시가에 합니다",
     "기간 끝까지 들고 있는 종목은 팔지 않고 마지막 종가로 평가만 했습니다. 그래서 그 종목의 세금은 없습니다",
+    "1주 단위로 사고팔아 목표 비중과 실제 비중이 조금 다를 수 있습니다",
     "배당은 반영하지 않았습니다",
     "지금 상장된 종목만 있어서(상장폐지 종목 제외) 성과가 실제보다 좋게 나올 수 있습니다",
 )
@@ -68,7 +69,9 @@ def run_rules_backtest(spec: StrategyV0_2) -> RulesBacktest:
         for t in tickers
     }
 
-    result = rules_engine.run_rules(spec, bars, calendar, categories)
+    # 사고파는 조건이 있으면 조건형, 없으면 자산 배분형 엔진(docs/v0.2-plan.md 9단계)
+    engine = rules_engine.run_rules if spec.is_rules_strategy else allocation_engine.run_allocation
+    result = engine(spec, bars, calendar, categories)
     fractions = rules_engine.slot_fractions(spec, sorted(tickers))
     capital = spec.backtest.capital
     hold_same = rules_engine.run_buy_and_hold(fractions, bars, calendar, capital)
@@ -112,3 +115,31 @@ def _other_subjects(spec: StrategyV0_2) -> set[str]:
                     out.add(operand.of)
     return out
 
+
+
+def to_run_record(result: RulesBacktest) -> tuple[dict, dict]:
+    # backtest_metrics 칸(cagr · mdd · win_rate · benchmark_cagr)과 window_results(JSONB)에 넣을 모양.
+    # sharpe · sortino 는 v0.2 에서 내지 않는다(비워 둔다)
+    market = result.benchmarks["hold_market_proxy"]["metrics"]
+    metrics = {"cagr": result.metrics.get("cagr"), "mdd": result.metrics.get("mdd"),
+               "win_rate": result.metrics.get("win_rate"), "benchmark_cagr": market.get("cagr")}
+    by_day: dict = {}
+    for key, equity in (("strategy", result.equity),
+                        ("hold_same", result.benchmarks["hold_same"]["equity"]),
+                        ("market_proxy", result.benchmarks["hold_market_proxy"]["equity"])):
+        for day, value in equity:
+            by_day.setdefault(day.isoformat(), {"date": day.isoformat()})[key] = round(value, 2)
+    window = {
+        "engine": "rules_v0_2",
+        "summary": {"strategy": result.metrics, "hold_same": result.benchmarks["hold_same"]["metrics"],
+                    "market_proxy": market},
+        "series": list(by_day.values()),
+        "fills": result.fills,
+        "trades": result.trades,
+        "unfilled": result.unfilled,
+        "same_day_conflicts": result.same_day_conflicts,
+        "holdings_at_end": result.holdings_at_end,
+        "names": result.names,
+        "notes": list(result.notes),
+    }
+    return metrics, window

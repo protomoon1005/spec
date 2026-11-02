@@ -62,6 +62,7 @@ class _Order:
     side: str  # buy · sell
     decided_on: date
     amount: float = 0.0  # buy 일 때 자리 금액
+    target_weight: float = 0.0  # 평가가 주문을 비교하는 목표 비중. buy 는 자리 비율, sell 은 0
 
 
 @dataclass
@@ -146,7 +147,7 @@ def run_rules(
             if order is None:
                 continue
             if order == "buy":
-                pending[ticker] = _Order("buy", day, amount=equity * slot[ticker])
+                pending[ticker] = _Order("buy", day, amount=equity * slot[ticker], target_weight=slot[ticker])
             else:
                 pending[ticker] = _Order("sell", day)
         if last_day:
@@ -251,6 +252,7 @@ def _buy(ticker, day, k, open_price, order, positions, cash, result) -> float:
     result.fills.append({
         "date": day, "ticker": ticker, "side": "buy", "shares": shares, "price": price,
         "fee": fee, "tax": 0.0, "decided_on": order.decided_on, "cash_after": cash,
+        "target_weight": order.target_weight,
     })
     return cash
 
@@ -267,6 +269,7 @@ def _sell(ticker, day, k, open_price, order, positions, categories, cash, result
     result.fills.append({
         "date": day, "ticker": ticker, "side": "sell", "shares": pos.shares, "price": price,
         "fee": fee, "tax": tax, "decided_on": order.decided_on, "cash_after": cash,
+        "target_weight": 0.0,
     })
     cost = pos.shares * pos.buy_price + pos.buy_fee
     pnl = proceeds - fee - tax - cost

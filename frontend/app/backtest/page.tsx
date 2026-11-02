@@ -1,76 +1,66 @@
 "use client";
 
-// 백테스트.
+// 백테스트 (전략서 v0.2).
 //
-// 이번 탭에서 완료한 전략서(strategy_id)가 있으면 그 전략서로 백테스트를 돌린다.
-// POST /backtest/runs 로 접수하고 3초마다 GET 으로 상태를 받아 한 줄씩 쌓는다.
-// 전략서가 없으면 전략 요청 화면으로 안내한다.
+// 주소의 strategy 로 POST /v2/strategies/{id}/backtest 를 접수하고, 2초마다 GET /v2/backtests/{run_id} 로
+// 상태를 받는다. 같은 탭에서 같은 전략서로 이미 접수했으면 새로 돌리지 않고 그 실행을 다시 조회한다.
 //
-// 도는 동안은 경과 시계와 흐르는 막대, 상태 로그는 "실행 기록" 으로 접는다.
-// 실패 중 "러너가 지원하지 않는 리밸런싱 규칙" 은 풀어 쓰고 원문은 작게 남긴다.
+// 결과(설계 문서 "데모 범위와 조건형 백테스트")
+//   - 핵심 지표: 최종 수익률, 연환산 수익률, 최대 낙폭, 거래 수와 이긴 거래 비율
+//   - 비교 기준 두 가지: 같은 종목을 시작일에 사서 들고 있기, KODEX 200 사서 들고 있기(코스피 지수 대신)
+//   - 평가액 곡선 세 줄, 거래 기록, 체결하지 못한 주문, 끝까지 들고 있는 종목, 서버가 붙인 안내
+// 실패하면 서버가 남긴 이유를 그대로 보여 준다(예: 지수 · VIX 조건은 데모 범위 밖).
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import RequireLogin from "@/components/require-login";
 import ScaffoldShell from "@/components/scaffold-shell";
-import { api, type BacktestRun, loadBacktestRun, loadCompileResult, saveBacktestRun } from "@/lib/api";
+import { C, MONO } from "@/components/report/tokens";
+import { api, loadBacktestRun, saveBacktestRun } from "@/lib/api";
+import { pct, won, type BacktestV2, type Summary } from "@/lib/v2";
 
-const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
-
-// 데모 계획 1.4 의 평가 구간 끝. 시작일은 서버 기본값(2023-01-01)을 쓴다.
-const REQUEST_PERIOD_END = "2025-12-31";
-const POLL_MS = 3000;
-
-const SERIES = [
-  { key: "strategy", label: "전략" },
-  { key: "market", label: "시장 (KODEX 200 매수 후 보유)" },
-] as const;
-
-type SeriesTotals = Record<(typeof SERIES)[number]["key"], { total: number; mdd: number }>;
+const POLL_MS = 2000;
 
 export default function BacktestPage() {
-  const [specId, setSpecId] = useState<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    const r = loadCompileResult();
-    setSpecId(r?.status === "completed" ? r.strategy_id : null);
-  }, []);
-
   return (
-    <ScaffoldShell>
+    <ScaffoldShell wide>
       <main>
         <h1>백테스트</h1>
-        <p>이 화면에서 하는 일: 전략을 과거 데이터로 돌려 본 결과를 확인한다.</p>
+        <p>이 화면에서 하는 일: 전략서를 과거 가격으로 돌려 본 결과를 확인한다.</p>
         <RequireLogin>
-          {() => <Body specId={specId} />}
+          {() => (
+            <Suspense fallback={<p className="flow-state">불러오는 중…</p>}>
+              <Body />
+            </Suspense>
+          )}
         </RequireLogin>
       </main>
     </ScaffoldShell>
   );
 }
 
-function Body({ specId }: { specId: string | null | undefined }) {
-  if (specId === undefined) return <p className="flow-state">불러오는 중…</p>;
-  if (specId) return <LiveRun specId={specId} />;
-  return (
-    <p className="flow-msg" style={{ marginTop: 0 }}>
-      이번 탭에서 완료한 전략서가 없어요. <Link href="/compile">전략 요청</Link>에서 전략서를 먼저 만들어 주세요.
-    </p>
-  );
+function Body() {
+  const specId = useSearchParams().get("strategy");
+  if (!specId) {
+    return (
+      <p className="flow-msg" style={{ marginTop: 0 }}>
+        백테스트할 전략서가 없어요. <Link href="/compile">전략 요청</Link>에서 전략서를 먼저 만들어 주세요.
+      </p>
+    );
+  }
+  return <LiveRun specId={specId} />;
 }
 
 function LiveRun({ specId }: { specId: string }) {
-  const [log, setLog] = useState<string[]>([]);
-  const [run, setRun] = useState<BacktestRun | null>(null);
+  const [run, setRun] = useState<BacktestV2 | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const finished = run?.status === "done" || run?.status === "failed" || error !== null;
   const started = useRef(false);
   const alive = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // 화면을 떠나면 폴링을 멈춘다. 접수 effect 와 떼어 두는 이유는 아래 주석.
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -79,32 +69,19 @@ function LiveRun({ specId }: { specId: string }) {
     };
   }, []);
 
-  // 끝날 때까지 시계를 돌린다.
   useEffect(() => {
-    if (finished) return;
-    const t0 = Date.now();
-    const tick = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
-    return () => clearInterval(tick);
-  }, [finished]);
-
-  useEffect(() => {
-    // 개발 모드는 effect 를 두 번 돌린다. 접수가 두 번 되지 않게 막는다 — 그래서
-    // 이 effect 는 두 번째에 정리 함수를 돌려주지 못하고, 정리는 위 effect 가 맡는다.
+    // 개발 모드는 effect 를 두 번 돌린다. 접수가 두 번 되지 않게 막는다.
     if (started.current) return;
     started.current = true;
 
-    const add = (line: string) => setLog((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
-
     async function poll(runId: number) {
       try {
-        const r = await api<BacktestRun>(`/backtest/runs/${runId}`);
-        add(`상태: ${r.status}`);
+        const r = await api<BacktestV2>(`/v2/backtests/${runId}`);
         setRun(r);
         if (alive.current && r.status !== "done" && r.status !== "failed") {
           timer.current = setTimeout(() => poll(runId), POLL_MS);
         }
       } catch (err) {
-        add(`조회 실패 — ${err instanceof Error ? err.message : String(err)}`);
         setError(`결과를 받지 못했어요: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
@@ -112,19 +89,16 @@ function LiveRun({ specId }: { specId: string }) {
     async function start() {
       const saved = loadBacktestRun(specId);
       if (saved) {
-        add(`이 전략서로 접수한 실행 ${saved.run_id} 를 다시 조회합니다`);
         await poll(saved.run_id);
         return;
       }
       try {
-        const r = await api<BacktestRun>("/backtest/runs", {
-          body: { strategy_id: specId, period_end: REQUEST_PERIOD_END },
+        const r = await api<{ run_id: number }>(`/v2/strategies/${encodeURIComponent(specId)}/backtest`, {
+          method: "POST",
         });
         saveBacktestRun({ strategy_id: specId, run_id: r.run_id });
-        add(`접수됨: 실행 번호 ${r.run_id}, 상태 ${r.status}`);
         await poll(r.run_id);
       } catch (err) {
-        add(`접수 실패 — ${err instanceof Error ? err.message : String(err)}`);
         setError(`백테스트를 접수하지 못했어요: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
@@ -132,136 +106,189 @@ function LiveRun({ specId }: { specId: string }) {
     start();
   }, [specId]);
 
-  const done = run?.status === "done";
-  const failed = run?.status === "failed" || error !== null;
-
-  return (
-    <>
-      <p className="flow-hint" style={{ marginBottom: 10 }}>
-        전략서 <span className="mono">{specId}</span> 로 백테스트를 돌립니다.
-      </p>
-      {!finished && (
-        <>
-          <div className="flow-run-head">
-            <b>백테스트를 돌리고 있어요{run?.status ? ` · ${run.status}` : ""}</b>
-            <span className="mono flow-run-clock">{clock(elapsed)}</span>
-          </div>
-          <div className="flow-indeterminate" aria-hidden="true" />
-        </>
-      )}
-      {done && <Result run={run} />}
-      {failed && <Failure reason={run?.reason ?? error} />}
-
-      <details className="flow-details">
-        <summary>실행 기록</summary>
-        <ul className="flow-log" aria-live="polite">
-          {log.map((line, i) => (
-            <li key={i}>{line}</li>
-          ))}
-        </ul>
-      </details>
-    </>
-  );
-}
-
-// 서버 문장을 풀어 쓰고 원문은 작게 남긴다.
-function Failure({ reason }: { reason: string | null | undefined }) {
-  const raw = reason ?? "이유를 받지 못했어요";
-  const rebalance = raw.startsWith("러너가 지원하지 않는 리밸런싱 규칙");
-  return (
-    <div className="flow-msg err" role="alert">
-      <p style={{ color: "var(--c-bright)" }}>
-        {rebalance
-          ? "이 전략서의 리밸런싱 규칙은 아직 백테스트할 수 없어요. 지금은 리밸런싱 블록 5개(매달 첫 거래일 · 매달 15일 · 분기 · 매주 · 비중 이탈 5%)만 돌릴 수 있어요."
-          : `실패 이유: ${raw}`}
-      </p>
-      {rebalance && (
-        <p className="mono flow-hint" style={{ marginTop: 6, fontSize: 11 }}>
-          {raw}
+  if (error) return <p className="flow-msg err">{error}</p>;
+  if (!run || (run.status !== "done" && run.status !== "failed")) {
+    return (
+      <>
+        <div className="flow-run-head">
+          <b>백테스트를 돌리고 있어요{run?.status ? ` · ${run.status}` : ""}</b>
+        </div>
+        <div className="flow-indeterminate" aria-hidden="true" />
+      </>
+    );
+  }
+  if (run.status === "failed") {
+    return (
+      <div className="flow-msg err" role="alert">
+        <p style={{ color: "var(--c-bright)" }}>백테스트를 하지 못했어요: {run.reason ?? "이유를 받지 못했어요"}</p>
+        <p style={{ marginTop: 8 }}>
+          <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
         </p>
-      )}
-      <p style={{ marginTop: 8 }}>
-        <Link href="/compile?retry=1">전략 다시 요청 — 방금 쓴 문장으로</Link>
-      </p>
-    </div>
-  );
+      </div>
+    );
+  }
+  return <Result run={run} specId={specId} />;
 }
 
-// 87 → 01:27
-function clock(sec: number): string {
-  return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
-}
+function Result({ run, specId }: { run: BacktestV2; specId: string }) {
+  const s = run.summary!;
+  const names = run.names ?? {};
+  const name = (t: string) => names[t] ?? t;
+  const trades = run.trades ?? [];
+  const wins = trades.filter((t) => t.pnl > 0).length;
 
-function Result({ run }: { run: BacktestRun }) {
   return (
     <>
-      <h2>결과 (실행 번호 {run.run_id})</h2>
-      {run.summary && <SeriesTable totals={run.summary} />}
-      <dl className="flow-kv" style={{ marginTop: 16 }}>
-        <dt>기간</dt>
-        <dd>
-          {run.period_start} ~ {run.period_end} (실제로 쓴 마지막 거래일 {run.data_snapshot_asof})
-        </dd>
-        <dt>리밸런싱 일정</dt>
-        <dd className="prose">{run.schedule?.note}</dd>
-        <dt>서버 지표</dt>
-        <dd>
-          <ServerMetrics m={run.metrics} />
-        </dd>
-      </dl>
-      {run.status === "done" && (
-        <nav className="flow-menu" style={{ marginTop: 20 }} aria-label="결과 자세히 보기">
-          <Link href={`/report?run_id=${run.run_id}`}>
-            <b>이 실행의 자세한 리포트 보기</b>
-            <span>수익 곡선, 핵심 지표, 리밸런싱 기록</span>
-          </Link>
-        </nav>
+      <p className="flow-hint" style={{ marginBottom: 12 }}>
+        {run.period_start} ~ {run.period_end} · 시작 {won(run.seed_money)} ·{" "}
+        <Link href={`/compile/done?strategy=${encodeURIComponent(specId)}`}>전략서 보기</Link>
+      </p>
+
+      <div className="flow-tiles">
+        <Tile label="최종 수익률" value={pct(s.strategy.total_return)} tone={s.strategy.total_return}
+              sub={`최종 평가액 ${won(s.strategy.final_value)}`} />
+        <Tile label="연환산 수익률" value={pct(s.strategy.cagr)} tone={s.strategy.cagr ?? 0}
+              sub={`KODEX 200 보유 ${pct(s.market_proxy.cagr)}`} />
+        <Tile label="최대 낙폭" value={pct(s.strategy.mdd)} tone={-1} sub="평가액 고점 대비 가장 크게 빠진 폭" />
+        <Tile label="거래" value={`${trades.length}회`}
+              sub={trades.length ? `이긴 거래 ${wins}회 (${pct(wins / trades.length, 0)})` : "사고판 적이 없어요"} />
+      </div>
+
+      <h2>비교</h2>
+      <div className="flow-table">
+        <table style={{ minWidth: 520 }}>
+          <thead>
+            <tr>
+              <th>무엇</th>
+              <th className="num">최종 수익률</th>
+              <th className="num">연환산</th>
+              <th className="num">최대 낙폭</th>
+              <th className="num">최종 평가액</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Row label="이 전략" s={s.strategy} strong />
+            <Row label="같은 종목을 시작일에 사서 들고 있기" s={s.hold_same} />
+            <Row label="KODEX 200 사서 들고 있기 (코스피 대신)" s={s.market_proxy} />
+          </tbody>
+        </table>
+      </div>
+
+      <h2>평가액</h2>
+      <section className="flow-card" style={{ height: 320 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={run.series ?? []} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+            <XAxis dataKey="date" tick={{ fill: C.muted, fontSize: 11 }} tickLine={false} minTickGap={48} />
+            <YAxis
+              tickFormatter={(v: number) => `${Math.round(v / 10_000).toLocaleString("ko-KR")}만`}
+              tick={{ fill: C.muted, fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={64}
+              domain={["auto", "auto"]}
+            />
+            <Tooltip
+              formatter={(v: number) => won(v)}
+              contentStyle={{ background: C.surface2, border: `1px solid ${C.border}`, fontFamily: MONO, fontSize: 12 }}
+            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Line type="monotone" dataKey="strategy" name="이 전략" stroke={C.accent} dot={false} strokeWidth={2} />
+            <Line type="monotone" dataKey="hold_same" name="같은 종목 보유" stroke={C.warn} dot={false} strokeWidth={1.5} />
+            <Line type="monotone" dataKey="market_proxy" name="KODEX 200 보유" stroke={C.muted} dot={false} strokeWidth={1.5} />
+          </LineChart>
+        </ResponsiveContainer>
+      </section>
+
+      <h2>거래 기록</h2>
+      {trades.length === 0 ? (
+        <p className="flow-hint">이 기간에 사고판 거래가 없어요.</p>
+      ) : (
+        <div className="flow-table">
+          <table style={{ minWidth: 640 }}>
+            <thead>
+              <tr>
+                <th>종목</th>
+                <th>산 날</th>
+                <th className="num">산 값</th>
+                <th>판 날</th>
+                <th className="num">판 값</th>
+                <th className="num">수량</th>
+                <th className="num">보유 일수</th>
+                <th className="num">손익(비용 · 세금 뺀)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.map((t, i) => (
+                <tr key={i}>
+                  <td>{name(t.ticker)}</td>
+                  <td className="mono">{t.buy_date}</td>
+                  <td className="num">{won(t.buy_price)}</td>
+                  <td className="mono">{t.sell_date}</td>
+                  <td className="num">{won(t.sell_price)}</td>
+                  <td className="num">{t.shares.toLocaleString("ko-KR")}주</td>
+                  <td className="num">{t.holding_days}일</td>
+                  <td className="num" style={{ color: t.pnl >= 0 ? "var(--c-profit)" : "var(--c-loss)" }}>
+                    {won(t.pnl)} ({pct(t.return)})
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      <dl className="flow-kv" style={{ marginTop: 16 }}>
+        <dt>끝까지 들고 있는 종목</dt>
+        <dd>
+          {Object.keys(run.holdings_at_end ?? {}).length === 0
+            ? "없음"
+            : Object.entries(run.holdings_at_end ?? {})
+                .map(([t, n]) => `${name(t)} ${n.toLocaleString("ko-KR")}주`)
+                .join(", ")}
+        </dd>
+        <dt>체결하지 못한 주문</dt>
+        <dd>
+          {(run.unfilled ?? []).length === 0
+            ? "없음"
+            : (run.unfilled ?? []).map((u) => `${name(u.ticker)} ${u.side === "buy" ? "사기" : "팔기"}(${u.decided_on}): ${u.reason}`).join(" · ")}
+        </dd>
+        <dt>가격 데이터</dt>
+        <dd>{run.data_snapshot_asof} 까지의 스냅샷 · 수수료 0.015% · 체결 오차 0.05% · 세금 포함</dd>
+      </dl>
+
+      <h2>알아 둘 점</h2>
+      <ul>
+        {(run.notes ?? []).map((n) => (
+          <li key={n} className="flow-hint">
+            {n}
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
 
-const tone = (v: number) => (v >= 0 ? "var(--c-profit)" : "var(--c-loss)");
-
-function SeriesTable({ totals }: { totals: SeriesTotals }) {
+function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: number }) {
+  const color = tone === undefined ? undefined : tone >= 0 ? "var(--c-profit)" : "var(--c-loss)";
   return (
-    <div className="flow-table">
-      <table style={{ minWidth: 440 }}>
-        <thead>
-          <tr>
-            <th>계열</th>
-            <th className="num">최종 수익률</th>
-            <th className="num">최대 낙폭</th>
-          </tr>
-        </thead>
-        <tbody>
-          {SERIES.map(({ key, label }) => (
-            <tr key={key}>
-              <td style={key === "strategy" ? { color: "var(--c-bright)", fontWeight: 600 } : undefined}>{label}</td>
-              <td className="num" style={{ color: tone(totals[key].total) }}>
-                {pct(totals[key].total)}
-              </td>
-              <td className="num" style={{ color: "var(--c-loss)" }}>
-                {pct(totals[key].mdd)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <span>{label}</span>
+      <b style={color ? { color } : undefined}>{value}</b>
+      {sub && <small>{sub}</small>}
     </div>
   );
 }
 
-// 서버가 계산한 연환산 지표(backtest_metrics). 전략 기준이고 시장 CAGR 만 시장(KODEX 200) 것이다.
-// 승률은 정의가 문서에 없어 비어 있다(backend/app/backtest/service.py).
-function ServerMetrics({ m }: { m: BacktestRun["metrics"] }) {
-  if (!m) return <span className="flow-hint">없음</span>;
-  const num = (v: number | null, f: (x: number) => string) => (v == null ? "—" : f(v));
-  const ratio = (v: number) => v.toFixed(2);
+function Row({ label, s, strong = false }: { label: string; s: Summary; strong?: boolean }) {
+  const tone = (v: number | null) => (v == null ? undefined : v >= 0 ? "var(--c-profit)" : "var(--c-loss)");
   return (
-    <span className="mono">
-      CAGR {num(m.cagr, pct)} · 샤프 {num(m.sharpe, ratio)} · 소르티노 {num(m.sortino, ratio)} · MDD{" "}
-      {num(m.mdd, pct)} <span className="flow-hint">· 시장 CAGR {num(m.benchmark_cagr, pct)}</span>
-    </span>
+    <tr>
+      <td style={strong ? { color: "var(--c-bright)", fontWeight: 600 } : undefined}>{label}</td>
+      <td className="num" style={{ color: tone(s.total_return) }}>{pct(s.total_return)}</td>
+      <td className="num" style={{ color: tone(s.cagr) }}>{pct(s.cagr)}</td>
+      <td className="num" style={{ color: "var(--c-loss)" }}>{pct(s.mdd)}</td>
+      <td className="num">{won(s.final_value)}</td>
+    </tr>
   );
 }
